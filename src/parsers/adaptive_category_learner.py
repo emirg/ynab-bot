@@ -35,19 +35,61 @@ class AdaptiveCategoryLearner:
                 "accuracy_improvements": 0
             }
         }
+        self._ensure_data_file_exists()
         self.load_learning_data()
+    
+    def _ensure_data_file_exists(self):
+        """Asegura que el directorio data/ y el archivo de aprendizaje existan"""
+        try:
+            # Crear directorio data/ si no existe
+            data_dir = os.path.dirname(self.data_file)
+            if not os.path.exists(data_dir):
+                os.makedirs(data_dir, exist_ok=True)
+                logger.info(f"📁 Directorio creado: {data_dir}")
+            
+            # Crear archivo de aprendizaje si no existe
+            if not os.path.exists(self.data_file):
+                with open(self.data_file, 'w', encoding='utf-8') as f:
+                    json.dump(self.learning_data, f, indent=2, ensure_ascii=False)
+                logger.info(f"📄 Archivo de aprendizaje creado: {self.data_file}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error creando estructura de datos: {e}")
+            # Si no se puede crear el archivo, usar un archivo temporal en el directorio actual
+            fallback_file = "category_learning_data_fallback.json"
+            logger.warning(f"⚠️ Usando archivo de respaldo: {fallback_file}")
+            self.data_file = fallback_file
     
     def load_learning_data(self):
         """Carga los datos de aprendizaje desde archivo"""
         try:
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'r', encoding='utf-8') as f:
-                    self.learning_data = json.load(f)
-                logger.info(f"Datos de aprendizaje cargados: {len(self.learning_data['payee_category_mapping'])} asociaciones")
+                    loaded_data = json.load(f)
+                
+                # Verificar si el archivo tiene la estructura correcta
+                if 'payee_category_mapping' in loaded_data:
+                    self.learning_data = loaded_data
+                    associations_count = len(self.learning_data['payee_category_mapping'])
+                    if associations_count > 0:
+                        logger.info(f"📊 Datos de aprendizaje cargados: {associations_count} asociaciones")
+                    else:
+                        logger.info("📋 Archivo de aprendizaje cargado (vacío, listo para aprender)")
+                else:
+                    # Archivo existe pero no tiene la estructura correcta, reinicializar
+                    logger.warning("⚠️ Archivo de aprendizaje con estructura incorrecta, reinicializando")
+                    self._save_data()
             else:
-                logger.info("Archivo de aprendizaje no existe, iniciando con datos vacíos")
+                # Este caso no debería ocurrir ya que _ensure_data_file_exists() crea el archivo
+                logger.warning("⚠️ Archivo de aprendizaje no encontrado después de creación, usando datos por defecto")
+                self._save_data()
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Error de formato JSON en archivo de aprendizaje: {e}")
+            logger.info("🔄 Reinicializando archivo con estructura correcta")
+            self._save_data()
         except Exception as e:
-            logger.error(f"Error cargando datos de aprendizaje: {e}")
+            logger.error(f"❌ Error cargando datos de aprendizaje: {e}")
+            logger.info("🔄 Usando datos por defecto")
     
     def _save_data(self):
         """Guarda los datos de aprendizaje en el archivo JSON"""
