@@ -261,3 +261,7 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 config/.env.railway.template
+
+# AI
+.claude
+CLAUDE.md
