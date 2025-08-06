@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 from domain.repositories.user_repository import UserRepository
@@ -19,6 +20,11 @@ class SQLiteUserRepository(UserRepository):
     def _init_database(self):
         """Initialize database tables"""
         try:
+            # Create data directory if it doesn't exist
+            data_dir = os.path.dirname(self.db_path)
+            if data_dir:
+                os.makedirs(data_dir, exist_ok=True)
+            
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS user_configurations (
