@@ -35,30 +35,34 @@ class YNABCategoryManager:
             self.categories_cache = {}
             self.category_keywords = {}
             
+            # Grupos de categorías a ignorar para el parsing de gastos
+            ignored_groups = {'Credit Card Payments', 'Long Term Savings'}
+            
             # Procesar categorías
             for category in categories:
                 category_id = category['id']
                 category_name = category['name']
                 group_name = category['group_name']
                 
-                # Guardar en cache
+                # Guardar en cache (todas las categorías para referencia)
                 self.categories_cache[category_id] = {
                     'name': category_name,
                     'group': group_name,
                     'full_name': f"{group_name} - {category_name}"
                 }
                 
-                # Crear palabras clave para búsqueda
-                keywords = self._generate_keywords(category_name, group_name)
-                for keyword in keywords:
-                    if keyword not in self.category_keywords:
-                        self.category_keywords[keyword] = []
-                    self.category_keywords[keyword].append({
-                        'id': category_id,
-                        'name': category_name,
-                        'group': group_name,
-                        'score': self._calculate_keyword_score(keyword, category_name)
-                    })
+                # Solo crear palabras clave para categorías que no están en grupos ignorados
+                if group_name not in ignored_groups:
+                    keywords = self._generate_keywords(category_name, group_name)
+                    for keyword in keywords:
+                        if keyword not in self.category_keywords:
+                            self.category_keywords[keyword] = []
+                        self.category_keywords[keyword].append({
+                            'id': category_id,
+                            'name': category_name,
+                            'group': group_name,
+                            'score': self._calculate_keyword_score(keyword, category_name)
+                        })
             
             logger.info(f"Cargadas {len(self.categories_cache)} categorías de YNAB")
             return True

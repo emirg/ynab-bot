@@ -42,7 +42,10 @@ class SmartExpenseParser:
             if cat_success and self.llm_parser:
                 categories = self.category_manager.get_categories_list()
                 self.llm_parser.update_categories(categories)
-                logger.info("Categorías YNAB cargadas y actualizadas en LLM parser")
+                # Log all loaded categories
+                category_names = [cat['full_name'] for cat in categories]
+                logger.info(f"Categorías YNAB cargadas ({len(categories)} total): {', '.join(category_names)}")
+                logger.info("Categorías YNAB actualizadas en LLM parser")
         
         # Cargar cuentas
         if self.account_manager:

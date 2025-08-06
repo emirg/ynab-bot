@@ -49,32 +49,41 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
     "confidence": <0.0_a_1.0>
 }}
 
-EJEMPLOS:
+EJEMPLOS CORRECTOS:
 - "Me pedi en McDonald's, me gasté como 25 lucas" → amount: 25000.0, category: "🥗 Meal delivery", payee: "McDonald's", account: null
 - "Uber al aeropuerto 80k con mi rappi card" → amount: 80000.0, category: "🚙 Rideshare (Uber/Lyft/etc.)", payee: "Uber", account: "Rappi Card"
 - "Compras del super: 150 mil pesos en efectivo" → amount: 150000.0, category: "🛒 Groceries", payee: "Supermercado", account: "Efectivo"
 - "Netflix mensual 15.900 con bancolombia" → amount: 15900.0, category: "📺Netflix", payee: "Netflix", account: "Bancolombia"
 - "Me gasté $3000 en Carulla con mi Nu Card" → amount: 3000.0, category: "🛒 Groceries", payee: "Carulla", account: "Nu Card"
+- "Compre una botella en MercadoLibre por 12345 con mi nu card → amount: 12345.0, category: "🛍️Shopping (MercadoLibre/Amazon/etc.)", payee: "MercadoLibre", account: "Nu Card" 
+- "Gasté 20k en productos de belleza en Éxito con mi Visa" → amount: 20000.0, category: "🧴 Personal Care", payee: "Éxito", account: "Visa"
 
-⚠️ REGLAS CRÍTICAS:
-1. **CATEGORÍA vs CUENTA**: 
-   - CATEGORÍA = ¿PARA QUÉ es el gasto? (comida, transporte, entretenimiento)
-   - CUENTA = ¿CÓMO se pagó? (tarjeta, efectivo, banco)
+EJEMPLOS INCORRECTOS (NO HACER ESTO):
+- ❌ "Gasté 20k en productos de belleza en Éxito con mi Visa" → category: "Visa", account: null (MAL: usando cuenta como categoría)
+- ❌ "Compré ropa en Zara con mi tarjeta" → category: "tarjeta", account: null (MAL: usando cuenta como categoría)
+
+⚠️ REGLAS CRÍTICAS - ¡ATENCIÓN ESPECIAL A ESTAS REGLAS!:
+1. **CATEGORÍA vs CUENTA - DISTINCIÓN CLAVE**: 
+   - CATEGORÍA = ¿PARA QUÉ es el gasto? (comida, transporte, entretenimiento, cuidado personal, etc.)
+   - CUENTA = ¿CÓMO se pagó? (tarjeta, efectivo, banco - solo nombres de cuentas reales)
    - NUNCA uses nombres de cuentas como categorías
    - NUNCA uses nombres de categorías como cuentas
+   - NUNCA uses palabras genéricas como "tarjeta", "efectivo", "dinero" como categoría
 
-2. **VALIDACIÓN**:
+2. **VALIDACIÓN IMPORTANTE**:
    - La categoría DEBE ser de la lista de categorías YNAB
    - La cuenta DEBE ser de la lista de cuentas YNAB o null
-   - Si "Carulla" → categoría: "Groceries", NO "Nu Card"
+   - Si "Carulla" → categoría: "🛒 Groceries", NO "Nu Card", NO "tarjeta"
    - Si "con mi Nu Card" → account: "Nu Card", NO categoría
+   - Si "productos de belleza" → categoría: "🧴 Personal Care", NO "tarjeta", NO "efectivo"
 
-3. **PROCESAMIENTO**:
-   - Identifica el LUGAR/COMERCIO para determinar categoría
-   - Identifica "con mi", "usando", "en" para determinar cuenta
+3. **PROCESAMIENTO DETALLADO**:
+   - Identifica primero el LUGAR/COMERCIO y el TIPO DE PRODUCTO/SERVICIO para determinar categoría
+   - Identifica "con mi", "usando", "en" + NOMBRE ESPECÍFICO para determinar cuenta
    - Usa EXACTAMENTE los nombres de las listas proporcionadas
    - Si no detectas cuenta específica, usa account: null
-   - Si no puedes parsear el mensaje, devuelve confidence: 0.0
+   - Si no puedes parsear el mensaje con alta confianza, devuelve confidence: 0.0
+   - Si detectas que una cuenta se está usando como categoría, corrige automáticamente
 """
     
     def update_categories(self, categories: list):
