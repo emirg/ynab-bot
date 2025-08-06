@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.formatters import LearningResponseFormatter
+from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.learning_service import LearningService
 from application.services.expense_service import ExpenseService
 
@@ -19,6 +20,7 @@ class LearningHandler(BaseHandler):
         self.expense_service = container.get(ExpenseService)
         self.formatter = LearningResponseFormatter()
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /stats command - show learning statistics"""
         self.log_handler_start("LearningHandler.handle_stats_command", update)
@@ -32,6 +34,7 @@ class LearningHandler(BaseHandler):
             self.log_handler_error("LearningHandler.handle_stats_command", update, e)
             await self.send_error_message(update, f"Error obteniendo estadísticas: {str(e)}")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_recent_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /recent command - show recent transactions"""
         self.log_handler_start("LearningHandler.handle_recent_command", update)
@@ -55,6 +58,7 @@ class LearningHandler(BaseHandler):
             self.log_handler_error("LearningHandler.handle_recent_command", update, e)
             await self.send_error_message(update, f"Error obteniendo transacciones recientes: {str(e)}")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_correction_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /corregir command - correct recent transaction category"""
         self.log_handler_start("LearningHandler.handle_correction_command", update)

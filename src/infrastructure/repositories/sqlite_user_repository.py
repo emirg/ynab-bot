@@ -2,9 +2,9 @@ import sqlite3
 import logging
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from domain.repositories.user_repository import UserRepository
-from domain.models.user import UserConfiguration
+from domain.models.user import UserConfiguration, UserStatus
 from domain.exceptions import YNABBotException
 
 logger = logging.getLogger(__name__)
@@ -29,13 +29,34 @@ class SQLiteUserRepository(UserRepository):
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS user_configurations (
                         telegram_id INTEGER PRIMARY KEY,
+                        status TEXT DEFAULT 'pending',
                         budget_id TEXT,
                         default_account_id TEXT,
                         default_account_name TEXT,
+                        username TEXT,
+                        first_name TEXT,
+                        last_name TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        approved_at TIMESTAMP,
+                        approved_by INTEGER
                     )
                 ''')
+                
+                # Migration for existing tables - add new columns if they don't exist
+                try:
+                    conn.execute('ALTER TABLE user_configurations ADD COLUMN status TEXT DEFAULT "pending"')
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
+                
+                try:
+                    conn.execute('ALTER TABLE user_configurations ADD COLUMN username TEXT')
+                    conn.execute('ALTER TABLE user_configurations ADD COLUMN first_name TEXT')
+                    conn.execute('ALTER TABLE user_configurations ADD COLUMN last_name TEXT')
+                    conn.execute('ALTER TABLE user_configurations ADD COLUMN approved_at TIMESTAMP')
+                    conn.execute('ALTER TABLE user_configurations ADD COLUMN approved_by INTEGER')
+                except sqlite3.OperationalError:
+                    pass  # Columns already exist
                 conn.commit()
                 logger.info(f"User database initialized at {self.db_path}")
         except Exception as e:
@@ -56,11 +77,17 @@ class SQLiteUserRepository(UserRepository):
                 if row:
                     return UserConfiguration(
                         telegram_id=row['telegram_id'],
+                        status=UserStatus(row['status']) if row['status'] else UserStatus.PENDING,
                         budget_id=row['budget_id'],
                         default_account_id=row['default_account_id'],
                         default_account_name=row['default_account_name'],
+                        username=row['username'],
+                        first_name=row['first_name'],
+                        last_name=row['last_name'],
                         created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
-                        updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now()
+                        updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
+                        approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
+                        approved_by=row['approved_by']
                     )
                 return None
         except Exception as e:
@@ -88,15 +115,22 @@ class SQLiteUserRepository(UserRepository):
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
                     INSERT OR REPLACE INTO user_configurations 
-                    (telegram_id, budget_id, default_account_id, default_account_name, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (telegram_id, status, budget_id, default_account_id, default_account_name, 
+                     username, first_name, last_name, created_at, updated_at, approved_at, approved_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     user_config.telegram_id,
+                    user_config.status.value,
                     user_config.budget_id,
                     user_config.default_account_id,
                     user_config.default_account_name,
+                    user_config.username,
+                    user_config.first_name,
+                    user_config.last_name,
                     user_config.created_at.isoformat(),
-                    user_config.updated_at.isoformat()
+                    user_config.updated_at.isoformat(),
+                    user_config.approved_at.isoformat() if user_config.approved_at else None,
+                    user_config.approved_by
                 ))
                 conn.commit()
                 
@@ -120,3 +154,68 @@ class SQLiteUserRepository(UserRepository):
         except Exception as e:
             logger.error(f"Failed to delete user {id}: {e}")
             return False
+    
+    def find_by_status(self, status: UserStatus) -> List[UserConfiguration]:
+        """Find all users with given status"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute(
+                    'SELECT * FROM user_configurations WHERE status = ? ORDER BY created_at DESC',
+                    (status.value,)
+                )
+                rows = cursor.fetchall()
+                
+                users = []
+                for row in rows:
+                    users.append(UserConfiguration(
+                        telegram_id=row['telegram_id'],
+                        status=UserStatus(row['status']),
+                        budget_id=row['budget_id'],
+                        default_account_id=row['default_account_id'],
+                        default_account_name=row['default_account_name'],
+                        username=row['username'],
+                        first_name=row['first_name'],
+                        last_name=row['last_name'],
+                        created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
+                        updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
+                        approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
+                        approved_by=row['approved_by']
+                    ))
+                
+                return users
+        except Exception as e:
+            logger.error(f"Failed to find users by status {status}: {e}")
+            return []
+    
+    def find_all(self) -> List[UserConfiguration]:
+        """Find all users"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute(
+                    'SELECT * FROM user_configurations ORDER BY created_at DESC'
+                )
+                rows = cursor.fetchall()
+                
+                users = []
+                for row in rows:
+                    users.append(UserConfiguration(
+                        telegram_id=row['telegram_id'],
+                        status=UserStatus(row['status']) if row['status'] else UserStatus.PENDING,
+                        budget_id=row['budget_id'],
+                        default_account_id=row['default_account_id'],
+                        default_account_name=row['default_account_name'],
+                        username=row['username'],
+                        first_name=row['first_name'],
+                        last_name=row['last_name'],
+                        created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
+                        updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
+                        approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
+                        approved_by=row['approved_by']
+                    ))
+                
+                return users
+        except Exception as e:
+            logger.error(f"Failed to find all users: {e}")
+            return []

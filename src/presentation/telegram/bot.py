@@ -6,6 +6,7 @@ from presentation.telegram.handlers.general_handler import GeneralHandler
 from presentation.telegram.handlers.config_handler import ConfigHandler
 from presentation.telegram.handlers.learning_handler import LearningHandler
 from presentation.telegram.handlers.expense_handler import ExpenseHandler
+from presentation.telegram.handlers.admin_handler import AdminHandler
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class YNABTelegramBot:
         self.config_handler = ConfigHandler(container)
         self.learning_handler = LearningHandler(container)
         self.expense_handler = ExpenseHandler(container)
+        self.admin_handler = AdminHandler(container)
         
         # Initialize Telegram application
         self.application = Application.builder().token(self.config.telegram_token).build()
@@ -47,8 +49,16 @@ class YNABTelegramBot:
         self.application.add_handler(CommandHandler("recent", self.learning_handler.handle_recent_command))
         self.application.add_handler(CommandHandler("corregir", self.learning_handler.handle_correction_command))
         
-        # Callback query handler for inline keyboards
+        # Admin commands
+        self.application.add_handler(CommandHandler("admin", self.admin_handler.handle_admin_command))
+        self.application.add_handler(CommandHandler("pending", self.admin_handler.handle_pending_users))
+        self.application.add_handler(CommandHandler("users", self.admin_handler.handle_all_users))
+        self.application.add_handler(CommandHandler("approve", self.admin_handler.handle_approve_user))
+        self.application.add_handler(CommandHandler("block", self.admin_handler.handle_block_user))
+        
+        # Callback query handlers for inline keyboards
         self.application.add_handler(CallbackQueryHandler(self.config_handler.handle_callback_query))
+        self.application.add_handler(CallbackQueryHandler(self.admin_handler.handle_admin_callback))
         
         # Message handlers (order matters - more specific first)
         self.application.add_handler(MessageHandler(filters.VOICE, self.expense_handler.handle_voice_message))

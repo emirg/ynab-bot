@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.formatters import GeneralResponseFormatter
+from presentation.telegram.middleware.auth_middleware import require_authentication
 
 logger = logging.getLogger(__name__)
 
@@ -16,18 +17,54 @@ class GeneralHandler(BaseHandler):
         self.formatter = GeneralResponseFormatter()
     
     async def handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /start command"""
+        """Handle /start command - registration/welcome for all users"""
         self.log_handler_start("GeneralHandler.handle_start_command", update)
         
-        try:
-            message = self.formatter.format_welcome_message()
-            await self.send_message(update, message)
-            self.log_handler_success("GeneralHandler.handle_start_command", update)
+        # Special handling for /start - allow all users to register/see welcome
+        user = update.effective_user
+        if user:
+            auth_service = self.container.get_auth_service()
+            user_config = auth_service.register_user(user)
             
-        except Exception as e:
-            self.log_handler_error("GeneralHandler.handle_start_command", update, e)
-            await self.send_error_message(update, f"Error mostrando mensaje de bienvenida: {str(e)}")
+            # Show appropriate message based on user status
+            if user_config.is_authorized():
+                # Authorized user gets full welcome
+                try:
+                    message = self.formatter.format_welcome_message()
+                    await self.send_message(update, message)
+                    self.log_handler_success("GeneralHandler.handle_start_command", update)
+                    return
+                except Exception as e:
+                    self.log_handler_error("GeneralHandler.handle_start_command", update, e)
+                    await self.send_error_message(update, f"Error mostrando mensaje de bienvenida: {str(e)}")
+                    return
+            
+            elif user_config.is_pending():
+                # Pending user gets registration confirmation
+                await update.message.reply_text(
+                    f"👋 **¡Hola {user_config.get_display_name()}!**\n\n"
+                    "📝 Te has registrado exitosamente en el bot YNAB.\n\n"
+                    "⏳ **Tu solicitud está pendiente de aprobación por un administrador.**\n\n"
+                    f"**Tu ID:** `{user.id}`\n"
+                    "**Estado:** Pendiente\n\n"
+                    "Te notificaremos tan pronto como tu acceso sea aprobado.",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            elif user_config.is_blocked():
+                # Blocked user gets blocked message
+                await update.message.reply_text(
+                    "🚫 **Acceso Bloqueado**\n\n"
+                    "Tu acceso a este bot ha sido restringido por un administrador.\n\n"
+                    "Si crees que esto es un error, contacta al administrador del bot."
+                )
+                return
+        
+        # Fallback for any error
+        await update.message.reply_text("❌ Error procesando registro.")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         self.log_handler_start("GeneralHandler.handle_help_command", update)
@@ -42,11 +79,50 @@ class GeneralHandler(BaseHandler):
             await self.send_error_message(update, f"Error mostrando ayuda: {str(e)}")
     
     async def handle_unknown_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle unknown commands"""
+        """Handle unknown commands - check auth first"""
         self.log_handler_start("GeneralHandler.handle_unknown_command", update)
+        
+        # Check authorization for unknown commands
+        user = update.effective_user
+        if user:
+            auth_service = self.container.get_auth_service()
+            if not auth_service.is_authorized(user.id):
+                middleware = self.container.get_auth_service()
+                user_config = middleware.register_user(user)
+                
+                if user_config.is_pending():
+                    await update.message.reply_text(
+                        "⏳ Tu solicitud está pendiente de aprobación.\n"
+                        "Usa /start para ver el estado de tu registro."
+                    )
+                elif user_config.is_blocked():
+                    await update.message.reply_text(
+                        "🚫 No tienes acceso a este bot."
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ Necesitas autorización para usar este bot.\n"
+                        "Usa /start para registrarte."
+                    )
+                return
         
         try:
             command = update.message.text.split()[0] if update.message.text else ""
+            
+            # Check if user is admin to show admin commands
+            auth_service = self.container.get_auth_service()
+            is_admin = auth_service.is_admin(user.id)
+            
+            admin_commands = ""
+            if is_admin:
+                admin_commands = """
+
+🔐 *Comandos de administrador:*
+• `/admin` - Panel de administración
+• `/pending` - Ver usuarios pendientes
+• `/users` - Ver todos los usuarios
+• `/approve <user_id>` - Aprobar usuario
+• `/block <user_id>` - Bloquear usuario"""
             
             message = f"""
 ❓ *Comando no reconocido:* `{command}`
@@ -58,7 +134,7 @@ class GeneralHandler(BaseHandler):
 • `/status` - Ver configuración actual
 • `/stats` - Estadísticas de aprendizaje
 • `/recent` - Ver transacciones recientes
-• `/corregir` - Corregir categorías
+• `/corregir` - Corregir categorías{admin_commands}
 
 💡 *O simplemente envía un mensaje de gasto:*
 "Gasté $40000 en comida en Éxito"

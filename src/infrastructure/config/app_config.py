@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 
 from domain.exceptions import ConfigurationException
@@ -12,6 +12,7 @@ class AppConfig:
     telegram_token: str
     ynab_token: str
     openai_key: str
+    admin_ids: List[int]
     default_budget_id: Optional[str] = None
     database_path: str = 'data/users.db'
     learning_data_path: str = 'data/category_learning_data.json'
@@ -31,6 +32,7 @@ class AppConfig:
             telegram_token=cls._require_env('TELEGRAM_BOT_TOKEN'),
             ynab_token=cls._require_env('YNAB_ACCESS_TOKEN'),
             openai_key=cls._require_env('OPENAI_API_KEY'),
+            admin_ids=cls._parse_admin_ids(os.getenv('ADMIN_IDS', '')),
             default_budget_id=os.getenv('YNAB_BUDGET_ID'),
             database_path=os.getenv('DATABASE_PATH', 'data/users.db'),
             learning_data_path=os.getenv('LEARNING_DATA_PATH', 'data/category_learning_data.json'),
@@ -44,6 +46,23 @@ class AppConfig:
         if not value:
             raise ConfigurationException(f"Required environment variable {key} is not set")
         return value
+    
+    @staticmethod
+    def _parse_admin_ids(admin_ids_str: str) -> List[int]:
+        """Parse comma-separated admin IDs from environment variable"""
+        if not admin_ids_str.strip():
+            raise ConfigurationException(
+                "ADMIN_IDS environment variable is required. "
+                "Set it to a comma-separated list of Telegram user IDs (e.g., '123456789,987654321')"
+            )
+        
+        try:
+            return [int(id.strip()) for id in admin_ids_str.split(',') if id.strip()]
+        except ValueError as e:
+            raise ConfigurationException(
+                f"Invalid ADMIN_IDS format: {admin_ids_str}. "
+                f"Must be comma-separated integers (e.g., '123456789,987654321')"
+            ) from e
     
     def get_absolute_path(self, relative_path: str) -> str:
         """Convert relative path to absolute path from project root"""

@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.formatters import ConfigResponseFormatter
+from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.user_config_service import UserConfigService
 from domain.exceptions import YNABApiException
 
@@ -18,6 +19,7 @@ class ConfigHandler(BaseHandler):
         self.user_config_service = container.get(UserConfigService)
         self.formatter = ConfigResponseFormatter()
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_config_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /config command - show configuration options"""
         self.log_handler_start("ConfigHandler.handle_config_command", update)
@@ -54,6 +56,7 @@ Selecciona una opción para configurar tu bot:
             self.log_handler_error("ConfigHandler.handle_config_command", update, e)
             await self.send_error_message(update, f"Error mostrando configuración: {str(e)}")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_budgets_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /budgets command - show available budgets"""
         self.log_handler_start("ConfigHandler.handle_budgets_command", update)
@@ -88,6 +91,7 @@ Selecciona una opción para configurar tu bot:
             self.log_handler_error("ConfigHandler.handle_budgets_command", update, e)
             await self.send_error_message(update, f"Error obteniendo presupuestos: {str(e)}")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_accounts_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /accounts command - show available accounts"""
         self.log_handler_start("ConfigHandler.handle_accounts_command", update)
@@ -125,6 +129,7 @@ Selecciona una opción para configurar tu bot:
             self.log_handler_error("ConfigHandler.handle_accounts_command", update, e)
             await self.send_error_message(update, f"Error obteniendo cuentas: {str(e)}")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /status command - show user configuration status"""
         self.log_handler_start("ConfigHandler.handle_status_command", update)

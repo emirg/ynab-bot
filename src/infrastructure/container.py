@@ -8,6 +8,7 @@ from infrastructure.repositories.json_learning_repository import JSONLearningRep
 from application.services.expense_service import ExpenseService
 from application.services.user_config_service import UserConfigService
 from application.services.learning_service import LearningService
+from domain.services.auth_service import AuthorizationService
 from parsers.llm_expense_parser import LLMExpenseParser
 from integrations.speech_to_text import SpeechToTextProcessor
 
@@ -82,6 +83,15 @@ class DIContainer:
             )
         )
         
+        # Register authentication service as singleton
+        self.register_singleton(
+            AuthorizationService,
+            lambda: AuthorizationService(
+                user_repository=self.get(SQLiteUserRepository),
+                admin_ids=self.config.admin_ids
+            )
+        )
+        
         logger.info("Dependency injection container configured successfully")
     
     def _create_speech_processor_safely(self) -> SpeechToTextProcessor:
@@ -137,6 +147,31 @@ class DIContainer:
     def has_service(self, interface: Type) -> bool:
         """Check if service is registered"""
         return interface in self._services
+    
+    # Convenience methods for commonly used services
+    def get_user_repository(self):
+        return self.get(SQLiteUserRepository)
+    
+    def get_ynab_repository(self):
+        return self.get(YNABApiRepository)
+    
+    def get_learning_repository(self):
+        return self.get(JSONLearningRepository)
+    
+    def get_auth_service(self):
+        return self.get(AuthorizationService)
+    
+    def get_expense_service(self):
+        return self.get(ExpenseService)
+    
+    def get_user_config_service(self):
+        return self.get(UserConfigService)
+    
+    def get_learning_service(self):
+        return self.get(LearningService)
+    
+    def get_speech_processor(self):
+        return self.get(SpeechToTextProcessor)
 
 
 def create_container(config_path: str = 'config/.env') -> DIContainer:
