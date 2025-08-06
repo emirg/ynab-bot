@@ -1,21 +1,70 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
+from enum import Enum
+
+
+class UserStatus(Enum):
+    """User authorization status"""
+    PENDING = "pending"      # Waiting for admin approval
+    AUTHORIZED = "authorized"  # Can use the bot
+    BLOCKED = "blocked"      # Blocked by admin
 
 
 @dataclass
 class UserConfiguration:
-    """Domain model for user configuration"""
+    """Domain model for user configuration with authentication"""
     telegram_id: int
+    status: UserStatus = UserStatus.PENDING
     budget_id: Optional[str] = None
     default_account_id: Optional[str] = None
     default_account_name: Optional[str] = None
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
+    approved_at: Optional[datetime] = None
+    approved_by: Optional[int] = None
     
     def is_configured(self) -> bool:
         """Check if user has minimum required configuration"""
         return bool(self.budget_id and self.default_account_id)
+    
+    def is_authorized(self) -> bool:
+        """Check if user is authorized to use the bot"""
+        return self.status == UserStatus.AUTHORIZED
+    
+    def is_pending(self) -> bool:
+        """Check if user is pending approval"""
+        return self.status == UserStatus.PENDING
+    
+    def is_blocked(self) -> bool:
+        """Check if user is blocked"""
+        return self.status == UserStatus.BLOCKED
+    
+    def authorize(self, approved_by: int):
+        """Authorize the user"""
+        self.status = UserStatus.AUTHORIZED
+        self.approved_at = datetime.now()
+        self.approved_by = approved_by
+        self.updated_at = datetime.now()
+    
+    def block(self):
+        """Block the user"""
+        self.status = UserStatus.BLOCKED
+        self.updated_at = datetime.now()
+    
+    def get_display_name(self) -> str:
+        """Get user's display name"""
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        elif self.first_name:
+            return self.first_name
+        elif self.username:
+            return f"@{self.username}"
+        else:
+            return f"User {self.telegram_id}"
     
     def update_budget(self, budget_id: str):
         """Update budget configuration"""
@@ -26,6 +75,16 @@ class UserConfiguration:
         """Update default account configuration"""
         self.default_account_id = account_id
         self.default_account_name = account_name
+        self.updated_at = datetime.now()
+    
+    def update_profile(self, username: str = None, first_name: str = None, last_name: str = None):
+        """Update user profile information"""
+        if username is not None:
+            self.username = username
+        if first_name is not None:
+            self.first_name = first_name
+        if last_name is not None:
+            self.last_name = last_name
         self.updated_at = datetime.now()
 
 

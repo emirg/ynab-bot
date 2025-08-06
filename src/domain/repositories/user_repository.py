@@ -1,7 +1,7 @@
 from abc import abstractmethod
-from typing import Optional
+from typing import Optional, List
 from domain.repositories.base import BaseRepository
-from domain.models.user import UserConfiguration
+from domain.models.user import UserConfiguration, UserStatus
 
 
 class UserRepository(BaseRepository[UserConfiguration]):
@@ -15,4 +15,14 @@ class UserRepository(BaseRepository[UserConfiguration]):
     @abstractmethod
     def save_by_telegram_id(self, user_config: UserConfiguration) -> UserConfiguration:
         """Save user configuration using telegram_id as key"""
+        pass
+    
+    @abstractmethod
+    def find_by_status(self, status: UserStatus) -> List[UserConfiguration]:
+        """Find all users with given status"""
+        pass
+    
+    @abstractmethod
+    def find_all(self) -> List[UserConfiguration]:
+        """Find all users"""
         pass

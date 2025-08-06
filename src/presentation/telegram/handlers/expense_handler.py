@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.formatters import ExpenseResponseFormatter
+from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.expense_service import ExpenseService
 from integrations.speech_to_text import SpeechToTextProcessor
 from domain.exceptions import SpeechProcessingException
@@ -21,6 +22,7 @@ class ExpenseHandler(BaseHandler):
         self.speech_processor = container.get(SpeechToTextProcessor)
         self.formatter = ExpenseResponseFormatter()
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle text expense messages"""
         self.log_handler_start("ExpenseHandler.handle_text_message", update)
@@ -45,6 +47,7 @@ class ExpenseHandler(BaseHandler):
             self.log_handler_error("ExpenseHandler.handle_text_message", update, e)
             await self.send_error_message(update, f"Error procesando mensaje: {str(e)}")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_voice_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle voice expense messages"""
         self.log_handler_start("ExpenseHandler.handle_voice_message", update)
