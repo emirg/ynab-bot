@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "5cafa1558b0b6bd4d4c71f23d5567b7fcbbcdb4b0a50b0c5f69a80a3cebaf9b8"
+    },
+    "python-design-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "b70500bae0d16740d8a359be63c4645a0ab0f9b839d11d181c45d20958313698"
+    },
+    "python-performance-optimization": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "2a11c79dcd94b5424261b44247ab03a8365cbe62f05f9b52500211db8fda98f9"
+    }
+  }
+}
