@@ -1,6 +1,16 @@
 {
   "version": 1,
   "skills": {
+    "Pytest Testing": {
+      "source": "pluginagentmarketplace/custom-plugin-python",
+      "sourceType": "github",
+      "computedHash": "c4a0fe6cff3110d130712978eab77becd335d25414fc21253b55ce0a05e755a4"
+    },
+    "Security": {
+      "source": "pluginagentmarketplace/custom-plugin-python",
+      "sourceType": "github",
+      "computedHash": "8c3ab86dc4cd01598c4c7093aace03d89d8e21940678d9c2a68f7460dc47f409"
+    },
     "brainstorming": {
       "source": "obra/superpowers",
       "sourceType": "github",
@@ -15,6 +25,11 @@
       "source": "wshobson/agents",
       "sourceType": "github",
       "computedHash": "2a11c79dcd94b5424261b44247ab03a8365cbe62f05f9b52500211db8fda98f9"
+    },
+    "test-coverage-improver": {
+      "source": "openai/openai-agents-python",
+      "sourceType": "github",
+      "computedHash": "bf71409f3af2773a0466da65f55288711c2484c435bdaa0134654497f428fde6"
     }
   }
 }
