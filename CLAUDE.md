@@ -20,7 +20,7 @@ python setup.py
 # Run the bot
 python main.py
 
-# Run full test suite (263 tests, ~84% coverage)
+# Run full test suite (265 tests, ~84% coverage)
 pytest
 
 # Run a single test file
