@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import logging
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import requests
 
 from domain.repositories.ynab_repository import YNABRepository
 from domain.models.expense import Expense
-from domain.models.user import YNABBudget, YNABAccount, YNABCategory
-from domain.exceptions import YNABApiException
+from domain.models.user import UserConfiguration, YNABBudget, YNABAccount, YNABCategory
+from domain.exceptions import YNABApiException, OAuthException
+
+if TYPE_CHECKING:
+    from application.services.oauth_service import YNABOAuthService
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +143,18 @@ class YNABApiRepository(YNABRepository):
         except Exception as e:
             logger.error(f"Unexpected error creating transaction: {e}")
             raise YNABApiException(f"Unexpected error: {e}")
+
+
+class YNABRepositoryFactory:
+    """Creates per-user YNABApiRepository instances using OAuth tokens."""
+
+    def __init__(self, oauth_service: YNABOAuthService):
+        self.oauth_service = oauth_service
+
+    def get_repository(self, user_config: UserConfiguration) -> YNABApiRepository:
+        if not user_config.has_ynab_token():
+            raise OAuthException(
+                "No tienes una cuenta YNAB conectada. Usa /connect para vincular tu cuenta."
+            )
+        token = self.oauth_service.get_valid_access_token(user_config)
+        return YNABApiRepository(token)

@@ -23,7 +23,7 @@ if src_path not in sys.path:
 
 # Importar la nueva arquitectura
 from infrastructure.container import create_container
-from infrastructure.health import start_health_server
+from infrastructure.health import start_health_server, set_oauth_service
 from presentation.telegram.bot import YNABTelegramBot
 
 
@@ -38,7 +38,10 @@ def main():
 
         # Crear contenedor de dependencias
         container = create_container('config/.env')
-        
+
+        # Conectar OAuth service al health server
+        set_oauth_service(container.get_oauth_service())
+
         # Crear e inicializar el bot
         bot = YNABTelegramBot(container)
         

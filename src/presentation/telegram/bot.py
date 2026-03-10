@@ -39,6 +39,8 @@ class YNABTelegramBot:
         self.application.add_handler(CommandHandler("help", self.general_handler.handle_help_command))
         
         # Configuration commands
+        self.application.add_handler(CommandHandler("connect", self.config_handler.handle_connect_command))
+        self.application.add_handler(CommandHandler("disconnect", self.config_handler.handle_disconnect_command))
         self.application.add_handler(CommandHandler("config", self.config_handler.handle_config_command))
         self.application.add_handler(CommandHandler("budgets", self.config_handler.handle_budgets_command))
         self.application.add_handler(CommandHandler("accounts", self.config_handler.handle_accounts_command))

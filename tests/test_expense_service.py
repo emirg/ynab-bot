@@ -11,11 +11,12 @@ TELEGRAM_ID = 123456789
 
 
 @pytest.fixture
-def service(mock_user_repository, mock_ynab_repository, mock_learning_repository, mock_llm_parser, authorized_user):
+def service(mock_user_repository, mock_ynab_factory, mock_learning_repository, mock_llm_parser, authorized_user):
+    authorized_user.ynab_access_token = 'test-token'
     mock_user_repository.find_by_telegram_id.return_value = authorized_user
     return ExpenseService(
         user_repository=mock_user_repository,
-        ynab_repository=mock_ynab_repository,
+        ynab_factory=mock_ynab_factory,
         learning_repository=mock_learning_repository,
         llm_parser=mock_llm_parser,
     )

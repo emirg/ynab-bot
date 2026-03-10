@@ -9,6 +9,7 @@ from domain.repositories.user_repository import UserRepository
 from domain.models.user import UserConfiguration, UserStatus
 from domain.exceptions import YNABBotException
 from infrastructure.repositories.database_manager import DatabaseManager
+from infrastructure.token_encryption import TokenEncryptor
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +17,18 @@ logger = logging.getLogger(__name__)
 class SQLiteUserRepository(UserRepository):
     """SQLite implementation of UserRepository"""
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(self, db_manager: DatabaseManager, token_encryptor: Optional[TokenEncryptor] = None):
         self._db = db_manager
+        self._encryptor = token_encryptor
 
-    @staticmethod
-    def _row_to_user_config(row: sqlite3.Row) -> UserConfiguration:
+    def _row_to_user_config(self, row: sqlite3.Row) -> UserConfiguration:
         """Convert a database row to a UserConfiguration domain model"""
+        access_token = row['ynab_access_token']
+        refresh_token = row['ynab_refresh_token']
+        if self._encryptor:
+            access_token = self._encryptor.decrypt(access_token)
+            refresh_token = self._encryptor.decrypt(refresh_token)
+
         return UserConfiguration(
             telegram_id=row['telegram_id'],
             status=UserStatus(row['status']) if row['status'] else UserStatus.PENDING,
@@ -35,6 +42,9 @@ class SQLiteUserRepository(UserRepository):
             updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
             approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
             approved_by=row['approved_by'],
+            ynab_access_token=access_token,
+            ynab_refresh_token=refresh_token,
+            ynab_token_expires_at=datetime.fromisoformat(row['ynab_token_expires_at']) if row['ynab_token_expires_at'] else None,
         )
 
     def find_by_telegram_id(self, telegram_id: int) -> Optional[UserConfiguration]:
@@ -55,13 +65,21 @@ class SQLiteUserRepository(UserRepository):
         """Save user configuration (insert or update)"""
         try:
             user_config.updated_at = datetime.now()
+
+            access_token = user_config.ynab_access_token
+            refresh_token = user_config.ynab_refresh_token
+            if self._encryptor:
+                access_token = self._encryptor.encrypt(access_token)
+                refresh_token = self._encryptor.encrypt(refresh_token)
+
             conn = self._db.get_connection()
             conn.execute(
                 """
                 INSERT INTO user_configurations
                     (telegram_id, status, budget_id, default_account_id, default_account_name,
-                     username, first_name, last_name, created_at, updated_at, approved_at, approved_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     username, first_name, last_name, created_at, updated_at, approved_at, approved_by,
+                     ynab_access_token, ynab_refresh_token, ynab_token_expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(telegram_id) DO UPDATE SET
                     status = excluded.status,
                     budget_id = excluded.budget_id,
@@ -72,7 +90,10 @@ class SQLiteUserRepository(UserRepository):
                     last_name = excluded.last_name,
                     updated_at = excluded.updated_at,
                     approved_at = excluded.approved_at,
-                    approved_by = excluded.approved_by
+                    approved_by = excluded.approved_by,
+                    ynab_access_token = excluded.ynab_access_token,
+                    ynab_refresh_token = excluded.ynab_refresh_token,
+                    ynab_token_expires_at = excluded.ynab_token_expires_at
                 """,
                 (
                     user_config.telegram_id,
@@ -87,6 +108,9 @@ class SQLiteUserRepository(UserRepository):
                     user_config.updated_at.isoformat(),
                     user_config.approved_at.isoformat() if user_config.approved_at else None,
                     user_config.approved_by,
+                    access_token,
+                    refresh_token,
+                    user_config.ynab_token_expires_at.isoformat() if user_config.ynab_token_expires_at else None,
                 ),
             )
             conn.commit()

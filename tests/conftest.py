@@ -193,3 +193,19 @@ def mock_llm_parser():
     parser.update_categories.return_value = None
     parser.update_accounts.return_value = None
     return parser
+
+
+@pytest.fixture
+def mock_oauth_service():
+    service = MagicMock()
+    service.generate_auth_url.return_value = "https://app.ynab.com/oauth/authorize?client_id=test"
+    service.get_valid_access_token.return_value = "valid-access-token"
+    service.disconnect_user.return_value = True
+    return service
+
+
+@pytest.fixture
+def mock_ynab_factory(mock_ynab_repository):
+    factory = MagicMock()
+    factory.get_repository.return_value = mock_ynab_repository
+    return factory

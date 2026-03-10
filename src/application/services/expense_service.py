@@ -6,14 +6,15 @@ from typing import Dict, List, Optional
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.user import UserConfiguration, YNABCategory
 from domain.repositories.user_repository import UserRepository
-from domain.repositories.ynab_repository import YNABRepository
 from domain.repositories.learning_repository import LearningRepository
 from domain.exceptions import (
     UserNotConfiguredException,
     ExpenseParsingException,
     YNABApiException,
+    OAuthException,
     InvalidExpenseException
 )
+from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 from parsers.llm_expense_parser import LLMExpenseParser
 
 logger = logging.getLogger(__name__)
@@ -30,12 +31,12 @@ class ExpenseService:
     def __init__(
         self,
         user_repository: UserRepository,
-        ynab_repository: YNABRepository,
+        ynab_factory: YNABRepositoryFactory,
         learning_repository: LearningRepository,
         llm_parser: LLMExpenseParser
     ):
         self.user_repository = user_repository
-        self.ynab_repository = ynab_repository
+        self.ynab_factory = ynab_factory
         self.learning_repository = learning_repository
         self.llm_parser = llm_parser
         self._account_by_name: Dict[str, str] = {}
@@ -56,28 +57,31 @@ class ExpenseService:
                 missing = "budget_id and account_id" if not user_config else "budget configuration"
                 raise UserNotConfiguredException(telegram_user_id, missing)
 
-            # 2. Load YNAB data for parsing
-            categories = self.ynab_repository.get_categories(user_config.budget_id)
-            accounts = self.ynab_repository.get_accounts(user_config.budget_id)
+            # 2. Get per-user YNAB repository
+            ynab_repository = self.ynab_factory.get_repository(user_config)
 
-            # 3. Update LLM parser with current YNAB data
+            # 3. Load YNAB data for parsing
+            categories = ynab_repository.get_categories(user_config.budget_id)
+            accounts = ynab_repository.get_accounts(user_config.budget_id)
+
+            # 4. Update LLM parser with current YNAB data
             self._update_llm_parser_data(categories, accounts)
 
-            # 4. Parse expense message
+            # 5. Parse expense message
             expense = self._parse_expense_message(message, categories)
             if not expense:
                 raise ExpenseParsingException(message, 0.0)
 
-            # 5. Enhance with learning predictions
+            # 6. Enhance with learning predictions
             expense = self._enhance_with_learning(expense, categories, telegram_user_id)
 
-            # 6. Set default account if not specified
+            # 7. Set default account if not specified
             if not expense.account_id:
                 expense.account_id = user_config.default_account_id
                 expense.account_name = user_config.default_account_name
 
-            # 7. Create transaction in YNAB
-            transaction_id = self.ynab_repository.create_transaction(
+            # 8. Create transaction in YNAB
+            transaction_id = ynab_repository.create_transaction(
                 expense, user_config.budget_id, expense.account_id
             )
 
@@ -91,7 +95,7 @@ class ExpenseService:
             logger.info(f"Successfully processed expense: {expense.payee} ${expense.amount}")
             return ExpenseResult.success_result(expense, transaction_id)
 
-        except (UserNotConfiguredException, ExpenseParsingException, YNABApiException) as e:
+        except (UserNotConfiguredException, ExpenseParsingException, YNABApiException, OAuthException) as e:
             logger.error(f"Expected error processing expense: {e}")
             return ExpenseResult.error_result(str(e))
         except Exception as e:

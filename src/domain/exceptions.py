@@ -55,3 +55,14 @@ class SpeechProcessingException(YNABBotException):
     def __init__(self, message: str, file_size: int = None):
         self.file_size = file_size
         super().__init__(f"Speech processing error: {message}")
+
+
+class OAuthException(YNABBotException):
+    """OAuth flow error"""
+    pass
+
+
+class TokenExpiredException(YNABApiException):
+    """Token has expired and could not be refreshed"""
+    def __init__(self, message: str = "Token expirado y no se pudo refrescar"):
+        super().__init__(message)

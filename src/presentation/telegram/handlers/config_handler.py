@@ -6,7 +6,8 @@ from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.formatters import ConfigResponseFormatter
 from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.user_config_service import UserConfigService
-from domain.exceptions import YNABApiException
+from application.services.oauth_service import YNABOAuthService
+from domain.exceptions import YNABApiException, OAuthException
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class ConfigHandler(BaseHandler):
     def __init__(self, container):
         super().__init__(container)
         self.user_config_service = container.get(UserConfigService)
+        self.oauth_service = container.get_oauth_service()
         self.auth_service = container.get_auth_service()
         self.formatter = ConfigResponseFormatter()
     
@@ -58,12 +60,51 @@ Selecciona una opción para configurar tu bot:
             await self.send_error_message(update, "Ocurrió un error mostrando la configuración.")
     
     @require_authentication(lambda self: self.container.get_auth_service())
+    async def handle_connect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /connect command - generate YNAB OAuth URL"""
+        self.log_handler_start("ConfigHandler.handle_connect_command", update)
+        try:
+            user_id = self.get_user_id(update)
+            auth_url = self.oauth_service.generate_auth_url(user_id)
+            message = (
+                "🔗 *Conectar cuenta YNAB*\n\n"
+                "Haz clic en el siguiente enlace para autorizar el acceso a tu cuenta YNAB:\n\n"
+                f"[Conectar YNAB]({auth_url})\n\n"
+                "_Después de autorizar, serás redirigido a una página de confirmación._"
+            )
+            await update.message.reply_text(message, parse_mode='Markdown')
+            self.log_handler_success("ConfigHandler.handle_connect_command", update)
+        except Exception as e:
+            self.log_handler_error("ConfigHandler.handle_connect_command", update, e)
+            await self.send_error_message(update, "Ocurrió un error generando el enlace de conexión.")
+
+    @require_authentication(lambda self: self.container.get_auth_service())
+    async def handle_disconnect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /disconnect command - remove YNAB OAuth tokens"""
+        self.log_handler_start("ConfigHandler.handle_disconnect_command", update)
+        try:
+            user_id = self.get_user_id(update)
+            success = self.oauth_service.disconnect_user(user_id)
+            if success:
+                await update.message.reply_text(
+                    "✅ *Cuenta YNAB desconectada*\n\nUsa /connect para vincular otra cuenta.",
+                    parse_mode='Markdown'
+                )
+            else:
+                await self.send_error_message(update, "No se pudo desconectar la cuenta.")
+            self.log_handler_success("ConfigHandler.handle_disconnect_command", update)
+        except Exception as e:
+            self.log_handler_error("ConfigHandler.handle_disconnect_command", update, e)
+            await self.send_error_message(update, "Ocurrió un error desconectando la cuenta.")
+
+    @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_budgets_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /budgets command - show available budgets"""
         self.log_handler_start("ConfigHandler.handle_budgets_command", update)
-        
+
         try:
-            budgets = self.user_config_service.get_available_budgets()
+            user_id = self.get_user_id(update)
+            budgets = self.user_config_service.get_available_budgets(user_id)
             response = self.formatter.format_budgets_list(budgets)
             
             # Create inline keyboard for budget selection
@@ -152,7 +193,8 @@ Selecciona una opción para configurar tu bot:
     async def handle_budgets_callback(self, query):
         """Handle budgets callback from inline keyboard"""
         try:
-            budgets = self.user_config_service.get_available_budgets()
+            user_id = query.from_user.id
+            budgets = self.user_config_service.get_available_budgets(user_id)
             response = self.formatter.format_budgets_list(budgets)
             
             # Create inline keyboard for budget selection

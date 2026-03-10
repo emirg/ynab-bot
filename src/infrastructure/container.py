@@ -5,10 +5,12 @@ from infrastructure.config.app_config import AppConfig
 from infrastructure.repositories.database_manager import DatabaseManager
 from infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from infrastructure.repositories.sqlite_learning_repository import SQLiteLearningRepository
-from infrastructure.repositories.ynab_api_repository import YNABApiRepository
+from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
+from infrastructure.token_encryption import TokenEncryptor
 from application.services.expense_service import ExpenseService
 from application.services.user_config_service import UserConfigService
 from application.services.learning_service import LearningService
+from application.services.oauth_service import YNABOAuthService
 from domain.services.auth_service import AuthorizationService
 from parsers.llm_expense_parser import LLMExpenseParser
 from integrations.speech_to_text import SpeechToTextProcessor
@@ -30,6 +32,12 @@ class DIContainer:
     def _configure_services(self):
         """Configure all service registrations"""
 
+        # Token encryptor
+        self.register_singleton(
+            TokenEncryptor,
+            lambda: TokenEncryptor(self.config.token_encryption_key)
+        )
+
         # Database manager (shared connection for all repositories)
         self.register_singleton(
             DatabaseManager,
@@ -39,17 +47,32 @@ class DIContainer:
         # Register repositories as singletons
         self.register_singleton(
             SQLiteUserRepository,
-            lambda: SQLiteUserRepository(self.get(DatabaseManager))
-        )
-
-        self.register_singleton(
-            YNABApiRepository,
-            lambda: YNABApiRepository(self.config.ynab_token)
+            lambda: SQLiteUserRepository(
+                self.get(DatabaseManager),
+                self.get(TokenEncryptor)
+            )
         )
 
         self.register_singleton(
             SQLiteLearningRepository,
             lambda: SQLiteLearningRepository(self.get(DatabaseManager))
+        )
+
+        # OAuth service
+        self.register_singleton(
+            YNABOAuthService,
+            lambda: YNABOAuthService(
+                config=self.config,
+                user_repository=self.get(SQLiteUserRepository)
+            )
+        )
+
+        # YNAB repository factory (per-user)
+        self.register_singleton(
+            YNABRepositoryFactory,
+            lambda: YNABRepositoryFactory(
+                oauth_service=self.get(YNABOAuthService)
+            )
         )
 
         # Register parsers as singletons
@@ -69,7 +92,7 @@ class DIContainer:
             ExpenseService,
             lambda: ExpenseService(
                 user_repository=self.get(SQLiteUserRepository),
-                ynab_repository=self.get(YNABApiRepository),
+                ynab_factory=self.get(YNABRepositoryFactory),
                 learning_repository=self.get(SQLiteLearningRepository),
                 llm_parser=self.get(LLMExpenseParser)
             )
@@ -79,7 +102,7 @@ class DIContainer:
             UserConfigService,
             lambda: UserConfigService(
                 user_repository=self.get(SQLiteUserRepository),
-                ynab_repository=self.get(YNABApiRepository)
+                ynab_factory=self.get(YNABRepositoryFactory)
             )
         )
 
@@ -159,8 +182,11 @@ class DIContainer:
     def get_user_repository(self):
         return self.get(SQLiteUserRepository)
 
-    def get_ynab_repository(self):
-        return self.get(YNABApiRepository)
+    def get_ynab_factory(self):
+        return self.get(YNABRepositoryFactory)
+
+    def get_oauth_service(self):
+        return self.get(YNABOAuthService)
 
     def get_learning_repository(self):
         return self.get(SQLiteLearningRepository)

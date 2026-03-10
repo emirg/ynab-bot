@@ -76,6 +76,16 @@ _MIGRATIONS = [
             ON recent_transactions(telegram_id, id DESC);
         """,
     ),
+    # Version 3: OAuth token columns
+    (
+        3,
+        "Add OAuth token columns to user_configurations",
+        """
+        ALTER TABLE user_configurations ADD COLUMN ynab_access_token TEXT;
+        ALTER TABLE user_configurations ADD COLUMN ynab_refresh_token TEXT;
+        ALTER TABLE user_configurations ADD COLUMN ynab_token_expires_at TIMESTAMP;
+        """,
+    ),
 ]
 
 

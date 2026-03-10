@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from enum import Enum
+
+_TOKEN_EXPIRY_BUFFER = timedelta(minutes=5)
 
 
 class UserStatus(Enum):
@@ -26,7 +28,10 @@ class UserConfiguration:
     updated_at: datetime = field(default_factory=datetime.now)
     approved_at: Optional[datetime] = None
     approved_by: Optional[int] = None
-    
+    ynab_access_token: Optional[str] = None
+    ynab_refresh_token: Optional[str] = None
+    ynab_token_expires_at: Optional[datetime] = None
+
     def is_configured(self) -> bool:
         """Check if user has minimum required configuration"""
         return bool(self.budget_id and self.default_account_id)
@@ -85,6 +90,26 @@ class UserConfiguration:
             self.first_name = first_name
         if last_name is not None:
             self.last_name = last_name
+        self.updated_at = datetime.now()
+
+    def has_ynab_token(self) -> bool:
+        return self.ynab_access_token is not None
+
+    def is_token_expired(self) -> bool:
+        if self.ynab_token_expires_at is None:
+            return True
+        return datetime.now() >= self.ynab_token_expires_at - _TOKEN_EXPIRY_BUFFER
+
+    def update_ynab_tokens(self, access_token: str, refresh_token: str, expires_in_seconds: int):
+        self.ynab_access_token = access_token
+        self.ynab_refresh_token = refresh_token
+        self.ynab_token_expires_at = datetime.now() + timedelta(seconds=expires_in_seconds)
+        self.updated_at = datetime.now()
+
+    def clear_ynab_tokens(self):
+        self.ynab_access_token = None
+        self.ynab_refresh_token = None
+        self.ynab_token_expires_at = None
         self.updated_at = datetime.now()
 
 

@@ -1,6 +1,6 @@
 """Tests for domain models: Expense, ExpenseResult, UserConfiguration, YNAB models."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from domain.models.expense import Expense, ExpenseResult, _UUID_PATTERN
@@ -202,6 +202,49 @@ class TestUserConfiguration:
     def test_default_status_is_pending(self):
         u = UserConfiguration(telegram_id=1)
         assert u.status == UserStatus.PENDING
+
+    def test_has_ynab_token_false_by_default(self):
+        u = UserConfiguration(telegram_id=1)
+        assert not u.has_ynab_token()
+
+    def test_has_ynab_token_true(self):
+        u = UserConfiguration(telegram_id=1, ynab_access_token='tok')
+        assert u.has_ynab_token()
+
+    def test_is_token_expired_none_expires(self):
+        u = UserConfiguration(telegram_id=1, ynab_access_token='tok')
+        assert u.is_token_expired()
+
+    def test_is_token_expired_future(self):
+        u = UserConfiguration(
+            telegram_id=1,
+            ynab_access_token='tok',
+            ynab_token_expires_at=datetime.now() + timedelta(hours=1),
+        )
+        assert not u.is_token_expired()
+
+    def test_is_token_expired_within_buffer(self):
+        u = UserConfiguration(
+            telegram_id=1,
+            ynab_access_token='tok',
+            ynab_token_expires_at=datetime.now() + timedelta(minutes=3),
+        )
+        assert u.is_token_expired()
+
+    def test_update_ynab_tokens(self):
+        u = UserConfiguration(telegram_id=1)
+        u.update_ynab_tokens('access', 'refresh', 7200)
+        assert u.ynab_access_token == 'access'
+        assert u.ynab_refresh_token == 'refresh'
+        assert u.ynab_token_expires_at is not None
+        assert u.ynab_token_expires_at > datetime.now()
+
+    def test_clear_ynab_tokens(self):
+        u = UserConfiguration(telegram_id=1, ynab_access_token='tok', ynab_refresh_token='ref')
+        u.clear_ynab_tokens()
+        assert u.ynab_access_token is None
+        assert u.ynab_refresh_token is None
+        assert u.ynab_token_expires_at is None
 
 
 # ---------------------------------------------------------------------------

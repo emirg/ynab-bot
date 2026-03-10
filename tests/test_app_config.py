@@ -64,13 +64,17 @@ class TestGetAbsolutePath:
 
     def test_absolute_path_unchanged(self):
         config = AppConfig(
-            telegram_token='t', ynab_token='y', openai_key='o', admin_ids=[1],
+            telegram_token='t', openai_key='o', admin_ids=[1],
+            ynab_client_id='cid', ynab_client_secret='cs',
+            ynab_redirect_uri='http://localhost/cb', token_encryption_key='k',
         )
         assert config.get_absolute_path('/absolute/path') == '/absolute/path'
 
     def test_relative_path_joined(self):
         config = AppConfig(
-            telegram_token='t', ynab_token='y', openai_key='o', admin_ids=[1],
+            telegram_token='t', openai_key='o', admin_ids=[1],
+            ynab_client_id='cid', ynab_client_secret='cs',
+            ynab_redirect_uri='http://localhost/cb', token_encryption_key='k',
         )
         result = config.get_absolute_path('data/test.db')
         assert result.endswith('data/test.db')
@@ -81,7 +85,9 @@ class TestDatabaseAbsolutePath:
 
     def test_default_path(self):
         config = AppConfig(
-            telegram_token='t', ynab_token='y', openai_key='o', admin_ids=[1],
+            telegram_token='t', openai_key='o', admin_ids=[1],
+            ynab_client_id='cid', ynab_client_secret='cs',
+            ynab_redirect_uri='http://localhost/cb', token_encryption_key='k',
         )
         path = config.database_absolute_path
         assert path.endswith('data/users.db')
@@ -91,31 +97,36 @@ class TestDatabaseAbsolutePath:
 
 class TestFromEnv:
 
+    def _clear_env(self, monkeypatch):
+        for var in ('TELEGRAM_BOT_TOKEN', 'OPENAI_API_KEY', 'ADMIN_IDS',
+                     'YNAB_CLIENT_ID', 'YNAB_CLIENT_SECRET', 'YNAB_REDIRECT_URI',
+                     'TOKEN_ENCRYPTION_KEY', 'YNAB_ACCESS_TOKEN'):
+            monkeypatch.delenv(var, raising=False)
+
     def test_loads_from_env(self, monkeypatch, tmp_path):
-        # Clear any env vars that might leak from other tests
-        monkeypatch.delenv('TELEGRAM_BOT_TOKEN', raising=False)
-        monkeypatch.delenv('YNAB_ACCESS_TOKEN', raising=False)
-        monkeypatch.delenv('OPENAI_API_KEY', raising=False)
-        monkeypatch.delenv('ADMIN_IDS', raising=False)
+        self._clear_env(monkeypatch)
         env_file = tmp_path / '.env'
         env_file.write_text(
             'TELEGRAM_BOT_TOKEN=tg-token\n'
-            'YNAB_ACCESS_TOKEN=ynab-token\n'
             'OPENAI_API_KEY=openai-key\n'
             'ADMIN_IDS=111,222\n'
+            'YNAB_CLIENT_ID=cid\n'
+            'YNAB_CLIENT_SECRET=cs\n'
+            'YNAB_REDIRECT_URI=http://localhost/cb\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
         )
         config = AppConfig.from_env(str(env_file))
         assert config.telegram_token == 'tg-token'
-        assert config.ynab_token == 'ynab-token'
         assert config.openai_key == 'openai-key'
         assert config.admin_ids == [111, 222]
+        assert config.ynab_client_id == 'cid'
+        assert config.ynab_client_secret == 'cs'
+        assert config.ynab_redirect_uri == 'http://localhost/cb'
+        assert config.token_encryption_key == 'k'
 
     def test_missing_required_raises(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
         env_file = tmp_path / '.env'
         env_file.write_text('ADMIN_IDS=111\n')
-        # Clear any existing env vars
-        monkeypatch.delenv('TELEGRAM_BOT_TOKEN', raising=False)
-        monkeypatch.delenv('YNAB_ACCESS_TOKEN', raising=False)
-        monkeypatch.delenv('OPENAI_API_KEY', raising=False)
         with pytest.raises(ConfigurationException):
             AppConfig.from_env(str(env_file))
