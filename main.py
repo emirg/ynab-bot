@@ -23,6 +23,7 @@ if src_path not in sys.path:
 
 # Importar la nueva arquitectura
 from infrastructure.container import create_container
+from infrastructure.health import start_health_server
 from presentation.telegram.bot import YNABTelegramBot
 
 
@@ -30,7 +31,11 @@ def main():
     """Función principal para iniciar el bot con arquitectura en capas"""
     try:
         logger.info("Iniciando YNAB Telegram Bot con arquitectura en capas...")
-        
+
+        # Iniciar servidor de health check
+        port = int(os.environ.get("PORT", 8080))
+        start_health_server(port)
+
         # Crear contenedor de dependencias
         container = create_container('config/.env')
         
