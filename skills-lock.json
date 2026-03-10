@@ -11,11 +11,6 @@
       "sourceType": "github",
       "computedHash": "8c3ab86dc4cd01598c4c7093aace03d89d8e21940678d9c2a68f7460dc47f409"
     },
-    "brainstorming": {
-      "source": "obra/superpowers",
-      "sourceType": "github",
-      "computedHash": "5cafa1558b0b6bd4d4c71f23d5567b7fcbbcdb4b0a50b0c5f69a80a3cebaf9b8"
-    },
     "python-design-patterns": {
       "source": "wshobson/agents",
       "sourceType": "github",

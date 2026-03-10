@@ -34,7 +34,7 @@ ynab-bot/
 │   ├── infrastructure/
 │   │   ├── config/app_config.py     # Loads config/.env
 │   │   ├── container.py             # Dependency injection (DIContainer)
-│   │   └── repositories/           # SQLite, YNAB API, JSON learning
+│   │   └── repositories/           # SQLite, YNAB API
 │   ├── presentation/telegram/
 │   │   ├── bot.py                   # Handler registration
 │   │   ├── formatters.py           # Message formatting
@@ -48,9 +48,8 @@ ynab-bot/
 │   ├── .env                         # Environment variables (private)
 │   └── .env.example                 # Configuration template
 ├── data/                            # Persistent data
-│   ├── users.db                     # SQLite user database
-│   └── category_learning_data.json  # Learning data
-└── tests/                           # Test suite (265 tests, ~84% coverage)
+│   └── users.db                     # SQLite database (users + learning data)
+└── tests/                           # Test suite (266 tests, ~85% coverage)
 ```
 
 ## 🚀 Installation & Setup
@@ -82,8 +81,7 @@ Edit `config/.env` with your tokens:
 | `YNAB_BUDGET_ID` | Your YNAB budget ID | Yes |
 | `OPENAI_API_KEY` | OpenAI API key ([API Keys](https://platform.openai.com/api-keys)) | Yes |
 | `ADMIN_IDS` | Telegram user IDs for admins (comma-separated) | Yes |
-| `DATABASE_PATH` | Path to SQLite database | No (default: `data/users.db`) |
-| `LEARNING_DATA_PATH` | Path to learning data file | No (default: `data/category_learning_data.json`) |
+| `DATABASE_PATH` | Path to SQLite database (users + learning data) | No (default: `data/users.db`) |
 
 ### 4. Initialize and run
 ```bash
@@ -169,7 +167,7 @@ User statuses: `PENDING` → `AUTHORIZED` | `BLOCKED`
 ## 🧪 Tests
 
 ```bash
-# Full suite (265 tests, ~84% coverage)
+# Full suite (266 tests, ~85% coverage)
 pytest
 
 # Single test file

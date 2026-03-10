@@ -38,6 +38,8 @@ class ExpenseService:
         self.ynab_repository = ynab_repository
         self.learning_repository = learning_repository
         self.llm_parser = llm_parser
+        self._account_by_name: Dict[str, str] = {}
+        self._account_by_name_lower: Dict[str, str] = {}
 
     def process_expense_message(self, telegram_user_id: int, message: str) -> ExpenseResult:
         """Main business logic for processing expense messages"""
@@ -72,6 +74,7 @@ class ExpenseService:
             # 6. Set default account if not specified
             if not expense.account_id:
                 expense.account_id = user_config.default_account_id
+                expense.account_name = user_config.default_account_name
 
             # 7. Create transaction in YNAB
             transaction_id = self.ynab_repository.create_transaction(
@@ -125,8 +128,16 @@ class ExpenseService:
                 if clean:
                     self._category_by_clean_lower[clean] = cat.id
 
+            # Build account lookup maps for O(1) matching
+            active_accounts = [acc for acc in accounts if not acc.deleted and not acc.closed]
+            self._account_by_name: Dict[str, str] = {}
+            self._account_by_name_lower: Dict[str, str] = {}
+            for acc in active_accounts:
+                self._account_by_name[acc.name] = acc.id
+                self._account_by_name_lower[acc.name.lower()] = acc.id
+
             # Convert accounts to format expected by LLM parser
-            account_names = [acc.name for acc in accounts if not acc.deleted and not acc.closed]
+            account_names = [acc.name for acc in active_accounts]
 
             self.llm_parser.update_categories(category_list)
             self.llm_parser.update_accounts(account_names)
@@ -156,13 +167,18 @@ class ExpenseService:
             payee = _CONTROL_CHARS_PATTERN.sub('', str(result.get('payee', '')))[:_MAX_PAYEE_LENGTH]
             memo = _CONTROL_CHARS_PATTERN.sub('', str(result.get('memo', message)))[:_MAX_MESSAGE_LENGTH]
 
+            # Resolve account
+            account_name_raw = result.get('account')
+            account_id = self._find_account_id_by_name(account_name_raw)
+
             # Convert to domain model
             expense = Expense(
                 amount=Decimal(str(result['amount'])),
                 payee=payee,
                 memo=memo,
                 category_id=category_id,
-                account_id=self._find_account_id_by_name(result.get('account')),
+                account_id=account_id,
+                account_name=account_name_raw if account_id else None,
                 confidence=result.get('confidence', 0.0),
                 parser_source='llm'
             )
@@ -183,8 +199,29 @@ class ExpenseService:
             return None
 
     def _find_account_id_by_name(self, account_name: str) -> Optional[str]:
-        """Find account ID by name (simplified - could be enhanced)"""
-        return None  # For now, let the service use default account
+        """Find account ID by name using pre-built lookup maps"""
+        if not account_name:
+            return None
+
+        account_name = account_name.strip()
+
+        # Exact match
+        if account_name in self._account_by_name:
+            return self._account_by_name[account_name]
+
+        # Case-insensitive match
+        account_name_lower = account_name.lower()
+        if account_name_lower in self._account_by_name_lower:
+            return self._account_by_name_lower[account_name_lower]
+
+        # Partial match (fallback to linear scan)
+        for name, account_id in self._account_by_name_lower.items():
+            if account_name_lower in name or name in account_name_lower:
+                logger.debug(f"Partial account match: '{account_name}' -> '{name}'")
+                return account_id
+
+        logger.warning(f"No account match found for: '{account_name}'")
+        return None
 
     def _find_category_id_by_name(self, category_name: str, categories: List[YNABCategory]) -> Optional[str]:
         """Find category ID by name using pre-built lookup maps (O(1) per attempt)"""

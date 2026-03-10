@@ -20,7 +20,7 @@ python setup.py
 # Run the bot
 python main.py
 
-# Run full test suite (256 tests, ~85% coverage)
+# Run full test suite (266 tests, ~85% coverage)
 pytest
 
 # Run a single test file
@@ -89,5 +89,5 @@ Environment variables loaded from `config/.env` (see `config/.env.example`):
 - Amount formats: `40000`, `40 mil`, `40 lucas`, `40k`, `$40000`, decimals with comma (`40000,50`)
 - `main.py` adds `src/` to `sys.path`, so imports within `src/` use package names directly (e.g., `from domain.models.user import ...`)
 - Pre-compiled regex patterns are module-level constants (e.g., `_UUID_PATTERN`, `_SPECIAL_CHARS_PATTERN`)
-- Category lookups use O(1) dict maps built in `_update_llm_parser_data()`
+- Category and account lookups use O(1) dict maps built in `_update_llm_parser_data()`
 - YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`

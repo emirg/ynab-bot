@@ -193,6 +193,63 @@ class TestFindCategoryByName:
 
 
 # ---------------------------------------------------------------------------
+# Account lookup maps
+# ---------------------------------------------------------------------------
+
+class TestAccountLookupMaps:
+
+    def test_builds_maps(self, service, sample_categories, sample_accounts):
+        service._update_llm_parser_data(sample_categories, sample_accounts)
+        assert 'Nu Card' in service._account_by_name
+        assert 'Bancolombia' in service._account_by_name
+        # Closed/deleted accounts should be excluded
+        assert 'Old' not in service._account_by_name
+        assert 'Gone' not in service._account_by_name
+
+    def test_case_insensitive_map(self, service, sample_categories, sample_accounts):
+        service._update_llm_parser_data(sample_categories, sample_accounts)
+        assert 'nu card' in service._account_by_name_lower
+        assert 'bancolombia' in service._account_by_name_lower
+
+
+# ---------------------------------------------------------------------------
+# _find_account_id_by_name
+# ---------------------------------------------------------------------------
+
+class TestFindAccountByName:
+
+    @pytest.fixture(autouse=True)
+    def setup_maps(self, service, sample_categories, sample_accounts):
+        service._update_llm_parser_data(sample_categories, sample_accounts)
+
+    def test_exact_match(self, service):
+        assert service._find_account_id_by_name('Nu Card') == 'acc-1'
+
+    def test_case_insensitive_match(self, service):
+        assert service._find_account_id_by_name('nu card') == 'acc-1'
+        assert service._find_account_id_by_name('BANCOLOMBIA') == 'acc-2'
+
+    def test_partial_match(self, service):
+        assert service._find_account_id_by_name('Nu') == 'acc-1'
+
+    def test_partial_match_reverse(self, service):
+        """Longer input containing the account name should match"""
+        assert service._find_account_id_by_name('nu card débito') == 'acc-1'
+
+    def test_whitespace_stripped(self, service):
+        assert service._find_account_id_by_name('  Nu Card  ') == 'acc-1'
+
+    def test_no_match(self, service):
+        assert service._find_account_id_by_name('Nequi') is None
+
+    def test_none_returns_none(self, service):
+        assert service._find_account_id_by_name(None) is None
+
+    def test_empty_returns_none(self, service):
+        assert service._find_account_id_by_name('') is None
+
+
+# ---------------------------------------------------------------------------
 # _enhance_with_learning
 # ---------------------------------------------------------------------------
 
