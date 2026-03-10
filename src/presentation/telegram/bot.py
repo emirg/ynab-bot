@@ -84,7 +84,6 @@ class YNABTelegramBot:
             
             # Test configuration
             logger.info(f"Configuration loaded: {self.config.database_path}")
-            logger.info(f"Learning data path: {self.config.learning_data_path}")
             
         except Exception as e:
             logger.error(f"Post-initialization failed: {e}")

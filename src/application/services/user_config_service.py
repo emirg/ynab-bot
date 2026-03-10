@@ -22,7 +22,7 @@ class UserConfigService:
         
         if not user_config:
             user_config = UserConfiguration(telegram_id=telegram_user_id)
-            user_config = self.user_repository.save_by_telegram_id(user_config)
+            user_config = self.user_repository.save(user_config)
             logger.info(f"Created new user configuration for {telegram_user_id}")
         
         return user_config
@@ -54,8 +54,8 @@ class UserConfigService:
             user_config.update_budget(budget_id)
             
             # Save changes
-            user_config = self.user_repository.save_by_telegram_id(user_config)
-            
+            user_config = self.user_repository.save(user_config)
+
             logger.info(f"Set budget {budget_id} for user {telegram_user_id}")
             return user_config
             
@@ -97,8 +97,8 @@ class UserConfigService:
             user_config.update_default_account(account_id, account.name)
             
             # Save changes
-            user_config = self.user_repository.save_by_telegram_id(user_config)
-            
+            user_config = self.user_repository.save(user_config)
+
             logger.info(f"Set default account {account_id} for user {telegram_user_id}")
             return user_config
             
@@ -162,8 +162,8 @@ class UserConfigService:
             user_config.default_account_name = None
             
             # Save changes
-            self.user_repository.save_by_telegram_id(user_config)
-            
+            self.user_repository.save(user_config)
+
             logger.info(f"Reset configuration for user {telegram_user_id}")
             return True
             

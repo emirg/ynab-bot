@@ -147,7 +147,6 @@ def mock_user_repository():
     repo = MagicMock()
     repo.find_by_telegram_id.return_value = None
     repo.save.side_effect = lambda entity: entity
-    repo.save_by_telegram_id.side_effect = lambda entity: entity
     repo.find_by_status.return_value = []
     repo.find_all.return_value = []
     return repo

@@ -29,7 +29,7 @@ class TestGetOrCreateUserConfig:
         mock_user_repository.find_by_telegram_id.return_value = None
         result = service.get_or_create_user_config(42)
         assert result.telegram_id == 42
-        mock_user_repository.save_by_telegram_id.assert_called_once()
+        mock_user_repository.save.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

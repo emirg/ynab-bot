@@ -2,15 +2,22 @@
 import pytest
 from datetime import datetime
 
+from infrastructure.repositories.database_manager import DatabaseManager
 from infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from domain.models.user import UserConfiguration, UserStatus
+from domain.exceptions import YNABBotException
 
 
 @pytest.fixture
-def repo(tmp_db_file):
-    r = SQLiteUserRepository(tmp_db_file)
-    yield r
-    r.close()
+def db_manager(tmp_db_file):
+    mgr = DatabaseManager(tmp_db_file)
+    yield mgr
+    mgr.close()
+
+
+@pytest.fixture
+def repo(db_manager):
+    return SQLiteUserRepository(db_manager)
 
 
 # ---------------------------------------------------------------------------
@@ -20,23 +27,23 @@ def repo(tmp_db_file):
 class TestInit:
 
     def test_creates_database(self, tmp_db_file):
-        repo = SQLiteUserRepository(tmp_db_file)
+        mgr = DatabaseManager(tmp_db_file)
         import os
         assert os.path.exists(tmp_db_file)
-        repo.close()
+        mgr.close()
 
     def test_creates_directory(self, tmp_path):
         db_path = str(tmp_path / 'subdir' / 'users.db')
-        repo = SQLiteUserRepository(db_path)
+        mgr = DatabaseManager(db_path)
         import os
         assert os.path.exists(db_path)
-        repo.close()
+        mgr.close()
 
     def test_idempotent_init(self, tmp_db_file):
-        repo1 = SQLiteUserRepository(tmp_db_file)
-        repo2 = SQLiteUserRepository(tmp_db_file)  # should not raise
-        repo1.close()
-        repo2.close()
+        mgr1 = DatabaseManager(tmp_db_file)
+        mgr2 = DatabaseManager(tmp_db_file)  # should not raise
+        mgr1.close()
+        mgr2.close()
 
 
 # ---------------------------------------------------------------------------
@@ -55,14 +62,6 @@ class TestSaveAndFind:
 
     def test_find_nonexistent_returns_none(self, repo):
         assert repo.find_by_telegram_id(999999) is None
-
-    def test_find_by_id_string(self, repo, authorized_user):
-        repo.save(authorized_user)
-        found = repo.find_by_id(str(authorized_user.telegram_id))
-        assert found is not None
-
-    def test_find_by_id_invalid_string(self, repo):
-        assert repo.find_by_id('not-a-number') is None
 
     def test_save_updates_existing(self, repo, authorized_user):
         repo.save(authorized_user)
@@ -91,16 +90,27 @@ class TestSaveAndFind:
         assert found.approved_by == 100
         assert found.approved_at is not None
 
+    def test_upsert_preserves_created_at(self, repo, authorized_user):
+        repo.save(authorized_user)
+        original = repo.find_by_telegram_id(authorized_user.telegram_id)
+        original_created = original.created_at
+
+        authorized_user.budget_id = 'changed'
+        repo.save(authorized_user)
+        updated = repo.find_by_telegram_id(authorized_user.telegram_id)
+        assert updated.created_at == original_created
+        assert updated.budget_id == 'changed'
+
 
 class TestDelete:
 
     def test_delete_existing(self, repo, authorized_user):
         repo.save(authorized_user)
-        assert repo.delete(str(authorized_user.telegram_id))
+        assert repo.delete(authorized_user.telegram_id)
         assert repo.find_by_telegram_id(authorized_user.telegram_id) is None
 
     def test_delete_nonexistent(self, repo):
-        assert not repo.delete('999999')
+        assert not repo.delete(999999)
 
 
 # ---------------------------------------------------------------------------
@@ -137,12 +147,3 @@ class TestFindAll:
 
     def test_find_all_empty(self, repo):
         assert repo.find_all() == []
-
-
-class TestSaveByTelegramId:
-
-    def test_calls_through(self, repo, authorized_user):
-        result = repo.save_by_telegram_id(authorized_user)
-        assert result.telegram_id == authorized_user.telegram_id
-        found = repo.find_by_telegram_id(authorized_user.telegram_id)
-        assert found is not None

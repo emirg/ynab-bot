@@ -20,7 +20,7 @@ python setup.py
 # Run the bot
 python main.py
 
-# Run full test suite (265 tests, ~84% coverage)
+# Run full test suite (256 tests, ~85% coverage)
 pytest
 
 # Run a single test file
@@ -43,9 +43,9 @@ main.py → DIContainer (infrastructure/container.py) → YNABTelegramBot (prese
 
 ### Layers
 
-- **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`), repository interfaces (abstract base classes), `AuthorizationService`, and custom exceptions. No external dependencies.
+- **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, and custom exceptions. No external dependencies.
 - **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full parse→enhance→create→learn pipeline. `UserConfigService` manages per-user YNAB budget/account configuration. `LearningService` wraps the learning repository.
-- **`src/infrastructure/`** — Concrete implementations. `SQLiteUserRepository` (user persistence in `data/users.db`), `YNABApiRepository` (YNAB REST API), `JSONLearningRepository` (learning data in JSON). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together with singleton/transient registrations.
+- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations), `SQLiteUserRepository` (user persistence), `SQLiteLearningRepository` (per-user learning data: payee-category mappings, corrections, recent transactions), `YNABApiRepository` (YNAB REST API). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together with singleton/transient registrations.
 - **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers. Handlers are split by concern: `GeneralHandler`, `ConfigHandler`, `ExpenseHandler`, `LearningHandler`, `AdminHandler`. Auth is enforced via decorators in `middleware/auth_middleware.py` (`@require_authentication`, `@require_admin`).
 
 ### Supporting modules
@@ -74,14 +74,14 @@ Multi-user system with admin approval. Users have statuses: `PENDING` → `AUTHO
 Environment variables loaded from `config/.env` (see `config/.env.example`):
 - `TELEGRAM_BOT_TOKEN`, `YNAB_ACCESS_TOKEN`, `YNAB_BUDGET_ID`, `OPENAI_API_KEY`
 - `ADMIN_IDS` (required, comma-separated Telegram user IDs)
-- `DATABASE_PATH` (default: `data/users.db`), `LEARNING_DATA_PATH` (default: `data/category_learning_data.json`)
+- `DATABASE_PATH` (default: `data/users.db`) — single SQLite database for users and learning data
 
 ### Testing
 
 - **Framework**: pytest with fixtures in `tests/conftest.py`, coverage via pytest-cov
 - **Config**: `pytest.ini` scopes coverage to `src/domain`, `src/application`, `src/infrastructure`, and `src/presentation/telegram/formatters.py`
 - **Conventions**: Shared fixtures for domain models, mock repositories, and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock` for repository/parser mocks. `conftest.py` adds `src/` to `sys.path`.
-- **Coverage**: ~84% on active architecture. Domain layer at 100%.
+- **Coverage**: ~85% on active architecture. Domain layer at 100%.
 
 ### Key Conventions
 

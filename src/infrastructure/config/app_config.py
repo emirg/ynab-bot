@@ -18,7 +18,6 @@ class AppConfig:
     admin_ids: List[int]
     default_budget_id: Optional[str] = None
     database_path: str = 'data/users.db'
-    learning_data_path: str = 'data/category_learning_data.json'
     log_level: str = 'INFO'
     
     @classmethod
@@ -37,7 +36,6 @@ class AppConfig:
             admin_ids=cls._parse_admin_ids(os.getenv('ADMIN_IDS', '')),
             default_budget_id=os.getenv('YNAB_BUDGET_ID'),
             database_path=os.getenv('DATABASE_PATH', 'data/users.db'),
-            learning_data_path=os.getenv('LEARNING_DATA_PATH', 'data/category_learning_data.json'),
             log_level=os.getenv('LOG_LEVEL', 'INFO')
         )
     
@@ -77,7 +75,3 @@ class AppConfig:
         """Get absolute path for database"""
         return self.get_absolute_path(self.database_path)
     
-    @property
-    def learning_data_absolute_path(self) -> str:
-        """Get absolute path for learning data"""
-        return self.get_absolute_path(self.learning_data_path)

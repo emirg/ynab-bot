@@ -88,16 +88,6 @@ class TestDatabaseAbsolutePath:
         assert os.path.isabs(path)
 
 
-class TestLearningDataAbsolutePath:
-
-    def test_default_path(self):
-        config = AppConfig(
-            telegram_token='t', ynab_token='y', openai_key='o', admin_ids=[1],
-        )
-        path = config.learning_data_absolute_path
-        assert path.endswith('data/category_learning_data.json')
-        assert os.path.isabs(path)
-
 
 class TestFromEnv:
 
