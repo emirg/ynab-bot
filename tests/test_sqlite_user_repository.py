@@ -8,7 +8,9 @@ from domain.models.user import UserConfiguration, UserStatus
 
 @pytest.fixture
 def repo(tmp_db_file):
-    return SQLiteUserRepository(tmp_db_file)
+    r = SQLiteUserRepository(tmp_db_file)
+    yield r
+    r.close()
 
 
 # ---------------------------------------------------------------------------
@@ -21,16 +23,20 @@ class TestInit:
         repo = SQLiteUserRepository(tmp_db_file)
         import os
         assert os.path.exists(tmp_db_file)
+        repo.close()
 
     def test_creates_directory(self, tmp_path):
         db_path = str(tmp_path / 'subdir' / 'users.db')
         repo = SQLiteUserRepository(db_path)
         import os
         assert os.path.exists(db_path)
+        repo.close()
 
     def test_idempotent_init(self, tmp_db_file):
         repo1 = SQLiteUserRepository(tmp_db_file)
         repo2 = SQLiteUserRepository(tmp_db_file)  # should not raise
+        repo1.close()
+        repo2.close()
 
 
 # ---------------------------------------------------------------------------

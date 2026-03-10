@@ -102,6 +102,11 @@ class TestLearningDataAbsolutePath:
 class TestFromEnv:
 
     def test_loads_from_env(self, monkeypatch, tmp_path):
+        # Clear any env vars that might leak from other tests
+        monkeypatch.delenv('TELEGRAM_BOT_TOKEN', raising=False)
+        monkeypatch.delenv('YNAB_ACCESS_TOKEN', raising=False)
+        monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+        monkeypatch.delenv('ADMIN_IDS', raising=False)
         env_file = tmp_path / '.env'
         env_file.write_text(
             'TELEGRAM_BOT_TOKEN=tg-token\n'
