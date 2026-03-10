@@ -42,11 +42,11 @@ class GeneralHandler(BaseHandler):
             elif user_config.is_pending():
                 # Pending user gets registration confirmation
                 await update.message.reply_text(
-                    f"👋 **¡Hola {user_config.get_display_name()}!**\n\n"
+                    f"👋 *¡Hola {user_config.get_display_name()}!*\n\n"
                     "📝 Te has registrado exitosamente en el bot YNAB.\n\n"
-                    "⏳ **Tu solicitud está pendiente de aprobación por un administrador.**\n\n"
-                    f"**Tu ID:** `{user.id}`\n"
-                    "**Estado:** Pendiente\n\n"
+                    "⏳ *Tu solicitud está pendiente de aprobación por un administrador.*\n\n"
+                    f"*Tu ID:* `{user.id}`\n"
+                    "*Estado:* Pendiente\n\n"
                     "Te notificaremos tan pronto como tu acceso sea aprobado.",
                     parse_mode='Markdown'
                 )
@@ -55,9 +55,10 @@ class GeneralHandler(BaseHandler):
             elif user_config.is_blocked():
                 # Blocked user gets blocked message
                 await update.message.reply_text(
-                    "🚫 **Acceso Bloqueado**\n\n"
+                    "🚫 *Acceso Bloqueado*\n\n"
                     "Tu acceso a este bot ha sido restringido por un administrador.\n\n"
-                    "Si crees que esto es un error, contacta al administrador del bot."
+                    "Si crees que esto es un error, contacta al administrador del bot.",
+                    parse_mode='Markdown'
                 )
                 return
         

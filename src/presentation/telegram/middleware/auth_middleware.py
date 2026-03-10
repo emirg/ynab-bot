@@ -29,9 +29,9 @@ def require_authentication(auth_service_getter: Callable):
             if not user_config.is_authorized():
                 if user_config.is_pending():
                     await update.message.reply_text(
-                        "⏳ **Acceso Pendiente**\n\n"
+                        "⏳ *Acceso Pendiente*\n\n"
                         "Tu solicitud de acceso está pendiente de aprobación por un administrador.\n\n"
-                        "📝 **Información registrada:**\n"
+                        "📝 *Información registrada:*\n"
                         f"• ID: `{user.id}`\n"
                         f"• Nombre: {user_config.get_display_name()}\n\n"
                         "Por favor espera a que un administrador apruebe tu acceso.",
@@ -39,15 +39,17 @@ def require_authentication(auth_service_getter: Callable):
                     )
                 elif user_config.is_blocked():
                     await update.message.reply_text(
-                        "🚫 **Acceso Bloqueado**\n\n"
+                        "🚫 *Acceso Bloqueado*\n\n"
                         "Tu acceso a este bot ha sido bloqueado por un administrador.\n\n"
-                        "Si crees que esto es un error, contacta al administrador del bot."
+                        "Si crees que esto es un error, contacta al administrador del bot.",
+                        parse_mode='Markdown'
                     )
                 else:
                     await update.message.reply_text(
-                        "❌ **Sin Autorización**\n\n"
+                        "❌ *Sin Autorización*\n\n"
                         "No tienes autorización para usar este bot. "
-                        "Un administrador debe aprobar tu acceso primero."
+                        "Un administrador debe aprobar tu acceso primero.",
+                        parse_mode='Markdown'
                     )
                 return
             
@@ -74,8 +76,9 @@ def require_admin(auth_service_getter: Callable):
             # Check if user is admin
             if not auth_service.is_admin(user.id):
                 await update.message.reply_text(
-                    "🚫 **Acceso Restringido**\n\n"
-                    "Este comando está disponible solo para administradores."
+                    "🚫 *Acceso Restringido*\n\n"
+                    "Este comando está disponible solo para administradores.",
+                    parse_mode='Markdown'
                 )
                 logger.warning(f"User {user.id} (@{user.username}) attempted admin command without privileges")
                 return
@@ -115,26 +118,27 @@ class AuthenticationMiddleware:
         
         if user_config.is_pending():
             await update.message.reply_text(
-                "⏳ **Solicitud Pendiente**\n\n"
+                "⏳ *Solicitud Pendiente*\n\n"
                 f"Hola {user_config.get_display_name()}, tu solicitud de acceso está pendiente.\n\n"
                 "Un administrador debe aprobar tu acceso antes de que puedas usar el bot.\n\n"
-                f"**Tu ID:** `{user.id}`\n"
-                f"**Estado:** Pendiente de aprobación\n\n"
+                f"*Tu ID:* `{user.id}`\n"
+                f"*Estado:* Pendiente de aprobación\n\n"
                 "Te notificaremos cuando tu acceso sea aprobado.",
                 parse_mode='Markdown'
             )
         elif user_config.is_blocked():
             await update.message.reply_text(
-                "🚫 **Acceso Bloqueado**\n\n"
+                "🚫 *Acceso Bloqueado*\n\n"
                 "Tu acceso ha sido bloqueado por un administrador.\n\n"
-                "Si crees que esto es un error, contacta al administrador del bot."
+                "Si crees que esto es un error, contacta al administrador del bot.",
+                parse_mode='Markdown'
             )
         else:
             await update.message.reply_text(
-                "❌ **Sin Autorización**\n\n"
+                "❌ *Sin Autorización*\n\n"
                 "Necesitas autorización para usar este bot.\n\n"
-                f"**Tu ID:** `{user.id}`\n"
-                f"**Nombre:** {user_config.get_display_name()}\n\n"
+                f"*Tu ID:* `{user.id}`\n"
+                f"*Nombre:* {user_config.get_display_name()}\n\n"
                 "Un administrador debe aprobar tu acceso.",
                 parse_mode='Markdown'
             )

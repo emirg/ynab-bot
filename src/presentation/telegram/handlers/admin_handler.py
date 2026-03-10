@@ -22,16 +22,16 @@ class AdminHandler(BaseHandler):
     async def handle_admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show admin panel"""
         admin_menu = """
-🔐 **Panel de Administración**
+🔐 *Panel de Administración*
 
-**Comandos disponibles:**
+*Comandos disponibles:*
 • `/pending` - Ver usuarios pendientes de aprobación
 • `/users` - Ver todos los usuarios registrados
 • `/approve <user_id>` - Aprobar usuario
 • `/block <user_id>` - Bloquear usuario
 • `/stats` - Estadísticas del sistema
 
-**Información:**
+*Información:*
 • Solo los administradores pueden ejecutar estos comandos
 • Los cambios se aplican inmediatamente
 • Los usuarios serán notificados de cambios de estado
@@ -45,18 +45,19 @@ class AdminHandler(BaseHandler):
         
         if not pending_users:
             await update.message.reply_text(
-                "✅ **Sin usuarios pendientes**\n\n"
-                "No hay usuarios esperando aprobación en este momento."
+                "✅ *Sin usuarios pendientes*\n\n"
+                "No hay usuarios esperando aprobación en este momento.",
+                parse_mode='Markdown'
             )
             return
         
-        message = f"⏳ **Usuarios Pendientes ({len(pending_users)})**\n\n"
+        message = f"⏳ *Usuarios Pendientes ({len(pending_users)})*\n\n"
         
         # Create inline keyboard for approvals
         keyboard = []
         
         for user in pending_users[:10]:  # Limit to 10 users to avoid message too long
-            user_info = f"• **{user.get_display_name()}** (ID: `{user.telegram_id}`)\n"
+            user_info = f"• *{user.get_display_name()}* (ID: `{user.telegram_id}`)\n"
             user_info += f"  Registrado: {user.created_at.strftime('%Y-%m-%d %H:%M')}\n"
             message += user_info + "\n"
             
@@ -99,12 +100,12 @@ class AdminHandler(BaseHandler):
         for user in all_users:
             users_by_status[user.status].append(user)
         
-        message = f"👥 **Usuarios Registrados ({len(all_users)} total)**\n\n"
+        message = f"👥 *Usuarios Registrados ({len(all_users)} total)*\n\n"
         
         # Show authorized users
         authorized = users_by_status[UserStatus.AUTHORIZED]
         if authorized:
-            message += f"✅ **Autorizados ({len(authorized)}):**\n"
+            message += f"✅ *Autorizados ({len(authorized)}):*\n"
             for user in authorized[:5]:
                 message += f"• {user.get_display_name()} (ID: `{user.telegram_id}`)\n"
             if len(authorized) > 5:
@@ -114,7 +115,7 @@ class AdminHandler(BaseHandler):
         # Show pending users
         pending = users_by_status[UserStatus.PENDING]
         if pending:
-            message += f"⏳ **Pendientes ({len(pending)}):**\n"
+            message += f"⏳ *Pendientes ({len(pending)}):*\n"
             for user in pending[:5]:
                 message += f"• {user.get_display_name()} (ID: `{user.telegram_id}`)\n"
             if len(pending) > 5:
@@ -124,14 +125,14 @@ class AdminHandler(BaseHandler):
         # Show blocked users
         blocked = users_by_status[UserStatus.BLOCKED]
         if blocked:
-            message += f"🚫 **Bloqueados ({len(blocked)}):**\n"
+            message += f"🚫 *Bloqueados ({len(blocked)}):*\n"
             for user in blocked[:3]:
                 message += f"• {user.get_display_name()} (ID: `{user.telegram_id}`)\n"
             if len(blocked) > 3:
                 message += f"  ... y {len(blocked) - 3} más\n"
             message += "\n"
         
-        message += "**Comandos útiles:**\n"
+        message += "*Comandos útiles:*\n"
         message += "• `/pending` - Ver solo pendientes\n"
         message += "• `/approve <user_id>` - Aprobar usuario\n"
         message += "• `/block <user_id>` - Bloquear usuario"
@@ -143,9 +144,10 @@ class AdminHandler(BaseHandler):
         """Approve a user"""
         if not context.args:
             await update.message.reply_text(
-                "❌ **Uso incorrecto**\n\n"
+                "❌ *Uso incorrecto*\n\n"
                 "Uso: `/approve <user_id>`\n"
-                "Ejemplo: `/approve 123456789`"
+                "Ejemplo: `/approve 123456789`",
+                parse_mode='Markdown'
             )
             return
         
@@ -161,19 +163,19 @@ class AdminHandler(BaseHandler):
                 user_name = user.get_display_name() if user else f"User {user_id}"
                 
                 await update.message.reply_text(
-                    f"✅ **Usuario Aprobado**\n\n"
-                    f"**Usuario:** {user_name}\n"
-                    f"**ID:** `{user_id}`\n"
-                    f"**Aprobado por:** {update.effective_user.first_name}\n\n"
+                    f"✅ *Usuario Aprobado*\n\n"
+                    f"*Usuario:* {user_name}\n"
+                    f"*ID:* `{user_id}`\n"
+                    f"*Aprobado por:* {update.effective_user.first_name}\n\n"
                     f"El usuario ya puede usar el bot.",
                     parse_mode='Markdown'
                 )
-                
+
                 # Try to notify the user (this might fail if bot can't message them)
                 try:
                     await context.bot.send_message(
                         chat_id=user_id,
-                        text=f"🎉 **¡Acceso Aprobado!**\n\n"
+                        text=f"🎉 *¡Acceso Aprobado!*\n\n"
                              f"Tu solicitud de acceso al bot YNAB ha sido aprobada.\n\n"
                              f"Ya puedes comenzar a usar todas las funciones del bot. "
                              f"Usa /start para ver los comandos disponibles.",
@@ -184,17 +186,18 @@ class AdminHandler(BaseHandler):
                     logger.warning(f"Could not notify user {user_id} of approval: {e}")
             else:
                 await update.message.reply_text(
-                    f"❌ **Error**\n\n"
+                    f"❌ *Error*\n\n"
                     f"No se pudo aprobar el usuario `{user_id}`.\n"
                     f"Verifica que el ID sea correcto y que el usuario esté registrado.",
                     parse_mode='Markdown'
                 )
-        
+
         except ValueError:
             await update.message.reply_text(
-                "❌ **ID inválido**\n\n"
+                "❌ *ID inválido*\n\n"
                 "El ID de usuario debe ser un número.\n"
-                "Ejemplo: `/approve 123456789`"
+                "Ejemplo: `/approve 123456789`",
+                parse_mode='Markdown'
             )
         except Exception as e:
             logger.error(f"Error approving user: {e}")
@@ -207,9 +210,10 @@ class AdminHandler(BaseHandler):
         """Block a user"""
         if not context.args:
             await update.message.reply_text(
-                "❌ **Uso incorrecto**\n\n"
+                "❌ *Uso incorrecto*\n\n"
                 "Uso: `/block <user_id>`\n"
-                "Ejemplo: `/block 123456789`"
+                "Ejemplo: `/block 123456789`",
+                parse_mode='Markdown'
             )
             return
         
@@ -225,19 +229,19 @@ class AdminHandler(BaseHandler):
                 user_name = user.get_display_name() if user else f"User {user_id}"
                 
                 await update.message.reply_text(
-                    f"🚫 **Usuario Bloqueado**\n\n"
-                    f"**Usuario:** {user_name}\n"
-                    f"**ID:** `{user_id}`\n"
-                    f"**Bloqueado por:** {update.effective_user.first_name}\n\n"
+                    f"🚫 *Usuario Bloqueado*\n\n"
+                    f"*Usuario:* {user_name}\n"
+                    f"*ID:* `{user_id}`\n"
+                    f"*Bloqueado por:* {update.effective_user.first_name}\n\n"
                     f"El usuario ya no puede usar el bot.",
                     parse_mode='Markdown'
                 )
-                
+
                 # Try to notify the user
                 try:
                     await context.bot.send_message(
                         chat_id=user_id,
-                        text=f"🚫 **Acceso Bloqueado**\n\n"
+                        text=f"🚫 *Acceso Bloqueado*\n\n"
                              f"Tu acceso al bot YNAB ha sido restringido por un administrador.\n\n"
                              f"Si crees que esto es un error, contacta al administrador del bot.",
                         parse_mode='Markdown'
@@ -247,17 +251,18 @@ class AdminHandler(BaseHandler):
                     logger.warning(f"Could not notify user {user_id} of being blocked: {e}")
             else:
                 await update.message.reply_text(
-                    f"❌ **Error**\n\n"
+                    f"❌ *Error*\n\n"
                     f"No se pudo bloquear el usuario `{user_id}`.\n"
                     f"Verifica que el ID sea correcto y que el usuario esté registrado.",
                     parse_mode='Markdown'
                 )
-        
+
         except ValueError:
             await update.message.reply_text(
-                "❌ **ID inválido**\n\n"
+                "❌ *ID inválido*\n\n"
                 "El ID de usuario debe ser un número.\n"
-                "Ejemplo: `/block 123456789`"
+                "Ejemplo: `/block 123456789`",
+                parse_mode='Markdown'
             )
         except Exception as e:
             logger.error(f"Error blocking user: {e}")
@@ -289,18 +294,18 @@ class AdminHandler(BaseHandler):
                     user_name = user.get_display_name() if user else f"User {user_id}"
                     
                     await query.edit_message_text(
-                        f"✅ **Usuario Aprobado**\n\n"
-                        f"**Usuario:** {user_name}\n"
-                        f"**ID:** `{user_id}`\n"
-                        f"**Aprobado por:** {update.effective_user.first_name}",
+                        f"✅ *Usuario Aprobado*\n\n"
+                        f"*Usuario:* {user_name}\n"
+                        f"*ID:* `{user_id}`\n"
+                        f"*Aprobado por:* {update.effective_user.first_name}",
                         parse_mode='Markdown'
                     )
-                    
+
                     # Notify user
                     try:
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=f"🎉 **¡Acceso Aprobado!**\n\n"
+                            text=f"🎉 *¡Acceso Aprobado!*\n\n"
                                  f"Tu solicitud de acceso ha sido aprobada. "
                                  f"Ya puedes usar el bot. Usa /start para comenzar.",
                             parse_mode='Markdown'
@@ -324,18 +329,18 @@ class AdminHandler(BaseHandler):
                     user_name = user.get_display_name() if user else f"User {user_id}"
                     
                     await query.edit_message_text(
-                        f"🚫 **Usuario Bloqueado**\n\n"
-                        f"**Usuario:** {user_name}\n"
-                        f"**ID:** `{user_id}`\n"
-                        f"**Bloqueado por:** {update.effective_user.first_name}",
+                        f"🚫 *Usuario Bloqueado*\n\n"
+                        f"*Usuario:* {user_name}\n"
+                        f"*ID:* `{user_id}`\n"
+                        f"*Bloqueado por:* {update.effective_user.first_name}",
                         parse_mode='Markdown'
                     )
-                    
+
                     # Notify user
                     try:
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=f"🚫 **Acceso Bloqueado**\n\n"
+                            text=f"🚫 *Acceso Bloqueado*\n\n"
                                  f"Tu acceso al bot ha sido restringido. "
                                  f"Contacta al administrador si crees que es un error.",
                             parse_mode='Markdown'

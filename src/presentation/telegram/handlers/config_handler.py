@@ -80,7 +80,8 @@ Selecciona una opción para configurar tu bot:
             if reply_markup:
                 await update.message.reply_text(
                     "👆 *Selecciona un presupuesto tocando el botón correspondiente*",
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
                 )
             
             self.log_handler_success("ConfigHandler.handle_budgets_command", update)
@@ -121,7 +122,8 @@ Selecciona una opción para configurar tu bot:
             if reply_markup:
                 await update.message.reply_text(
                     "👆 *Selecciona una cuenta tocando el botón correspondiente*",
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
                 )
             
             self.log_handler_success("ConfigHandler.handle_accounts_command", update)
@@ -167,7 +169,8 @@ Selecciona una opción para configurar tu bot:
             if reply_markup:
                 await query.message.reply_text(
                     "👆 *Selecciona un presupuesto tocando el botón correspondiente*",
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
                 )
                 
         except YNABApiException as e:
@@ -201,7 +204,8 @@ Selecciona una opción para configurar tu bot:
             if reply_markup:
                 await query.message.reply_text(
                     "👆 *Selecciona una cuenta tocando el botón correspondiente*",
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
                 )
                 
         except Exception as e:
@@ -246,26 +250,26 @@ Selecciona una opción para configurar tu bot:
             elif data == "config_reset":
                 success = self.user_config_service.reset_user_config(user_id)
                 if success:
-                    await query.edit_message_text("✅ *Configuración reiniciada exitosamente*\n\nUsa `/config` para configurar de nuevo.")
+                    await query.edit_message_text("✅ *Configuración reiniciada exitosamente*\n\nUsa `/config` para configurar de nuevo.", parse_mode='Markdown')
                 else:
-                    await query.edit_message_text("❌ *Error reiniciando configuración*")
+                    await query.edit_message_text("❌ *Error reiniciando configuración*", parse_mode='Markdown')
                     
             elif data.startswith("select_budget_"):
                 budget_id = data.replace("select_budget_", "")
                 try:
                     self.user_config_service.set_user_budget(user_id, budget_id)
-                    await query.edit_message_text(f"✅ *Presupuesto configurado exitosamente*\n\n💡 Ahora configura tu cuenta por defecto con `/accounts`")
+                    await query.edit_message_text(f"✅ *Presupuesto configurado exitosamente*\n\n💡 Ahora configura tu cuenta por defecto con `/accounts`", parse_mode='Markdown')
                 except YNABApiException as e:
-                    await query.edit_message_text(f"❌ *Error:* {str(e)}")
-                    
+                    await query.edit_message_text(f"❌ *Error:* {str(e)}", parse_mode='Markdown')
+
             elif data.startswith("select_account_"):
                 account_id = data.replace("select_account_", "")
                 try:
                     self.user_config_service.set_default_account(user_id, account_id)
-                    await query.edit_message_text(f"✅ *Cuenta por defecto configurada*\n\n🎉 *¡Configuración completa!* Ya puedes enviar mensajes de gastos.")
+                    await query.edit_message_text(f"✅ *Cuenta por defecto configurada*\n\n🎉 *¡Configuración completa!* Ya puedes enviar mensajes de gastos.", parse_mode='Markdown')
                 except YNABApiException as e:
-                    await query.edit_message_text(f"❌ *Error:* {str(e)}")
-            
+                    await query.edit_message_text(f"❌ *Error:* {str(e)}", parse_mode='Markdown')
+
         except Exception as e:
             logger.error(f"Error handling callback query: {e}")
             await query.edit_message_text("❌ Ocurrió un error procesando la acción.")
