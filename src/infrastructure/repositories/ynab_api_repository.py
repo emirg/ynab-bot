@@ -1,6 +1,9 @@
-import requests
 import logging
-from typing import List, Optional
+import time
+from typing import Dict, List, Optional, Tuple
+
+import requests
+
 from domain.repositories.ynab_repository import YNABRepository
 from domain.models.expense import Expense
 from domain.models.user import YNABBudget, YNABAccount, YNABCategory
@@ -8,10 +11,12 @@ from domain.exceptions import YNABApiException
 
 logger = logging.getLogger(__name__)
 
+_CACHE_TTL_SECONDS = 300  # 5 minutes
+
 
 class YNABApiRepository(YNABRepository):
     """YNAB API implementation of YNABRepository"""
-    
+
     def __init__(self, access_token: str):
         self.access_token = access_token
         self.base_url = "https://api.ynab.com/v1"
@@ -19,6 +24,18 @@ class YNABApiRepository(YNABRepository):
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
+        # TTL cache: key -> (timestamp, data)
+        self._cache: Dict[str, Tuple[float, object]] = {}
+
+    def _get_cached(self, key: str) -> Optional[object]:
+        """Return cached value if still valid, else None"""
+        entry = self._cache.get(key)
+        if entry and (time.monotonic() - entry[0]) < _CACHE_TTL_SECONDS:
+            return entry[1]
+        return None
+
+    def _set_cached(self, key: str, value: object) -> None:
+        self._cache[key] = (time.monotonic(), value)
     
     def get_budgets(self) -> List[YNABBudget]:
         """Get all available budgets"""
@@ -34,34 +51,47 @@ class YNABApiRepository(YNABRepository):
             raise YNABApiException(f"Failed to get budgets: {e}")
     
     def get_accounts(self, budget_id: str) -> List[YNABAccount]:
-        """Get all accounts for a budget"""
+        """Get all accounts for a budget (cached with TTL)"""
+        cache_key = f"accounts:{budget_id}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             response = requests.get(
-                f"{self.base_url}/budgets/{budget_id}/accounts", 
+                f"{self.base_url}/budgets/{budget_id}/accounts",
                 headers=self.headers
             )
             response.raise_for_status()
-            
+
             accounts_data = response.json()["data"]["accounts"]
-            return [
-                YNABAccount.from_api_response(account) 
-                for account in accounts_data 
+            result = [
+                YNABAccount.from_api_response(account)
+                for account in accounts_data
                 if not account.get('deleted', False) and not account.get('closed', False)
             ]
-            
+
+            self._set_cached(cache_key, result)
+            return result
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get accounts for budget {budget_id}: {e}")
             raise YNABApiException(f"Failed to get accounts: {e}")
-    
+
     def get_categories(self, budget_id: str) -> List[YNABCategory]:
-        """Get all categories for a budget"""
+        """Get all categories for a budget (cached with TTL)"""
+        cache_key = f"categories:{budget_id}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             response = requests.get(
-                f"{self.base_url}/budgets/{budget_id}/categories", 
+                f"{self.base_url}/budgets/{budget_id}/categories",
                 headers=self.headers
             )
             response.raise_for_status()
-            
+
             categories = []
             for group in response.json()["data"]["category_groups"]:
                 group_name = group["name"]
@@ -70,9 +100,10 @@ class YNABApiRepository(YNABRepository):
                         categories.append(
                             YNABCategory.from_api_response(category, group_name)
                         )
-            
+
+            self._set_cached(cache_key, categories)
             return categories
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get categories for budget {budget_id}: {e}")
             raise YNABApiException(f"Failed to get categories: {e}")

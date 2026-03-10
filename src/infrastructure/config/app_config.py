@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 
 from domain.exceptions import ConfigurationException
 
+# Compute once: infrastructure/config/ -> infrastructure/ -> src/ -> project root
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
 
 @dataclass
 class AppConfig:
@@ -23,8 +26,7 @@ class AppConfig:
         """Load configuration from environment file"""
         # Get absolute path relative to project root
         if not os.path.isabs(env_path):
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-            env_path = os.path.join(project_root, env_path)
+            env_path = os.path.join(_PROJECT_ROOT, env_path)
         
         load_dotenv(env_path)
         
@@ -68,9 +70,7 @@ class AppConfig:
         """Convert relative path to absolute path from project root"""
         if os.path.isabs(relative_path):
             return relative_path
-        
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        return os.path.join(project_root, relative_path)
+        return os.path.join(_PROJECT_ROOT, relative_path)
     
     @property
     def database_absolute_path(self) -> str:

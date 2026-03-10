@@ -1,7 +1,7 @@
 import logging
 import re
 from decimal import Decimal
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.user import UserConfiguration, YNABCategory
@@ -9,7 +9,7 @@ from domain.repositories.user_repository import UserRepository
 from domain.repositories.ynab_repository import YNABRepository
 from domain.repositories.learning_repository import LearningRepository
 from domain.exceptions import (
-    UserNotConfiguredException, 
+    UserNotConfiguredException,
     ExpenseParsingException,
     YNABApiException,
     InvalidExpenseException
@@ -17,6 +17,8 @@ from domain.exceptions import (
 from parsers.llm_expense_parser import LLMExpenseParser
 
 logger = logging.getLogger(__name__)
+
+_SPECIAL_CHARS_PATTERN = re.compile(r'[^\w\s]')
 
 
 class ExpenseService:
@@ -87,6 +89,9 @@ class ExpenseService:
     def _update_llm_parser_data(self, categories: List[YNABCategory], accounts: List):
         """Update LLM parser with current YNAB categories and accounts"""
         try:
+            # Filter active categories once, reuse across parser and lookup maps
+            active_categories = [cat for cat in categories if not cat.deleted and not cat.hidden]
+
             # Convert categories to format expected by LLM parser
             category_list = [
                 {
@@ -95,17 +100,30 @@ class ExpenseService:
                     'name': cat.name,
                     'group_name': cat.group_name
                 }
-                for cat in categories if not cat.deleted and not cat.hidden
+                for cat in active_categories
             ]
-            
+
+            # Build category lookup maps for O(1) matching
+            self._category_by_name: Dict[str, str] = {}
+            self._category_by_full_name: Dict[str, str] = {}
+            self._category_by_name_lower: Dict[str, str] = {}
+            self._category_by_clean_lower: Dict[str, str] = {}
+            for cat in active_categories:
+                self._category_by_name[cat.name] = cat.id
+                self._category_by_full_name[cat.full_name] = cat.id
+                self._category_by_name_lower[cat.name.lower()] = cat.id
+                clean = _SPECIAL_CHARS_PATTERN.sub('', cat.name).strip().lower()
+                if clean:
+                    self._category_by_clean_lower[clean] = cat.id
+
             # Convert accounts to format expected by LLM parser
             account_names = [acc.name for acc in accounts if not acc.deleted and not acc.closed]
-            
+
             self.llm_parser.update_categories(category_list)
             self.llm_parser.update_accounts(account_names)
-            
+
             logger.info(f"Updated LLM parser with {len(category_list)} categories and {len(account_names)} accounts")
-            
+
         except Exception as e:
             logger.error(f"Failed to update LLM parser data: {e}")
     
@@ -158,61 +176,39 @@ class ExpenseService:
         return None  # For now, let the service use default account
     
     def _find_category_id_by_name(self, category_name: str, categories: List[YNABCategory]) -> Optional[str]:
-        """Find category ID by name with fuzzy matching"""
-        if not category_name or not categories:
+        """Find category ID by name using pre-built lookup maps (O(1) per attempt)"""
+        if not category_name:
             return None
-        
+
         category_name = category_name.strip()
-        
-        # First, try exact match on name
-        for category in categories:
-            if category.name == category_name:
-                logger.debug(f"Exact category name match: '{category_name}' -> {category.id}")
-                return category.id
-        
-        # Try exact match on full_name (includes group)
-        for category in categories:
-            if category.full_name == category_name:
-                logger.debug(f"Exact category full_name match: '{category_name}' -> {category.id}")
-                return category.id
-        
-        # Try case-insensitive match on name
+
+        # Exact match on name
+        if category_name in self._category_by_name:
+            return self._category_by_name[category_name]
+
+        # Exact match on full_name
+        if category_name in self._category_by_full_name:
+            return self._category_by_full_name[category_name]
+
+        # Case-insensitive match
         category_name_lower = category_name.lower()
-        for category in categories:
-            if category.name.lower() == category_name_lower:
-                logger.debug(f"Case-insensitive category match: '{category_name}' -> {category.id}")
-                return category.id
-        
-        # Try partial match (category name contains the search term or vice versa)
-        for category in categories:
-            if (category_name_lower in category.name.lower() or 
-                category.name.lower() in category_name_lower):
-                logger.debug(f"Partial category match: '{category_name}' -> '{category.name}' ({category.id})")
-                return category.id
-        
-        # Try match without emojis/special characters
-        category_name_clean = re.sub(r'[^\w\s]', '', category_name).strip()
-        if category_name_clean:
-            for category in categories:
-                category_clean = re.sub(r'[^\w\s]', '', category.name).strip()
-                if category_name_clean.lower() == category_clean.lower():
-                    logger.debug(f"Clean text category match: '{category_name}' -> '{category.name}' ({category.id})")
-                    return category.id
-        
+        if category_name_lower in self._category_by_name_lower:
+            return self._category_by_name_lower[category_name_lower]
+
+        # Partial match (fallback to linear scan, only when dict lookups fail)
+        for cat in categories:
+            cat_lower = cat.name.lower()
+            if category_name_lower in cat_lower or cat_lower in category_name_lower:
+                logger.debug(f"Partial category match: '{category_name}' -> '{cat.name}' ({cat.id})")
+                return cat.id
+
+        # Match without emojis/special characters
+        category_name_clean = _SPECIAL_CHARS_PATTERN.sub('', category_name).strip().lower()
+        if category_name_clean and category_name_clean in self._category_by_clean_lower:
+            return self._category_by_clean_lower[category_name_clean]
+
         logger.warning(f"No category match found for: '{category_name}'")
-        logger.debug(f"Available categories: {[cat.name for cat in categories[:10]]}")
         return None
-    
-    def _is_valid_uuid(self, uuid_string: str) -> bool:
-        """Check if string is a valid UUID format"""
-        if not uuid_string:
-            return False
-        
-        uuid_pattern = re.compile(
-            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-            re.IGNORECASE
-        )
-        return bool(uuid_pattern.match(uuid_string))
     
     def _enhance_with_learning(self, expense: Expense, categories: List[YNABCategory]) -> Expense:
         """Enhance expense with learning predictions if confidence is low"""

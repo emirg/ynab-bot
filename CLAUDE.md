@@ -9,7 +9,9 @@ YNAB Telegram Bot — a multi-user Telegram bot that logs expenses to YNAB (You 
 ## Commands
 
 ```bash
-# Install dependencies
+# Setup virtualenv and install dependencies
+python -m venv .venv
+source .venv/bin/activate  # or: source .venv/bin/activate.fish
 pip install -r requirements.txt
 
 # Initialize project structure and data files
@@ -18,15 +20,18 @@ python setup.py
 # Run the bot
 python main.py
 
-# Test individual modules (each has standalone test code in __main__)
-python -m src.parsers.llm_expense_parser
-python -m src.parsers.adaptive_category_learner
-python -m src.integrations.ynab_category_manager
-python -m src.integrations.ynab_account_manager
-python -m src.integrations.speech_to_text
-```
+# Run full test suite (263 tests, ~84% coverage)
+pytest
 
-There is no formal test suite — modules have inline `if __name__ == "__main__"` test blocks.
+# Run a single test file
+pytest tests/test_domain_models.py
+
+# Run a single test class or method
+pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic
+
+# Run tests with keyword filter
+pytest -k "test_predict_category"
+```
 
 ## Architecture
 
@@ -71,9 +76,19 @@ Environment variables loaded from `config/.env` (see `config/.env.example`):
 - `ADMIN_IDS` (required, comma-separated Telegram user IDs)
 - `DATABASE_PATH` (default: `data/users.db`), `LEARNING_DATA_PATH` (default: `data/category_learning_data.json`)
 
+### Testing
+
+- **Framework**: pytest with fixtures in `tests/conftest.py`, coverage via pytest-cov
+- **Config**: `pytest.ini` scopes coverage to `src/domain`, `src/application`, `src/infrastructure`, and `src/presentation/telegram/formatters.py`
+- **Conventions**: Shared fixtures for domain models, mock repositories, and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock` for repository/parser mocks. `conftest.py` adds `src/` to `sys.path`.
+- **Coverage**: ~84% on active architecture. Domain layer at 100%. Legacy modules (`src/bot/`, `src/parsers/`, `src/integrations/`) excluded.
+
 ### Key Conventions
 
 - YNAB amounts are in milliunits (×1000), negated for expenses
 - Amount formats: `40000`, `40 mil`, `40 lucas`, `40k`, `$40000`, decimals with comma (`40000,50`)
 - `main.py` adds `src/` to `sys.path`, so imports within `src/` use package names directly (e.g., `from domain.models.user import ...`)
 - The `src/bot/telegram_bot.py` is a legacy bot class; the active one is `src/presentation/telegram/bot.py`
+- Pre-compiled regex patterns are module-level constants (e.g., `_UUID_PATTERN`, `_SPECIAL_CHARS_PATTERN`)
+- Category lookups use O(1) dict maps built in `_update_llm_parser_data()`
+- YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`

@@ -1,15 +1,34 @@
 import os
 import json
 import logging
+from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-from collections import defaultdict, Counter
 
 from domain.repositories.learning_repository import LearningRepository
 from domain.models.expense import Expense
 from domain.exceptions import LearningDataException
 
 logger = logging.getLogger(__name__)
+
+_MAX_RECENT_TRANSACTIONS = 20
+
+# Pre-built normalization lookup: variant -> canonical name
+_PAYEE_NORMALIZATIONS: Dict[str, str] = {}
+_NORMALIZATION_RULES = {
+    "mcdonalds": ["mcdonald's", "mc donald's", "mc donalds"],
+    "home burguer": ["home burger", "homeburger", "home-burger"],
+    "exito": ["éxito", "almacenes éxito", "almacenes exito"],
+    "carulla": ["carulla fresh market", "supermercados carulla"],
+    "olimpica": ["olímpica", "supermercados olimpica", "supermercados olímpica"],
+    "falabella": ["saga falabella", "tiendas falabella"],
+    "uber": ["uber technologies", "uber trip"],
+    "netflix": ["netflix.com", "netflix inc"],
+    "spotify": ["spotify premium", "spotify music"]
+}
+for _canonical, _variants in _NORMALIZATION_RULES.items():
+    for _variant in _variants:
+        _PAYEE_NORMALIZATIONS[_variant] = _canonical
 
 
 class JSONLearningRepository(LearningRepository):
@@ -86,29 +105,20 @@ class JSONLearningRepository(LearningRepository):
         """Normalize payee name for consistency"""
         if not payee:
             return "unknown"
-        
+
         normalized = payee.lower().strip()
         normalized = normalized.replace("'", "").replace('"', "")
         normalized = normalized.replace(".", "").replace(",", "")
-        
-        # Common merchant normalizations
-        normalizations = {
-            "mcdonalds": ["mcdonald's", "mc donald's", "mc donalds"],
-            "home burguer": ["home burger", "homeburger", "home-burger"],
-            "exito": ["éxito", "almacenes éxito", "almacenes exito"],
-            "carulla": ["carulla fresh market", "supermercados carulla"],
-            "olimpica": ["olímpica", "supermercados olimpica", "supermercados olímpica"],
-            "falabella": ["saga falabella", "tiendas falabella"],
-            "uber": ["uber technologies", "uber trip"],
-            "netflix": ["netflix.com", "netflix inc"],
-            "spotify": ["spotify premium", "spotify music"]
-        }
-        
-        for canonical, variants in normalizations.items():
-            if normalized in variants or any(variant in normalized for variant in variants):
-                normalized = canonical
-                break
-        
+
+        # O(1) lookup for exact variant matches
+        if normalized in _PAYEE_NORMALIZATIONS:
+            return _PAYEE_NORMALIZATIONS[normalized]
+
+        # Substring match for partial variants (e.g. "uber technologies inc")
+        for variant, canonical in _PAYEE_NORMALIZATIONS.items():
+            if variant in normalized:
+                return canonical
+
         return normalized
     
     def record_successful_transaction(self, expense: Expense) -> None:
@@ -161,7 +171,7 @@ class JSONLearningRepository(LearningRepository):
         confidence = self.learning_data["category_confidence"].get(normalized_payee, 0.0)
         
         # Verify category still exists in YNAB
-        category_ids = [cat.get('id') for cat in categories if cat.get('id')]
+        category_ids = {cat.get('id') for cat in categories if cat.get('id')}
         if best_category_id not in category_ids:
             logger.warning(f"Learned category {best_category_id} no longer exists in YNAB")
             return None
@@ -228,13 +238,13 @@ class JSONLearningRepository(LearningRepository):
             "confidence": expense.confidence,
             "parser_source": expense.parser_source
         }
-        
-        self.learning_data["recent_transactions"].insert(0, transaction)
-        
-        # Keep only last 20 transactions
-        if len(self.learning_data["recent_transactions"]) > 20:
-            self.learning_data["recent_transactions"] = self.learning_data["recent_transactions"][:20]
-        
+
+        recent = self.learning_data["recent_transactions"]
+        recent.insert(0, transaction)
+
+        # Trim excess entries efficiently
+        del recent[_MAX_RECENT_TRANSACTIONS:]
+
         self._save_data()
     
     def get_recent_transactions(self, limit: int = 10) -> List[Dict]:

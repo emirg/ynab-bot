@@ -12,10 +12,28 @@ logger = logging.getLogger(__name__)
 
 class SQLiteUserRepository(UserRepository):
     """SQLite implementation of UserRepository"""
-    
+
     def __init__(self, db_path: str):
         self.db_path = db_path
         self._init_database()
+
+    @staticmethod
+    def _row_to_user_config(row: sqlite3.Row) -> UserConfiguration:
+        """Convert a database row to a UserConfiguration domain model"""
+        return UserConfiguration(
+            telegram_id=row['telegram_id'],
+            status=UserStatus(row['status']) if row['status'] else UserStatus.PENDING,
+            budget_id=row['budget_id'],
+            default_account_id=row['default_account_id'],
+            default_account_name=row['default_account_name'],
+            username=row['username'],
+            first_name=row['first_name'],
+            last_name=row['last_name'],
+            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
+            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
+            approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
+            approved_by=row['approved_by']
+        )
     
     def _init_database(self):
         """Initialize database tables"""
@@ -75,20 +93,7 @@ class SQLiteUserRepository(UserRepository):
                 row = cursor.fetchone()
                 
                 if row:
-                    return UserConfiguration(
-                        telegram_id=row['telegram_id'],
-                        status=UserStatus(row['status']) if row['status'] else UserStatus.PENDING,
-                        budget_id=row['budget_id'],
-                        default_account_id=row['default_account_id'],
-                        default_account_name=row['default_account_name'],
-                        username=row['username'],
-                        first_name=row['first_name'],
-                        last_name=row['last_name'],
-                        created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
-                        updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
-                        approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
-                        approved_by=row['approved_by']
-                    )
+                    return self._row_to_user_config(row)
                 return None
         except Exception as e:
             logger.error(f"Failed to find user {telegram_id}: {e}")
@@ -166,28 +171,11 @@ class SQLiteUserRepository(UserRepository):
                 )
                 rows = cursor.fetchall()
                 
-                users = []
-                for row in rows:
-                    users.append(UserConfiguration(
-                        telegram_id=row['telegram_id'],
-                        status=UserStatus(row['status']),
-                        budget_id=row['budget_id'],
-                        default_account_id=row['default_account_id'],
-                        default_account_name=row['default_account_name'],
-                        username=row['username'],
-                        first_name=row['first_name'],
-                        last_name=row['last_name'],
-                        created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
-                        updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
-                        approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
-                        approved_by=row['approved_by']
-                    ))
-                
-                return users
+                return [self._row_to_user_config(row) for row in rows]
         except Exception as e:
             logger.error(f"Failed to find users by status {status}: {e}")
             return []
-    
+
     def find_all(self) -> List[UserConfiguration]:
         """Find all users"""
         try:
@@ -197,25 +185,8 @@ class SQLiteUserRepository(UserRepository):
                     'SELECT * FROM user_configurations ORDER BY created_at DESC'
                 )
                 rows = cursor.fetchall()
-                
-                users = []
-                for row in rows:
-                    users.append(UserConfiguration(
-                        telegram_id=row['telegram_id'],
-                        status=UserStatus(row['status']) if row['status'] else UserStatus.PENDING,
-                        budget_id=row['budget_id'],
-                        default_account_id=row['default_account_id'],
-                        default_account_name=row['default_account_name'],
-                        username=row['username'],
-                        first_name=row['first_name'],
-                        last_name=row['last_name'],
-                        created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
-                        updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
-                        approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
-                        approved_by=row['approved_by']
-                    ))
-                
-                return users
+
+                return [self._row_to_user_config(row) for row in rows]
         except Exception as e:
             logger.error(f"Failed to find all users: {e}")
             return []

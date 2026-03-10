@@ -1,3 +1,4 @@
+import os
 import tempfile
 import logging
 from telegram import Update
@@ -97,7 +98,6 @@ class ExpenseHandler(BaseHandler):
             finally:
                 # Clean up temporary file
                 try:
-                    import os
                     os.unlink(temp_file_path)
                 except Exception as cleanup_error:
                     logger.warning(f"Failed to cleanup temp file: {cleanup_error}")

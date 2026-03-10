@@ -1,8 +1,17 @@
+import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
-import re
+
+
+_UUID_PATTERN = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE
+)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -18,12 +27,12 @@ class Expense:
     confidence: float = 0.0
     parser_source: str = 'unknown'
     date: datetime = field(default_factory=datetime.now)
-    
+
     def to_ynab_format(self, budget_id: str, default_account_id: str) -> dict:
         """Convert to YNAB API transaction format"""
         # YNAB uses miliunits (multiply by 1000) and negative for expenses
         amount_milliunits = int(self.amount * -1000)
-        
+
         transaction_data = {
             "account_id": self.account_id or default_account_id,
             "payee_name": self.payee,
@@ -32,29 +41,15 @@ class Expense:
             "date": self.date.strftime("%Y-%m-%d"),
             "cleared": "uncleared"
         }
-        
+
         # Only add category_id if available and valid UUID format
         if self.category_id and self.category_id.strip():
-            if self._is_valid_uuid(self.category_id):
+            if _UUID_PATTERN.match(self.category_id):
                 transaction_data["category_id"] = self.category_id
             else:
-                # Log warning but don't fail - YNAB can handle transactions without categories
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.warning(f"Invalid category UUID format: {self.category_id}, omitting from transaction")
-            
+
         return {"transaction": transaction_data}
-    
-    def _is_valid_uuid(self, uuid_string: str) -> bool:
-        """Check if string is a valid UUID format"""
-        if not uuid_string:
-            return False
-        
-        uuid_pattern = re.compile(
-            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-            re.IGNORECASE
-        )
-        return bool(uuid_pattern.match(uuid_string))
     
     def is_valid(self) -> bool:
         """Validate expense data"""

@@ -2,7 +2,6 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from infrastructure.container import DIContainer
 from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.middleware.auth_middleware import require_admin
 from domain.models.user import UserStatus
@@ -156,8 +155,7 @@ class AdminHandler(BaseHandler):
             
             if success:
                 # Get user info for confirmation
-                user_repo = self.container.get_user_repository()
-                user = user_repo.find_by_telegram_id(user_id)
+                user = self.auth_service.user_repository.find_by_telegram_id(user_id)
                 user_name = user.get_display_name() if user else f"User {user_id}"
                 
                 await update.message.reply_text(
@@ -221,8 +219,7 @@ class AdminHandler(BaseHandler):
             
             if success:
                 # Get user info for confirmation
-                user_repo = self.container.get_user_repository()
-                user = user_repo.find_by_telegram_id(user_id)
+                user = self.auth_service.user_repository.find_by_telegram_id(user_id)
                 user_name = user.get_display_name() if user else f"User {user_id}"
                 
                 await update.message.reply_text(
@@ -286,8 +283,7 @@ class AdminHandler(BaseHandler):
                 
                 if success:
                     # Get user info
-                    user_repo = self.container.get_user_repository()
-                    user = user_repo.find_by_telegram_id(user_id)
+                    user = self.auth_service.user_repository.find_by_telegram_id(user_id)
                     user_name = user.get_display_name() if user else f"User {user_id}"
                     
                     await query.edit_message_text(
@@ -322,8 +318,7 @@ class AdminHandler(BaseHandler):
                 
                 if success:
                     # Get user info
-                    user_repo = self.container.get_user_repository()
-                    user = user_repo.find_by_telegram_id(user_id)
+                    user = self.auth_service.user_repository.find_by_telegram_id(user_id)
                     user_name = user.get_display_name() if user else f"User {user_id}"
                     
                     await query.edit_message_text(
