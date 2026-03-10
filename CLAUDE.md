@@ -48,10 +48,10 @@ main.py → DIContainer (infrastructure/container.py) → YNABTelegramBot (prese
 - **`src/infrastructure/`** — Concrete implementations. `SQLiteUserRepository` (user persistence in `data/users.db`), `YNABApiRepository` (YNAB REST API), `JSONLearningRepository` (learning data in JSON). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together with singleton/transient registrations.
 - **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers. Handlers are split by concern: `GeneralHandler`, `ConfigHandler`, `ExpenseHandler`, `LearningHandler`, `AdminHandler`. Auth is enforced via decorators in `middleware/auth_middleware.py` (`@require_authentication`, `@require_admin`).
 
-### Legacy modules (still used by application services)
+### Supporting modules
 
-- **`src/parsers/`** — `LLMExpenseParser` (GPT-4o-mini), `SmartExpenseParser` (orchestrator), `AdaptiveCategoryLearner` (frequency-based learning). `expense_parser.py` is deprecated.
-- **`src/integrations/`** — `ynab_client.py`, `ynab_category_manager.py`, `ynab_account_manager.py`, `speech_to_text.py`.
+- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI.
+- **`src/integrations/speech_to_text.py`** — Whisper-based voice transcription, used by `ExpenseHandler` via DI.
 
 ### Data Flow
 
@@ -81,14 +81,13 @@ Environment variables loaded from `config/.env` (see `config/.env.example`):
 - **Framework**: pytest with fixtures in `tests/conftest.py`, coverage via pytest-cov
 - **Config**: `pytest.ini` scopes coverage to `src/domain`, `src/application`, `src/infrastructure`, and `src/presentation/telegram/formatters.py`
 - **Conventions**: Shared fixtures for domain models, mock repositories, and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock` for repository/parser mocks. `conftest.py` adds `src/` to `sys.path`.
-- **Coverage**: ~84% on active architecture. Domain layer at 100%. Legacy modules (`src/bot/`, `src/parsers/`, `src/integrations/`) excluded.
+- **Coverage**: ~84% on active architecture. Domain layer at 100%.
 
 ### Key Conventions
 
 - YNAB amounts are in milliunits (×1000), negated for expenses
 - Amount formats: `40000`, `40 mil`, `40 lucas`, `40k`, `$40000`, decimals with comma (`40000,50`)
 - `main.py` adds `src/` to `sys.path`, so imports within `src/` use package names directly (e.g., `from domain.models.user import ...`)
-- The `src/bot/telegram_bot.py` is a legacy bot class; the active one is `src/presentation/telegram/bot.py`
 - Pre-compiled regex patterns are module-level constants (e.g., `_UUID_PATTERN`, `_SPECIAL_CHARS_PATTERN`)
 - Category lookups use O(1) dict maps built in `_update_llm_parser_data()`
 - YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`
