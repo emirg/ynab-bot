@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
