@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 YNAB Telegram Bot — a multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using OpenAI GPT-4o-mini for natural language parsing and Whisper for voice transcription. Each user connects their own YNAB account via OAuth. Targeted at Spanish-speaking users managing budgets in Colombian pesos. All UI text and prompts are in Spanish.
 
+## Plans
+- Every time a plan is created, save it to `docs/plans/` and update `CLAUDE.md` to reference it.
+- Once you finish implementing a plan, move the plan to `docs/plans/archive/` and update `CLAUDE.md` to reference it.
+
+### Feature Planning Protocol
+Whenever I ask you to create a plan for a new feature or refactor, you MUST use the structure defined in `docs/plans/_TEMPLATE.md`. 
+Create the new plan file in the `docs/plans/` directory. Break down the implementation into atomic, sequential steps, always specifying the exact file paths for both the implementation and its corresponding tests.
+
 ## Commands
 
 ```bash
@@ -125,3 +133,13 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`
 - YNAB services use `YNABRepositoryFactory` (not a singleton repo) — always resolve per-user via `factory.get_repository(user_config)`
 - SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v3)
+
+## Handoff Protocol
+If you receive the explicit command "prepare handoff", "save state", or if I indicate that we are approaching the rate limit, you must stop writing new code immediately.
+
+Your only task will be to create or overwrite the `docs/wip_state.md` file strictly using this structure:
+- **Current Objective:** [1 or 2 lines describing the feature or bug we are currently working on. If you were working on a plan, reference that plan file you are using, and be specific about what you have completed so far]
+- **Last Action:** [What was the last thing you did before stopping. Be specific]
+- **Modified Files:** [List of file paths with unsaved changes. If no files are modified, write "None"]
+- **Current State / Blocker:** [The exact terminal error, exception, or specific logic that is left to complete]
+- **Next Step:** [The exact, technical instruction that the next AI must execute to resume the work]
