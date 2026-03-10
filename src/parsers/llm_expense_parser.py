@@ -188,7 +188,7 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
                 result['amount'] = float(result['amount'])
                 result['confidence'] = float(result['confidence'])
                 
-                logger.info(f"Parseo exitoso con LLM: {message} → {result}")
+                logger.debug(f"Parseo exitoso con LLM: {message} → {result}")
                 return result
                 
             except json.JSONDecodeError as e:

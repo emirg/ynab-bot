@@ -71,6 +71,18 @@ class TestProcessExpenseMessage:
 
 class TestProcessExpenseErrors:
 
+    def test_message_too_long(self, service):
+        long_message = 'x' * 501
+        result = service.process_expense_message(123456789, long_message)
+        assert not result.success
+        assert 'largo' in result.error_message.lower()
+
+    def test_message_at_limit(self, service):
+        """Message exactly at limit should be processed normally"""
+        result = service.process_expense_message(123456789, 'x' * 500)
+        # Should proceed past length check (may fail for other reasons)
+        assert result is not None
+
     def test_user_not_found(self, service, mock_user_repository):
         mock_user_repository.find_by_telegram_id.return_value = None
         result = service.process_expense_message(999, 'test')

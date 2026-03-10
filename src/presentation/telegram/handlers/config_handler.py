@@ -13,10 +13,11 @@ logger = logging.getLogger(__name__)
 
 class ConfigHandler(BaseHandler):
     """Handler for user configuration commands"""
-    
+
     def __init__(self, container):
         super().__init__(container)
         self.user_config_service = container.get(UserConfigService)
+        self.auth_service = container.get_auth_service()
         self.formatter = ConfigResponseFormatter()
     
     @require_authentication(lambda self: self.container.get_auth_service())
@@ -54,7 +55,7 @@ Selecciona una opción para configurar tu bot:
             
         except Exception as e:
             self.log_handler_error("ConfigHandler.handle_config_command", update, e)
-            await self.send_error_message(update, f"Error mostrando configuración: {str(e)}")
+            await self.send_error_message(update, "Ocurrió un error mostrando la configuración.")
     
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_budgets_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -89,7 +90,7 @@ Selecciona una opción para configurar tu bot:
             await self.send_error_message(update, str(e))
         except Exception as e:
             self.log_handler_error("ConfigHandler.handle_budgets_command", update, e)
-            await self.send_error_message(update, f"Error obteniendo presupuestos: {str(e)}")
+            await self.send_error_message(update, "Ocurrió un error obteniendo los presupuestos.")
     
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_accounts_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -127,7 +128,7 @@ Selecciona una opción para configurar tu bot:
             
         except Exception as e:
             self.log_handler_error("ConfigHandler.handle_accounts_command", update, e)
-            await self.send_error_message(update, f"Error obteniendo cuentas: {str(e)}")
+            await self.send_error_message(update, "Ocurrió un error obteniendo las cuentas.")
     
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -144,7 +145,7 @@ Selecciona una opción para configurar tu bot:
             
         except Exception as e:
             self.log_handler_error("ConfigHandler.handle_status_command", update, e)
-            await self.send_error_message(update, f"Error obteniendo estado: {str(e)}")
+            await self.send_error_message(update, "Ocurrió un error obteniendo el estado.")
     
     async def handle_budgets_callback(self, query):
         """Handle budgets callback from inline keyboard"""
@@ -172,7 +173,7 @@ Selecciona una opción para configurar tu bot:
         except YNABApiException as e:
             await self.send_callback_error(query, str(e))
         except Exception as e:
-            await self.send_callback_error(query, f"Error obteniendo presupuestos: {str(e)}")
+            await self.send_callback_error(query, "Ocurrió un error obteniendo los presupuestos.")
     
     async def handle_accounts_callback(self, query):
         """Handle accounts callback from inline keyboard"""
@@ -204,7 +205,7 @@ Selecciona una opción para configurar tu bot:
                 )
                 
         except Exception as e:
-            await self.send_callback_error(query, f"Error obteniendo cuentas: {str(e)}")
+            await self.send_callback_error(query, "Ocurrió un error obteniendo las cuentas.")
     
     async def handle_status_callback(self, query):
         """Handle status callback from inline keyboard"""
@@ -216,16 +217,22 @@ Selecciona una opción para configurar tu bot:
             await self.send_callback_message(query, response)
             
         except Exception as e:
-            await self.send_callback_error(query, f"Error obteniendo estado: {str(e)}")
+            await self.send_callback_error(query, "Ocurrió un error obteniendo el estado.")
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle inline keyboard callbacks"""
         query = update.callback_query
         await query.answer()
-        
+
+        # Verify user is still authorized before processing callback
+        user_id = query.from_user.id
+        user_config = self.auth_service.user_repository.find_by_telegram_id(user_id)
+        if not user_config or not user_config.is_authorized():
+            await query.edit_message_text("🚫 No tienes autorización para realizar esta acción.")
+            return
+
         try:
             data = query.data
-            user_id = query.from_user.id
             
             if data == "config_budgets":
                 await self.handle_budgets_callback(query)
@@ -260,8 +267,8 @@ Selecciona una opción para configurar tu bot:
                     await query.edit_message_text(f"❌ *Error:* {str(e)}")
             
         except Exception as e:
-            logger.error(f"Error handling callback query {query.data}: {e}")
-            await query.edit_message_text(f"❌ *Error:* {str(e)}")
+            logger.error(f"Error handling callback query: {e}")
+            await query.edit_message_text("❌ Ocurrió un error procesando la acción.")
     
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Main handler entry point"""

@@ -56,9 +56,15 @@ class YNABTelegramBot:
         self.application.add_handler(CommandHandler("approve", self.admin_handler.handle_approve_user))
         self.application.add_handler(CommandHandler("block", self.admin_handler.handle_block_user))
         
-        # Callback query handlers for inline keyboards
-        self.application.add_handler(CallbackQueryHandler(self.config_handler.handle_callback_query))
-        self.application.add_handler(CallbackQueryHandler(self.admin_handler.handle_admin_callback))
+        # Callback query handlers for inline keyboards (pattern filters route to correct handler)
+        self.application.add_handler(CallbackQueryHandler(
+            self.config_handler.handle_callback_query,
+            pattern=r"^(config_|select_)"
+        ))
+        self.application.add_handler(CallbackQueryHandler(
+            self.admin_handler.handle_admin_callback,
+            pattern=r"^(approve_|block_)"
+        ))
         
         # Message handlers (order matters - more specific first)
         self.application.add_handler(MessageHandler(filters.VOICE, self.expense_handler.handle_voice_message))

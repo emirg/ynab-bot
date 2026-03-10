@@ -19,6 +19,9 @@ from parsers.llm_expense_parser import LLMExpenseParser
 logger = logging.getLogger(__name__)
 
 _SPECIAL_CHARS_PATTERN = re.compile(r'[^\w\s]')
+_MAX_MESSAGE_LENGTH = 500
+_MAX_PAYEE_LENGTH = 200
+_CONTROL_CHARS_PATTERN = re.compile(r'[\x00-\x1f\x7f-\x9f]')
 
 
 class ExpenseService:
@@ -39,6 +42,12 @@ class ExpenseService:
     def process_expense_message(self, telegram_user_id: int, message: str) -> ExpenseResult:
         """Main business logic for processing expense messages"""
         try:
+            # 0. Validate input length
+            if len(message) > _MAX_MESSAGE_LENGTH:
+                return ExpenseResult.error_result(
+                    f"El mensaje es demasiado largo (máximo {_MAX_MESSAGE_LENGTH} caracteres)."
+                )
+
             # 1. Get user configuration
             user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
             if not user_config or not user_config.is_configured():
@@ -84,7 +93,7 @@ class ExpenseService:
             return ExpenseResult.error_result(str(e))
         except Exception as e:
             logger.error(f"Unexpected error processing expense: {e}")
-            return ExpenseResult.error_result(f"Error interno: {str(e)}")
+            return ExpenseResult.error_result("Error interno procesando el gasto. Intenta de nuevo.")
     
     def _update_llm_parser_data(self, categories: List[YNABCategory], accounts: List):
         """Update LLM parser with current YNAB categories and accounts"""
@@ -143,11 +152,15 @@ class ExpenseService:
                 if not category_id:
                     logger.warning(f"Could not find category ID for name: '{category_name}'")
             
+            # Sanitize LLM output fields
+            payee = _CONTROL_CHARS_PATTERN.sub('', str(result.get('payee', '')))[:_MAX_PAYEE_LENGTH]
+            memo = _CONTROL_CHARS_PATTERN.sub('', str(result.get('memo', message)))[:_MAX_MESSAGE_LENGTH]
+
             # Convert to domain model
             expense = Expense(
                 amount=Decimal(str(result['amount'])),
-                payee=result['payee'],
-                memo=result.get('memo', message),
+                payee=payee,
+                memo=memo,
                 category_id=category_id,
                 account_id=self._find_account_id_by_name(result.get('account')),
                 confidence=result.get('confidence', 0.0),
