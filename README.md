@@ -5,6 +5,7 @@ A multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using O
 ## ✨ Features
 
 - 🎤 **Voice Recognition**: Send audio messages and the bot transcribes them automatically with Whisper
+- 📸 **Receipt Scanning**: Send a photo of a receipt and the bot extracts amount, merchant, and category automatically
 - 🧠 **AI-Powered**: Uses OpenAI GPT-4o-mini to understand expenses and budget queries in natural Spanish language
 - 📊 **Budget Queries**: Ask about category balances, account balances, or get a budget summary in natural language
 - 📚 **Adaptive Learning**: Remembers your spending patterns and improves over time
@@ -162,6 +163,15 @@ Ask about your budget in natural language:
 ```
 
 The bot uses AI-powered semantic matching to map natural language terms to your actual YNAB categories — you don't need to remember exact category names. It distinguishes between expenses and queries automatically.
+
+### Receipt Photos
+
+Send a photo of a receipt or ticket and the bot will:
+1. Analyze the image using OpenAI GPT-4o-mini vision
+2. Extract the total amount, merchant, and individual items (for memo)
+3. Log it to YNAB automatically
+
+You can add a caption to the photo for additional context (e.g., "lunch with friends").
 
 ### Voice Messages
 
