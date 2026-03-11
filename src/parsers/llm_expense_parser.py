@@ -138,6 +138,126 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
             accounts_section=accounts_text
         )
     
+    def _generate_message_system_prompt(self) -> str:
+        """Genera el prompt del sistema para clasificar intent y parsear mensajes"""
+        categories_text = ""
+        if self.ynab_categories:
+            categories_text = "CATEGORÍAS DISPONIBLES:\n"
+            for category in self.ynab_categories[:20]:
+                categories_text += f"- {category['name']}\n"
+
+        accounts_text = ""
+        if self.ynab_accounts:
+            accounts_text = "CUENTAS DISPONIBLES:\n"
+            for account in self.ynab_accounts:
+                accounts_text += f"- {account}\n"
+
+        return f"""Eres un asistente que clasifica mensajes de usuarios de una app de presupuesto en español colombiano.
+
+Debes determinar si el mensaje es un GASTO o una CONSULTA sobre el presupuesto.
+
+CONSULTAS: mensajes que preguntan sobre saldos, presupuesto, o estado financiero.
+Palabras clave de consulta: "cuánto", "cómo va", "resumen", "saldo", "debo", "queda", "he gastado", "presupuesto", "disponible", "balance".
+
+GASTOS: mensajes que reportan un gasto realizado. Contienen un monto y un lugar/concepto.
+
+{categories_text}
+{accounts_text}
+
+RESPONDE EN JSON con UNA de estas dos estructuras:
+
+Para CONSULTAS:
+{{
+    "intent": "query",
+    "query_type": "category_balance" | "account_balance" | "budget_summary",
+    "query_target": "<nombre_categoría_o_cuenta_o_null>",
+    "confidence": <0.0_a_1.0>
+}}
+
+Para GASTOS:
+{{
+    "intent": "expense",
+    "amount": <número_decimal>,
+    "category": "<categoría>",
+    "payee": "<lugar>",
+    "account": "<cuenta_o_null>",
+    "memo": "<mensaje_original>",
+    "confidence": <0.0_a_1.0>
+}}
+
+REGLAS:
+- "category_balance": pregunta por UNA categoría específica (ej: "cuánto me queda en Groceries")
+- "account_balance": pregunta por UNA cuenta específica (ej: "cuánto debo en mi Nu Card")
+- "budget_summary": pregunta general sobre el presupuesto (ej: "cómo va mi presupuesto")
+- Para gastos, sigue las mismas reglas de parseo que siempre (moneda colombiana, categorías exactas, etc.)
+- query_target debe ser null para budget_summary
+"""
+
+    def parse_message(self, message: str) -> Optional[Dict]:
+        """
+        Clasifica el intent del mensaje y retorna la estructura correspondiente.
+
+        Returns:
+            Dict con intent "expense" o "query", o None si falla
+        """
+        try:
+            system_prompt = self._generate_message_system_prompt()
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": message}
+                ],
+                temperature=0.1,
+                max_tokens=300
+            )
+
+            content = response.choices[0].message.content.strip()
+
+            try:
+                result = json.loads(content)
+
+                if 'intent' not in result or 'confidence' not in result:
+                    logger.error(f"Respuesta sin intent o confidence: {result}")
+                    return None
+
+                if not isinstance(result['confidence'], (int, float)) or not (0 <= result['confidence'] <= 1):
+                    logger.error(f"Confianza inválida: {result['confidence']}")
+                    return None
+
+                result['confidence'] = float(result['confidence'])
+
+                if result['intent'] == 'query':
+                    if 'query_type' not in result:
+                        logger.error(f"Query sin query_type: {result}")
+                        return None
+                    if result['query_type'] not in ('category_balance', 'account_balance', 'budget_summary'):
+                        logger.error(f"query_type inválido: {result['query_type']}")
+                        return None
+                elif result['intent'] == 'expense':
+                    required = ['amount', 'category', 'payee', 'memo']
+                    if not all(f in result for f in required):
+                        logger.error(f"Expense sin campos requeridos: {result}")
+                        return None
+                    if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
+                        logger.error(f"Cantidad inválida: {result['amount']}")
+                        return None
+                    result['amount'] = float(result['amount'])
+                else:
+                    logger.error(f"Intent desconocido: {result['intent']}")
+                    return None
+
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parseando JSON de OpenAI: {content}, Error: {e}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error llamando a OpenAI API: {e}")
+            return None
+
     def parse_expense(self, message: str) -> Optional[Dict]:
         """
         Parsea un mensaje usando OpenAI GPT

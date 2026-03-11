@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 from domain.models.expense import Expense, ExpenseResult
+from domain.models.budget_query import BudgetQueryResult, MessageResult
 from domain.models.user import UserConfiguration, YNABCategory
 from domain.repositories.user_repository import UserRepository
 from domain.repositories.learning_repository import LearningRepository
@@ -14,6 +15,7 @@ from domain.exceptions import (
     OAuthException,
     InvalidExpenseException
 )
+from application.services.budget_query_service import BudgetQueryService
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 from parsers.llm_expense_parser import LLMExpenseParser
 
@@ -33,14 +35,134 @@ class ExpenseService:
         user_repository: UserRepository,
         ynab_factory: YNABRepositoryFactory,
         learning_repository: LearningRepository,
-        llm_parser: LLMExpenseParser
+        llm_parser: LLMExpenseParser,
+        budget_query_service: BudgetQueryService = None,
     ):
         self.user_repository = user_repository
         self.ynab_factory = ynab_factory
         self.learning_repository = learning_repository
         self.llm_parser = llm_parser
+        self.budget_query_service = budget_query_service or BudgetQueryService()
         self._account_by_name: Dict[str, str] = {}
         self._account_by_name_lower: Dict[str, str] = {}
+
+    def process_message(self, telegram_user_id: int, message: str) -> MessageResult:
+        """Classify and process a user message as expense or query."""
+        try:
+            if len(message) > _MAX_MESSAGE_LENGTH:
+                return MessageResult(
+                    intent='expense',
+                    expense_result=ExpenseResult.error_result(
+                        f"El mensaje es demasiado largo (máximo {_MAX_MESSAGE_LENGTH} caracteres)."
+                    ),
+                )
+
+            user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+            if not user_config or not user_config.is_configured():
+                missing = "budget_id and account_id" if not user_config else "budget configuration"
+                raise UserNotConfiguredException(telegram_user_id, missing)
+
+            ynab_repository = self.ynab_factory.get_repository(user_config)
+            categories = ynab_repository.get_categories(user_config.budget_id)
+            accounts = ynab_repository.get_accounts(user_config.budget_id)
+            self._update_llm_parser_data(categories, accounts)
+
+            parsed = self.llm_parser.parse_message(message)
+            if not parsed:
+                raise ExpenseParsingException(message, 0.0)
+
+            if parsed.get('intent') == 'query':
+                query_result = self.budget_query_service.execute_query(
+                    parsed.get('query_type', ''),
+                    parsed.get('query_target'),
+                    categories,
+                    accounts,
+                )
+                return MessageResult(intent='query', query_result=query_result)
+
+            # Intent is "expense" — delegate to existing pipeline
+            expense_result = self._process_parsed_expense(
+                parsed, message, categories, user_config, ynab_repository, telegram_user_id,
+            )
+            return MessageResult(intent='expense', expense_result=expense_result)
+
+        except (UserNotConfiguredException, ExpenseParsingException, YNABApiException, OAuthException) as e:
+            logger.error(f"Expected error processing message: {e}")
+            return MessageResult(intent='expense', expense_result=ExpenseResult.error_result(str(e)))
+        except Exception as e:
+            logger.error(f"Unexpected error processing message: {e}")
+            return MessageResult(
+                intent='expense',
+                expense_result=ExpenseResult.error_result("Error interno procesando el mensaje. Intenta de nuevo."),
+            )
+
+    def _process_parsed_expense(self, parsed, message, categories, user_config, ynab_repository, telegram_user_id) -> ExpenseResult:
+        """Process an already-parsed expense dict through the existing pipeline."""
+        expense = self._build_expense_from_parsed(parsed, message, categories)
+        if not expense:
+            raise ExpenseParsingException(message, 0.0)
+
+        expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+
+        if not expense.account_id:
+            expense.account_id = user_config.default_account_id
+            expense.account_name = user_config.default_account_name
+
+        transaction_id = ynab_repository.create_transaction(
+            expense, user_config.budget_id, expense.account_id
+        )
+        if not transaction_id:
+            raise YNABApiException("Failed to create transaction")
+
+        self.learning_repository.record_successful_transaction(telegram_user_id, expense)
+        self.learning_repository.add_recent_transaction(telegram_user_id, expense)
+
+        logger.info(f"Successfully processed expense: {expense.payee} ${expense.amount}")
+        return ExpenseResult.success_result(expense, transaction_id)
+
+    def _build_expense_from_parsed(self, result: dict, message: str, categories) -> Optional[Expense]:
+        """Build an Expense domain object from a parsed LLM result dict."""
+        try:
+            if result.get('confidence', 0) < 0.3:
+                logger.warning(f"Low confidence parse result for: '{message}'")
+                return None
+
+            category_name = result.get('category')
+            category_id = None
+            if category_name:
+                category_id = self._find_category_id_by_name(category_name, categories)
+                if not category_id:
+                    logger.warning(f"Could not find category ID for name: '{category_name}'")
+
+            payee = _CONTROL_CHARS_PATTERN.sub('', str(result.get('payee', '')))[:_MAX_PAYEE_LENGTH]
+            memo = _CONTROL_CHARS_PATTERN.sub('', str(result.get('memo', message)))[:_MAX_MESSAGE_LENGTH]
+
+            account_name_raw = result.get('account')
+            account_id = self._find_account_id_by_name(account_name_raw)
+
+            expense = Expense(
+                amount=Decimal(str(result['amount'])),
+                payee=payee,
+                memo=memo,
+                category_id=category_id,
+                account_id=account_id,
+                account_name=account_name_raw if account_id else None,
+                confidence=result.get('confidence', 0.0),
+                parser_source='llm',
+            )
+
+            if category_name:
+                expense.category_name = category_name
+
+            if not expense.is_valid():
+                logger.error(f"Invalid expense data: {expense}")
+                return None
+
+            return expense
+
+        except Exception as e:
+            logger.error(f"Error building expense from parsed data: {e}")
+            return None
 
     def process_expense_message(self, telegram_user_id: int, message: str) -> ExpenseResult:
         """Main business logic for processing expense messages"""

@@ -5,7 +5,8 @@ A multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using O
 ## ✨ Features
 
 - 🎤 **Voice Recognition**: Send audio messages and the bot transcribes them automatically with Whisper
-- 🧠 **AI-Powered**: Uses OpenAI GPT-4o-mini to understand expenses in natural Spanish language
+- 🧠 **AI-Powered**: Uses OpenAI GPT-4o-mini to understand expenses and budget queries in natural Spanish language
+- 📊 **Budget Queries**: Ask about category balances, account balances, or get a budget summary in natural language
 - 📚 **Adaptive Learning**: Remembers your spending patterns and improves over time
 - 💳 **Account Detection**: Automatically identifies the bank account mentioned
 - 🏪 **Smart Categorization**: Assigns real YNAB categories based on merchant/location
@@ -25,12 +26,13 @@ ynab-bot/
 ├── railway.toml                     # Railway deployment config (test-gating)
 ├── src/
 │   ├── domain/                      # Models, interfaces, exceptions
-│   │   ├── models/                  # Expense, UserConfiguration (with OAuth fields)
+│   │   ├── models/                  # Expense, BudgetQueryResult, UserConfiguration (with OAuth fields)
 │   │   ├── repositories/           # Abstract interfaces (ABC)
 │   │   ├── services/               # AuthorizationService
 │   │   └── exceptions.py           # Includes OAuthException, TokenExpiredException
 │   ├── application/services/        # Business logic orchestrators
-│   │   ├── expense_service.py       # Pipeline: parse→enhance→create→learn
+│   │   ├── expense_service.py       # Pipeline: parse→enhance→create→learn + query routing
+│   │   ├── budget_query_service.py  # Budget queries (category/account balance, summary)
 │   │   ├── user_config_service.py   # Per-user configuration
 │   │   ├── oauth_service.py         # YNAB OAuth2 lifecycle (auth, tokens, refresh)
 │   │   └── learning_service.py
@@ -54,7 +56,7 @@ ynab-bot/
 │   └── .env.example                 # Configuration template
 ├── data/                            # Persistent data
 │   └── users.db                     # SQLite database (users + learning data)
-└── tests/                           # Test suite (297 tests, ~85% coverage)
+└── tests/                           # Test suite (~349 tests, ~86% coverage)
 ```
 
 ## 🚀 Installation & Setup
@@ -147,6 +149,20 @@ The bot understands various natural language formats for logging expenses in Spa
 
 Amount formats: `40000`, `40 mil`, `40 lucas`, `40k`, `$40000`, decimals with comma (`40000,50`).
 
+### Budget Queries
+
+Ask about your budget in natural language:
+
+```
+"¿Cuánto me queda en Groceries?"        → Category balance (budgeted/spent/available)
+"¿Cuánto debo en mi Nu Card?"           → Account balance (confirmed/pending)
+"¿Cómo va mi presupuesto?"              → Budget summary with top spending categories
+"¿Cuánto he gastado en restaurantes?"    → Category balance
+"¿Cuál es el saldo de mi cuenta?"       → Account balance
+```
+
+The bot uses the same AI-powered text analysis to distinguish between expenses and queries automatically.
+
 ### Voice Messages
 
 Send a voice message in Spanish and the bot will:
@@ -199,7 +215,7 @@ Each user connects their own YNAB account. No shared tokens.
 ## 🧪 Tests
 
 ```bash
-# Full suite (297 tests, ~85% coverage)
+# Full suite (~349 tests, ~86% coverage)
 pytest
 
 # Single test file
@@ -220,16 +236,18 @@ Layered architecture with dependency injection:
 main.py → DIContainer (infrastructure/container.py) → YNABTelegramBot (presentation/telegram/bot.py)
 ```
 
-**Expense processing flow:**
+**Message processing flow:**
 ```
-User (text/voice)
-  → Whisper (if voice)
-  → ExpenseService.process_expense_message()
-    → YNABRepositoryFactory.get_repository(user) → per-user YNABApiRepository
-    → LLMExpenseParser (GPT-4o-mini: extracts amount, category, payee, account)
-    → LearningRepository.predict_category() (frequency-based, confidence ≥0.6)
-    → YNABApiRepository.create_transaction()
-    → LearningRepository.record_successful_transaction()
+User (text)
+  → ExpenseService.process_message()
+    → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query")
+    → if expense: parse→enhance→create→learn pipeline
+    → if query: BudgetQueryService → category/account/summary data
+  → Formatted Telegram response
+
+User (voice)
+  → Whisper transcription
+  → ExpenseService.process_expense_message() → expense pipeline
 ```
 
 ## 🚀 Deployment

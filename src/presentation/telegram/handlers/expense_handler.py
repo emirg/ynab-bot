@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.base_handler import BaseHandler
-from presentation.telegram.formatters import ExpenseResponseFormatter
+from presentation.telegram.formatters import ExpenseResponseFormatter, BudgetQueryFormatter
 from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.expense_service import ExpenseService
 from integrations.speech_to_text import SpeechToTextProcessor
@@ -22,6 +22,7 @@ class ExpenseHandler(BaseHandler):
         self.expense_service = container.get(ExpenseService)
         self.speech_processor = container.get(SpeechToTextProcessor)
         self.formatter = ExpenseResponseFormatter()
+        self.query_formatter = BudgetQueryFormatter()
     
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -31,19 +32,20 @@ class ExpenseHandler(BaseHandler):
         try:
             user_id = self.get_user_id(update)
             message = update.message.text
-            
-            # Process expense
-            result = self.expense_service.process_expense_message(user_id, message)
-            
-            # Format and send response
-            if result.success:
-                response = self.formatter.format_success(result)
+
+            result = self.expense_service.process_message(user_id, message)
+
+            if result.intent == 'query':
+                response = self.query_formatter.format_response(result.query_result)
+                self.log_handler_success("ExpenseHandler.handle_text_message", update)
+            elif result.expense_result and result.expense_result.success:
+                response = self.formatter.format_success(result.expense_result)
                 self.log_handler_success("ExpenseHandler.handle_text_message", update)
             else:
-                response = self.formatter.format_error(result)
-            
+                response = self.formatter.format_error(result.expense_result)
+
             await self.send_message(update, response)
-            
+
         except Exception as e:
             self.log_handler_error("ExpenseHandler.handle_text_message", update, e)
             await self.send_error_message(update, "Ocurrió un error procesando tu mensaje. Intenta de nuevo.")

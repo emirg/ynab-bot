@@ -4,6 +4,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 from application.services.expense_service import ExpenseService, _SPECIAL_CHARS_PATTERN
+from application.services.budget_query_service import BudgetQueryService
 from domain.models.expense import Expense
 from domain.models.user import UserConfiguration, UserStatus, YNABCategory
 
@@ -11,7 +12,12 @@ TELEGRAM_ID = 123456789
 
 
 @pytest.fixture
-def service(mock_user_repository, mock_ynab_factory, mock_learning_repository, mock_llm_parser, authorized_user):
+def mock_budget_query_service():
+    return MagicMock(spec=BudgetQueryService)
+
+
+@pytest.fixture
+def service(mock_user_repository, mock_ynab_factory, mock_learning_repository, mock_llm_parser, mock_budget_query_service, authorized_user):
     authorized_user.ynab_access_token = 'test-token'
     mock_user_repository.find_by_telegram_id.return_value = authorized_user
     return ExpenseService(
@@ -19,6 +25,7 @@ def service(mock_user_repository, mock_ynab_factory, mock_learning_repository, m
         ynab_factory=mock_ynab_factory,
         learning_repository=mock_learning_repository,
         llm_parser=mock_llm_parser,
+        budget_query_service=mock_budget_query_service,
     )
 
 
@@ -319,3 +326,60 @@ class TestCorrectRecentTransaction:
     def test_index_out_of_range(self, service, mock_learning_repository):
         mock_learning_repository.get_recent_transactions.return_value = []
         assert not service.correct_recent_transaction(TELEGRAM_ID, 5, 'cat-new')
+
+
+# ---------------------------------------------------------------------------
+# process_message - routing
+# ---------------------------------------------------------------------------
+
+class TestProcessMessage:
+
+    def test_routes_expense(self, service, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'confidence': 0.85,
+        }
+        result = service.process_message(TELEGRAM_ID, '25 lucas almuerzo')
+        assert result.intent == 'expense'
+        assert result.expense_result is not None
+        assert result.expense_result.success is True
+
+    def test_routes_query(self, service, mock_llm_parser, mock_budget_query_service):
+        from domain.models.budget_query import BudgetQueryResult
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'query',
+            'query_type': 'category_balance',
+            'query_target': 'Groceries',
+            'confidence': 0.9,
+        }
+        mock_budget_query_service.execute_query.return_value = BudgetQueryResult.success_result(
+            'category_balance', {'name': 'Groceries', 'balance': 300000},
+        )
+        result = service.process_message(TELEGRAM_ID, '¿Cuánto me queda en Groceries?')
+        assert result.intent == 'query'
+        assert result.query_result is not None
+        assert result.query_result.success is True
+        mock_budget_query_service.execute_query.assert_called_once()
+
+    def test_parse_failure(self, service, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = None
+        result = service.process_message(TELEGRAM_ID, 'nonsense')
+        assert result.intent == 'expense'
+        assert result.expense_result.success is False
+
+    def test_message_too_long(self, service):
+        result = service.process_message(TELEGRAM_ID, 'x' * 501)
+        assert result.intent == 'expense'
+        assert result.expense_result.success is False
+        assert 'largo' in result.expense_result.error_message.lower()
+
+    def test_user_not_configured(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.process_message(999, 'test')
+        assert result.intent == 'expense'
+        assert result.expense_result.success is False

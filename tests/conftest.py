@@ -190,6 +190,15 @@ def mock_llm_parser():
         'memo': "Almuerzo McDonald's",
         'confidence': 0.85,
     }
+    parser.parse_message.return_value = {
+        'intent': 'expense',
+        'amount': 25000.0,
+        'category': 'Restaurants',
+        'payee': "McDonald's",
+        'account': None,
+        'memo': "Almuerzo McDonald's",
+        'confidence': 0.85,
+    }
     parser.update_categories.return_value = None
     parser.update_accounts.return_value = None
     return parser

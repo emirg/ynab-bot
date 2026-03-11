@@ -8,6 +8,7 @@ from infrastructure.repositories.sqlite_learning_repository import SQLiteLearnin
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 from infrastructure.token_encryption import TokenEncryptor
 from application.services.expense_service import ExpenseService
+from application.services.budget_query_service import BudgetQueryService
 from application.services.user_config_service import UserConfigService
 from application.services.learning_service import LearningService
 from application.services.oauth_service import YNABOAuthService
@@ -89,12 +90,18 @@ class DIContainer:
 
         # Register application services as transients
         self.register_transient(
+            BudgetQueryService,
+            lambda: BudgetQueryService()
+        )
+
+        self.register_transient(
             ExpenseService,
             lambda: ExpenseService(
                 user_repository=self.get(SQLiteUserRepository),
                 ynab_factory=self.get(YNABRepositoryFactory),
                 learning_repository=self.get(SQLiteLearningRepository),
-                llm_parser=self.get(LLMExpenseParser)
+                llm_parser=self.get(LLMExpenseParser),
+                budget_query_service=self.get(BudgetQueryService),
             )
         )
 

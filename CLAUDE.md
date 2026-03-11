@@ -25,7 +25,7 @@ pip install -r requirements.txt
 # Run the bot
 python main.py
 
-# Run full test suite (~297 tests, ~85% coverage)
+# Run full test suite (~349 tests, ~86% coverage)
 pytest
 
 # Run a single test file
@@ -48,27 +48,30 @@ main.py → health server (port $PORT) → DIContainer (infrastructure/container
 
 ### Layers
 
-- **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, and custom exceptions. No external dependencies.
-- **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full parse→enhance→create→learn pipeline. `UserConfigService` manages per-user YNAB budget/account configuration. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository.
+- **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`, `BudgetQueryResult`, `MessageResult`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, and custom exceptions. No external dependencies.
+- **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full parse→enhance→create→learn pipeline and routes between expenses and budget queries via `process_message()`. `BudgetQueryService` handles category balance, account balance, and budget summary queries. `UserConfigService` manages per-user YNAB budget/account configuration. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository.
 - **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (HTTP health check + OAuth callback endpoint). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together.
 - **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers. Handlers: `GeneralHandler`, `ConfigHandler` (includes `/connect`, `/disconnect`), `ExpenseHandler`, `LearningHandler`, `AdminHandler`. Auth via `@require_authentication` and `@require_admin` decorators.
 
 ### Supporting modules
 
-- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI.
+- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (expense vs query) in a single LLM call; `parse_expense()` is retained for backward compatibility (voice handler).
 - **`src/integrations/speech_to_text.py`** — Whisper-based voice transcription, used by `ExpenseHandler` via DI.
 
 ### Data Flow
 
 ```
-User (text/voice) → ExpenseHandler
-  → speech_to_text.py (if voice)
-  → ExpenseService.process_expense_message()
-    → YNABRepositoryFactory.get_repository(user_config)  ← per-user OAuth token
-    → LLMExpenseParser (GPT-4o-mini: extract amount, category, payee, account)
-    → LearningRepository.predict_category() (frequency-based, confidence ≥0.6)
-    → YNABApiRepository.create_transaction()
-    → LearningRepository.record_successful_transaction()
+User (text) → ExpenseHandler.handle_text_message()
+  → ExpenseService.process_message()
+    → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query")
+    → if intent == "expense": existing expense pipeline (parse→enhance→create→learn)
+    → if intent == "query": BudgetQueryService.execute_query()
+      → category_balance | account_balance | budget_summary
+  → BudgetQueryFormatter or ExpenseResponseFormatter → Telegram response
+
+User (voice) → ExpenseHandler.handle_voice_message()
+  → speech_to_text.py (Whisper)
+  → ExpenseService.process_expense_message() → existing expense pipeline
 ```
 
 ### Per-User YNAB OAuth
@@ -120,8 +123,8 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 
 - **Framework**: pytest with fixtures in `tests/conftest.py`, coverage via pytest-cov
 - **Config**: `pytest.ini` scopes coverage to `src/domain`, `src/application`, `src/infrastructure`, and `src/presentation/telegram/formatters.py`
-- **Conventions**: Shared fixtures for domain models, mock repositories (`mock_ynab_factory`, `mock_oauth_service`, `mock_user_repository`, `mock_learning_repository`, `mock_llm_parser`), and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock`. `conftest.py` adds `src/` to `sys.path`.
-- **Coverage**: ~85% on active architecture. Domain layer at 100%.
+- **Conventions**: Shared fixtures for domain models, mock repositories (`mock_ynab_factory`, `mock_oauth_service`, `mock_user_repository`, `mock_learning_repository`, `mock_llm_parser`, `mock_budget_query_service`), and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock`. `conftest.py` adds `src/` to `sys.path`.
+- **Coverage**: ~86% on active architecture. Domain layer at 100%.
 
 ### Key Conventions
 

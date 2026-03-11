@@ -4,6 +4,7 @@ from typing import List
 from decimal import Decimal
 
 from domain.models.expense import ExpenseResult
+from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
 
 
@@ -81,6 +82,86 @@ Para usar el bot, primero configura tu presupuesto:
             """.strip()
         
         return f"❌ *Error:* {error_message}"
+
+
+class BudgetQueryFormatter:
+    """Formatter for budget query responses"""
+
+    @staticmethod
+    def format_response(result: BudgetQueryResult) -> str:
+        if not result.success:
+            return BudgetQueryFormatter.format_error(result)
+
+        formatters = {
+            'category_balance': BudgetQueryFormatter._format_category_balance,
+            'account_balance': BudgetQueryFormatter._format_account_balance,
+            'budget_summary': BudgetQueryFormatter._format_budget_summary,
+        }
+        formatter = formatters.get(result.query_type)
+        if formatter:
+            return formatter(result.data)
+        return BudgetQueryFormatter.format_error(result)
+
+    @staticmethod
+    def _format_category_balance(data: dict) -> str:
+        budgeted = data['budgeted'] / 1000
+        activity = data['activity'] / 1000
+        balance = data['balance'] / 1000
+        balance_emoji = "✅" if balance > 0 else "⚠️" if balance == 0 else "🔴"
+
+        return f"""
+{balance_emoji} *{data['name']}* ({data['group_name']})
+
+💰 *Presupuestado:* ${budgeted:,.0f}
+📉 *Gastado:* ${abs(activity):,.0f}
+💵 *Disponible:* ${balance:,.0f}
+        """.strip()
+
+    @staticmethod
+    def _format_account_balance(data: dict) -> str:
+        balance = data['balance'] / 1000
+        cleared = data['cleared_balance'] / 1000
+        uncleared = data['uncleared_balance'] / 1000
+        balance_emoji = "💰" if balance >= 0 else "💸"
+
+        return f"""
+{balance_emoji} *{data['name']}*
+
+💳 *Saldo:* ${balance:,.0f}
+✅ *Confirmado:* ${cleared:,.0f}
+⏳ *Pendiente:* ${uncleared:,.0f}
+        """.strip()
+
+    @staticmethod
+    def _format_budget_summary(data: dict) -> str:
+        total_budgeted = data['total_budgeted'] / 1000
+        total_activity = data['total_activity'] / 1000
+        total_balance = data['total_balance'] / 1000
+        balance_emoji = "✅" if total_balance > 0 else "⚠️"
+
+        message = f"""
+{balance_emoji} *Resumen de presupuesto*
+
+💰 *Total presupuestado:* ${total_budgeted:,.0f}
+📉 *Total gastado:* ${abs(total_activity):,.0f}
+💵 *Total disponible:* ${total_balance:,.0f}
+📊 *Categorías activas:* {data['category_count']}
+        """.strip()
+
+        top = data.get('top_spending', [])
+        if top:
+            message += "\n\n📊 *Top gastos:*"
+            for i, cat in enumerate(top, 1):
+                spent = abs(cat['activity'] / 1000)
+                remaining = cat['balance'] / 1000
+                message += f"\n{i}. *{cat['name']}* — ${spent:,.0f} gastado, ${remaining:,.0f} disponible"
+
+        return message
+
+    @staticmethod
+    def format_error(result: BudgetQueryResult) -> str:
+        error = result.error_message or "Error desconocido en la consulta"
+        return f"❌ *{error}*"
 
 
 class ConfigResponseFormatter:

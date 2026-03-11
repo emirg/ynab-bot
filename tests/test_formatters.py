@@ -4,11 +4,13 @@ from decimal import Decimal
 
 from presentation.telegram.formatters import (
     ExpenseResponseFormatter,
+    BudgetQueryFormatter,
     ConfigResponseFormatter,
     LearningResponseFormatter,
     GeneralResponseFormatter,
 )
 from domain.models.expense import Expense, ExpenseResult
+from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
 
 
@@ -203,3 +205,105 @@ class TestGeneralResponseFormatter:
         assert '$40000' in msg or '40000' in msg
         assert '/corregir' in msg
         assert 'lucas' in msg
+
+
+# ---------------------------------------------------------------------------
+# BudgetQueryFormatter
+# ---------------------------------------------------------------------------
+
+class TestBudgetQueryFormatter:
+
+    def test_category_balance(self):
+        result = BudgetQueryResult.success_result('category_balance', {
+            'name': 'Groceries',
+            'group_name': 'Essentials',
+            'budgeted': 500000,
+            'activity': -200000,
+            'balance': 300000,
+        })
+        msg = BudgetQueryFormatter.format_response(result)
+        assert 'Groceries' in msg
+        assert 'Essentials' in msg
+        assert '$500' in msg
+        assert '$200' in msg
+        assert '$300' in msg
+        assert '✅' in msg
+
+    def test_category_balance_negative(self):
+        result = BudgetQueryResult.success_result('category_balance', {
+            'name': 'Fun',
+            'group_name': 'Optional',
+            'budgeted': 100000,
+            'activity': -150000,
+            'balance': -50000,
+        })
+        msg = BudgetQueryFormatter.format_response(result)
+        assert '🔴' in msg
+
+    def test_account_balance(self):
+        result = BudgetQueryResult.success_result('account_balance', {
+            'name': 'Nu Card',
+            'type': 'creditCard',
+            'balance': -500000,
+            'cleared_balance': -400000,
+            'uncleared_balance': -100000,
+        })
+        msg = BudgetQueryFormatter.format_response(result)
+        assert 'Nu Card' in msg
+        assert '💸' in msg  # negative balance
+        assert '$-500' in msg
+
+    def test_account_balance_positive(self):
+        result = BudgetQueryResult.success_result('account_balance', {
+            'name': 'Cash',
+            'type': 'cash',
+            'balance': 200000,
+            'cleared_balance': 200000,
+            'uncleared_balance': 0,
+        })
+        msg = BudgetQueryFormatter.format_response(result)
+        assert '💰' in msg
+
+    def test_budget_summary(self):
+        result = BudgetQueryResult.success_result('budget_summary', {
+            'total_budgeted': 1000000,
+            'total_activity': -430000,
+            'total_balance': 570000,
+            'category_count': 5,
+            'top_spending': [
+                {'name': 'Groceries', 'activity': -200000, 'balance': 300000},
+                {'name': 'Restaurants', 'activity': -150000, 'balance': 150000},
+            ],
+        })
+        msg = BudgetQueryFormatter.format_response(result)
+        assert 'Resumen' in msg
+        assert '$1,000' in msg
+        assert '$430' in msg
+        assert '$570' in msg
+        assert 'Groceries' in msg
+        assert 'Restaurants' in msg
+
+    def test_budget_summary_no_spending(self):
+        result = BudgetQueryResult.success_result('budget_summary', {
+            'total_budgeted': 1000000,
+            'total_activity': 0,
+            'total_balance': 1000000,
+            'category_count': 3,
+            'top_spending': [],
+        })
+        msg = BudgetQueryFormatter.format_response(result)
+        assert 'Top gastos' not in msg
+
+    def test_error(self):
+        result = BudgetQueryResult.error_result('category_balance', 'No encontré la categoría')
+        msg = BudgetQueryFormatter.format_response(result)
+        assert '❌' in msg
+        assert 'No encontré' in msg
+
+    def test_format_response_dispatches(self):
+        result = BudgetQueryResult.success_result('account_balance', {
+            'name': 'X', 'type': 'cash', 'balance': 0,
+            'cleared_balance': 0, 'uncleared_balance': 0,
+        })
+        msg = BudgetQueryFormatter.format_response(result)
+        assert 'Saldo' in msg

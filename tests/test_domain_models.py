@@ -1,9 +1,10 @@
-"""Tests for domain models: Expense, ExpenseResult, UserConfiguration, YNAB models."""
+"""Tests for domain models: Expense, ExpenseResult, UserConfiguration, YNAB models, BudgetQuery."""
 import pytest
 from datetime import datetime, timedelta
 from decimal import Decimal
 
 from domain.models.expense import Expense, ExpenseResult, _UUID_PATTERN
+from domain.models.budget_query import BudgetQueryResult, MessageResult
 from domain.models.user import (
     UserConfiguration, UserStatus,
     YNABBudget, YNABAccount, YNABCategory,
@@ -304,3 +305,58 @@ class TestYNABCategory:
         assert cat.budgeted == 0
         assert not cat.deleted
         assert not cat.hidden
+
+
+# ---------------------------------------------------------------------------
+# BudgetQueryResult
+# ---------------------------------------------------------------------------
+
+class TestBudgetQueryResult:
+
+    def test_success_result(self):
+        data = {'name': 'Groceries', 'balance': 300000}
+        r = BudgetQueryResult.success_result('category_balance', data)
+        assert r.success is True
+        assert r.query_type == 'category_balance'
+        assert r.data == data
+        assert r.error_message is None
+
+    def test_error_result(self):
+        r = BudgetQueryResult.error_result('category_balance', 'No encontrada')
+        assert r.success is False
+        assert r.query_type == 'category_balance'
+        assert r.error_message == 'No encontrada'
+        assert r.data is None
+
+    def test_default_values(self):
+        r = BudgetQueryResult(success=True, query_type='budget_summary')
+        assert r.data is None
+        assert r.error_message is None
+
+
+# ---------------------------------------------------------------------------
+# MessageResult
+# ---------------------------------------------------------------------------
+
+class TestMessageResult:
+
+    def test_expense_intent(self, sample_expense):
+        expense_result = ExpenseResult.success_result(sample_expense, 'txn-1')
+        r = MessageResult(intent='expense', expense_result=expense_result)
+        assert r.intent == 'expense'
+        assert r.expense_result is expense_result
+        assert r.query_result is None
+
+    def test_query_intent(self):
+        query_result = BudgetQueryResult.success_result(
+            'account_balance', {'name': 'Nu Card', 'balance': 500000}
+        )
+        r = MessageResult(intent='query', query_result=query_result)
+        assert r.intent == 'query'
+        assert r.query_result is query_result
+        assert r.expense_result is None
+
+    def test_default_values(self):
+        r = MessageResult(intent='expense')
+        assert r.expense_result is None
+        assert r.query_result is None
