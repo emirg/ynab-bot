@@ -11,10 +11,11 @@ start_health_server(_PORT)
 def _get(path="/"):
     req = urllib.request.Request(f"http://127.0.0.1:{_PORT}{path}")
     try:
-        resp = urllib.request.urlopen(req)
-        return resp.status, resp.read()
+        with urllib.request.urlopen(req) as resp:
+            return resp.status, resp.read()
     except urllib.error.HTTPError as e:
-        return e.code, e.read()
+        with e:
+            return e.code, e.read()
 
 
 class TestHealthServer:
