@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 YNAB Telegram Bot — a multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using OpenAI GPT-4o-mini for natural language parsing and Whisper for voice transcription. Each user connects their own YNAB account via OAuth. Targeted at Spanish-speaking users managing budgets in Colombian pesos. All UI text and prompts are in Spanish.
 
+## Session Initialization
+Whenever you start a new session or the user asks you to "resume", your VERY FIRST action MUST be to read `docs/wip_state.md`. This file will contain information in case Gemini CLI did some changes or completed a task while you were away.
+There will be 5 scenarios:
+- If the file indicates that Gemini completed a task, you must acknowledge it, read the details, and continue from there.
+- If the file indicates that Gemini did not complete a task, you must continue from where you left off.
+- If the file has the content you wrote in the latest handoff, asume Gemini CLI did not worked while you were away and you must continue from where you left off.
+- If the file is empty, you must continue from where you left off.
+- If the file does not exist, you must continue from where you left off.
+
 ## Plans
 - Every time a plan is created, save it to `docs/plans/` and update `CLAUDE.md` to reference it.
 - Once you finish implementing a plan, move the plan to `docs/plans/archive/` and update `CLAUDE.md` to reference it.
@@ -55,7 +64,7 @@ main.py → health server (port $PORT) → DIContainer (infrastructure/container
 
 ### Supporting modules
 
-- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (expense vs query) in a single LLM call; `parse_expense()` is retained for backward compatibility (voice handler).
+- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (expense vs query) in a single LLM call; the LLM performs semantic matching to map user terms (e.g., "comida") to exact YNAB category names (e.g., "🛒 Groceries") using up to 100 categories in the prompt. `parse_expense()` is retained for backward compatibility (voice handler).
 - **`src/integrations/speech_to_text.py`** — Whisper-based voice transcription, used by `ExpenseHandler` via DI.
 
 ### Data Flow
@@ -133,6 +142,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - `main.py` adds `src/` to `sys.path`, so imports within `src/` use package names directly (e.g., `from domain.models.user import ...`)
 - Pre-compiled regex patterns are module-level constants (e.g., `_UUID_PATTERN`, `_SPECIAL_CHARS_PATTERN`)
 - Category and account lookups use O(1) dict maps built in `_update_llm_parser_data()`
+- Query matching uses a two-tier approach: LLM performs semantic matching (user term → exact YNAB name), then `BudgetQueryService` applies 4-step fuzzy matching as fallback (exact → case-insensitive → clean/no-emoji → partial)
 - YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`
 - YNAB services use `YNABRepositoryFactory` (not a singleton repo) — always resolve per-user via `factory.get_repository(user_config)`
 - SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v3)
@@ -141,6 +151,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 If you receive the explicit command "prepare handoff", "save state", or if I indicate that we are approaching the rate limit, you must stop writing new code immediately.
 
 Your only task will be to create or overwrite the `docs/wip_state.md` file strictly using this structure:
+- Make clear you (Claude Code) were the last one to work on the code.
 - **Current Objective:** [1 or 2 lines describing the feature or bug we are currently working on. If you were working on a plan, reference that plan file you are using, and be specific about what you have completed so far]
 - **Last Action:** [What was the last thing you did before stopping. Be specific]
 - **Modified Files:** [List of file paths with unsaved changes. If no files are modified, write "None"]

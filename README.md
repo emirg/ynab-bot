@@ -154,14 +154,14 @@ Amount formats: `40000`, `40 mil`, `40 lucas`, `40k`, `$40000`, decimals with co
 Ask about your budget in natural language:
 
 ```
-"¿Cuánto me queda en Groceries?"        → Category balance (budgeted/spent/available)
+"¿Cuánto me queda en comida?"           → Category balance (matches "🛒 Groceries" semantically)
 "¿Cuánto debo en mi Nu Card?"           → Account balance (confirmed/pending)
 "¿Cómo va mi presupuesto?"              → Budget summary with top spending categories
-"¿Cuánto he gastado en restaurantes?"    → Category balance
+"¿Cuánto he gastado en restaurantes?"    → Category balance (matches "🍽️ Dining Out" or similar)
 "¿Cuál es el saldo de mi cuenta?"       → Account balance
 ```
 
-The bot uses the same AI-powered text analysis to distinguish between expenses and queries automatically.
+The bot uses AI-powered semantic matching to map natural language terms to your actual YNAB categories — you don't need to remember exact category names. It distinguishes between expenses and queries automatically.
 
 ### Voice Messages
 
@@ -241,8 +241,9 @@ main.py → DIContainer (infrastructure/container.py) → YNABTelegramBot (prese
 User (text)
   → ExpenseService.process_message()
     → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query")
+    → LLM semantically maps user terms to exact YNAB category/account names
     → if expense: parse→enhance→create→learn pipeline
-    → if query: BudgetQueryService → category/account/summary data
+    → if query: BudgetQueryService (4-step fuzzy fallback) → category/account/summary data
   → Formatted Telegram response
 
 User (voice)
