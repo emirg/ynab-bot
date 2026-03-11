@@ -57,6 +57,13 @@ class SpeechProcessingException(YNABBotException):
         super().__init__(f"Speech processing error: {message}")
 
 
+class ImageProcessingException(YNABBotException):
+    """Receipt image processing error"""
+    def __init__(self, message: str, file_size: int = None):
+        self.file_size = file_size
+        super().__init__(f"Image processing error: {message}")
+
+
 class OAuthException(YNABBotException):
     """OAuth flow error"""
     pass

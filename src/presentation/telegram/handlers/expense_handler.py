@@ -1,6 +1,7 @@
 import os
 import tempfile
 import logging
+import base64
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -9,7 +10,7 @@ from presentation.telegram.formatters import ExpenseResponseFormatter, BudgetQue
 from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.expense_service import ExpenseService
 from integrations.speech_to_text import SpeechToTextProcessor
-from domain.exceptions import SpeechProcessingException
+from domain.exceptions import SpeechProcessingException, ImageProcessingException
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +111,72 @@ class ExpenseHandler(BaseHandler):
         except Exception as e:
             self.log_handler_error("ExpenseHandler.handle_voice_message", update, e)
             await self.send_error_message(update, "Ocurrió un error procesando el mensaje de voz. Intenta de nuevo.")
+
+    @require_authentication(lambda self: self.container.get_auth_service())
+    async def handle_photo_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle photo receipt messages"""
+        self.log_handler_start("ExpenseHandler.handle_photo_message", update)
+        
+        try:
+            user_id = self.get_user_id(update)
+            
+            # Get the highest resolution photo
+            photo = update.message.photo[-1]
+            photo_file = await photo.get_file()
+            
+            # Check file size (limit to 5MB)
+            if photo_file.file_size > 5 * 1024 * 1024:
+                raise ImageProcessingException("La imagen es demasiado grande (máximo 5MB)", photo_file.file_size)
+            
+            # Send processing message
+            await update.message.reply_text("📸 Analizando recibo...")
+            
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
+                await photo_file.download_to_drive(temp_file.name)
+                temp_file_path = temp_file.name
+            
+            try:
+                # Read and encode to base64
+                with open(temp_file_path, "rb") as image_file:
+                    image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+                
+                caption = update.message.caption
+                
+                # Process receipt image
+                result = self.expense_service.process_receipt_image(user_id, image_base64, caption)
+                
+                if result.success:
+                    response = f"📸 *Recibo analizado*\n\n{self.formatter.format_success(result)}"
+                    self.log_handler_success("ExpenseHandler.handle_photo_message", update)
+                else:
+                    response = self.formatter.format_error(result)
+                
+                await self.send_message(update, response)
+                
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+            
+        except ImageProcessingException as e:
+            self.log_handler_error("ExpenseHandler.handle_photo_message", update, e)
+            await self.send_error_message(update, f"Error procesando imagen: {str(e)}")
+        except Exception as e:
+            self.log_handler_error("ExpenseHandler.handle_photo_message", update, e)
+            await self.send_error_message(update, "Ocurrió un error procesando la imagen. Intenta de nuevo.")
     
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Main handler entry point"""
+        if not update.message:
+            return
+
         if update.message.voice:
             await self.handle_voice_message(update, context)
+        elif update.message.photo:
+            await self.handle_photo_message(update, context)
         elif update.message.text:
             await self.handle_text_message(update, context)
         else:

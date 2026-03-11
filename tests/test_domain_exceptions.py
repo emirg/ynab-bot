@@ -10,6 +10,7 @@ from domain.exceptions import (
     LearningDataException,
     ConfigurationException,
     SpeechProcessingException,
+    ImageProcessingException,
 )
 
 
@@ -24,6 +25,7 @@ class TestExceptionHierarchy:
             LearningDataException('msg'),
             ConfigurationException('msg'),
             SpeechProcessingException('msg'),
+            ImageProcessingException('msg'),
         ]
         for exc in exceptions:
             assert isinstance(exc, YNABBotException)
@@ -84,4 +86,16 @@ class TestSpeechProcessingException:
 
     def test_without_file_size(self):
         exc = SpeechProcessingException('unknown error')
+        assert exc.file_size is None
+
+
+class TestImageProcessingException:
+
+    def test_with_file_size(self):
+        exc = ImageProcessingException('too large', file_size=5242880)
+        assert exc.file_size == 5242880
+        assert 'too large' in str(exc)
+
+    def test_without_file_size(self):
+        exc = ImageProcessingException('unknown error')
         assert exc.file_size is None

@@ -137,6 +137,60 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
             categories_section=categories_text,
             accounts_section=accounts_text
         )
+
+    def _generate_receipt_system_prompt(self) -> str:
+        """Genera el prompt del sistema específico para analizar imágenes de recibos"""
+        # Reutilizar lógica de categorías
+        if self.ynab_categories:
+            categories_text = "CATEGORÍAS DISPONIBLES EN TU PRESUPUESTO YNAB:\n"
+            for category in self.ynab_categories[:100]:
+                categories_text += f"- {category['name']}\n"
+            categories_text += "\n⚠️ REGLA DE ORO: Mapea el recibo a la categoría más semánticamente cercana de la lista anterior."
+        else:
+            categories_text = "No hay categorías configuradas. Usa categorías generales."
+
+        # Reutilizar lógica de cuentas
+        if self.ynab_accounts:
+            accounts_text = "CUENTAS DISPONIBLES:\n"
+            for account in self.ynab_accounts:
+                accounts_text += f"- {account}\n"
+        else:
+            accounts_text = "No hay cuentas configuradas."
+
+        return f"""Eres un experto en analizar recibos, facturas y tickets de venta en español colombiano.
+Tu tarea es extraer la información de un gasto a partir de una IMAGEN de un recibo.
+
+{categories_text}
+
+{accounts_text}
+
+INSTRUCCIONES ESPECÍFICAS PARA RECIBOS:
+1. **Monto Total**: Extrae el valor total pagado (incluyendo impuestos y propinas si están en el total).
+2. **Lugar/Payee**: Identifica el nombre del establecimiento (ej: "Éxito", "Restaurante El Corral", "Gasolinera Terpel").
+3. **Categoría**: Elige la categoría más adecuada de la lista proporcionada basado en el lugar y los productos comprados.
+4. **Memo**: Genera un resumen breve de lo comprado (ej: "Almuerzo: Hamburguesa y soda", "Mercado quincenal").
+5. **Fecha**: Si la fecha es visible, inclúyela al inicio del memo en formato [DD/MM].
+6. **Cuenta**: Si el recibo indica medio de pago (ej: "VISA ****1234") y coincide con una de las CUENTAS DISPONIBLES, selecciónala. De lo contrario, usa null.
+
+CONTEXTO COLOMBIANO:
+- Moneda: Pesos Colombianos (COP). Los montos suelen ser números grandes (ej: 45000, 120000).
+- Impuestos: IVA (19%) e Impoconsumo (8%) suelen estar incluidos en el total.
+
+RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
+{{
+    "amount": <número_decimal>,
+    "category": "<categoría_exacta_de_la_lista>",
+    "payee": "<lugar_o_comercio>",
+    "account": "<cuenta_exacta_de_la_lista_o_null>",
+    "memo": "<resumen_breve_del_recibo>",
+    "confidence": <0.0_a_1.0>
+}}
+
+⚠️ REGLAS CRÍTICAS:
+- Si la imagen NO es un recibo, factura o ticket de venta, o es totalmente ilegible, devuelve confidence: 0.0.
+- Si faltan datos críticos (monto o lugar), devuelve confidence: 0.0.
+- No inventes datos. Si algo no es claro, usa lo más probable o baja el confidence.
+"""
     
     def _generate_message_system_prompt(self) -> str:
         """Genera el prompt del sistema para clasificar intent y parsear mensajes"""
@@ -322,6 +376,80 @@ REGLAS CRÍTICAS:
                 
         except Exception as e:
             logger.error(f"Error llamando a OpenAI API: {e}")
+            return None
+
+    def parse_receipt_image(self, image_base64: str, caption: str = None) -> Optional[Dict]:
+        """
+        Analiza una imagen de un recibo en base64 usando OpenAI GPT-4o-mini Vision.
+
+        Args:
+            image_base64: Imagen del recibo codificada en base64.
+            caption: Texto opcional que acompaña a la imagen.
+
+        Returns:
+            Dict con información del gasto o None si falla.
+        """
+        try:
+            system_prompt = self._generate_receipt_system_prompt()
+
+            user_content = [
+                {
+                    "type": "text",
+                    "text": "Analiza este recibo/ticket y extrae la información del gasto."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{image_base64}"
+                    }
+                }
+            ]
+
+            if caption:
+                user_content.append({
+                    "type": "text",
+                    "text": f"Contexto adicional proporcionado por el usuario: {caption}"
+                })
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.1,
+                max_tokens=500
+            )
+
+            content = response.choices[0].message.content.strip()
+
+            try:
+                result = json.loads(content)
+
+                required_fields = ['amount', 'category', 'payee', 'memo', 'confidence']
+                if not all(field in result for field in required_fields):
+                    logger.error(f"Respuesta de Vision falta campos requeridos: {result}")
+                    return None
+
+                if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
+                    logger.error(f"Cantidad inválida de Vision: {result['amount']}")
+                    return None
+
+                if not isinstance(result['confidence'], (int, float)) or not (0 <= result['confidence'] <= 1):
+                    logger.error(f"Confianza inválida de Vision: {result['confidence']}")
+                    return None
+
+                result['amount'] = float(result['amount'])
+                result['confidence'] = float(result['confidence'])
+
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parseando JSON de Vision: {content}, Error: {e}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error llamando a OpenAI Vision API: {e}")
             return None
     
     def test_parsing(self):

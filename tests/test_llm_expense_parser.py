@@ -177,3 +177,56 @@ class TestParseExpenseUnchanged:
         result = parser.parse_expense('25 lucas almuerzo')
         assert result is not None
         assert result['amount'] == 25000.0
+
+
+class TestParseReceiptImage:
+
+    def test_parse_receipt_image_success(self, parser, mock_openai_client):
+        response = json.dumps({
+            'amount': 45000.0,
+            'category': 'Restaurants',
+            'payee': 'El Corral',
+            'account': 'Nu Card',
+            'memo': '[10/03] Almuerzo combo hamburguesa',
+            'confidence': 0.95,
+            'required_fields_check': True  # Solo para que no falle validación si cambio algo
+        })
+        # Limpiar campos extras para coincidir con required_fields
+        response_dict = json.loads(response)
+        if 'required_fields_check' in response_dict: del response_dict['required_fields_check']
+        
+        _mock_response(mock_openai_client, json.dumps(response_dict))
+
+        result = parser.parse_receipt_image('base64_string', 'almuerzo con amigos')
+        
+        assert result is not None
+        assert result['amount'] == 45000.0
+        assert result['payee'] == 'El Corral'
+        assert result['confidence'] == 0.95
+        
+        # Verificar llamada a OpenAI
+        call_args = mock_openai_client.chat.completions.create.call_args
+        kwargs = call_args.kwargs
+        assert kwargs['model'] == 'gpt-4o-mini'
+        user_msg = kwargs['messages'][1]['content']
+        assert any('base64_string' in item.get('image_url', {}).get('url', '') for item in user_msg if isinstance(item, dict) and item.get('type') == 'image_url')
+        assert any('almuerzo con amigos' in item.get('text', '') for item in user_msg if isinstance(item, dict) and item.get('type') == 'text')
+
+    def test_parse_receipt_image_not_a_receipt(self, parser, mock_openai_client):
+        response = json.dumps({
+            'amount': 0.0,
+            'category': 'None',
+            'payee': 'None',
+            'account': None,
+            'memo': 'No es un recibo',
+            'confidence': 0.0
+        })
+        _mock_response(mock_openai_client, response)
+
+        result = parser.parse_receipt_image('base64_not_receipt')
+        assert result is None  # Porque amount <= 0 falla validación
+
+    def test_parse_receipt_image_api_error(self, parser, mock_openai_client):
+        mock_openai_client.chat.completions.create.side_effect = Exception('Vision API error')
+        result = parser.parse_receipt_image('base64')
+        assert result is None

@@ -199,12 +199,14 @@ class TestGeneralResponseFormatter:
         assert '/start' in msg
         assert '/help' in msg
         assert '/config' in msg
+        assert 'recibos/tickets' in msg.lower()
 
     def test_help_message(self):
         msg = GeneralResponseFormatter.format_help_message()
         assert '$40000' in msg or '40000' in msg
         assert '/corregir' in msg
         assert 'lucas' in msg
+        assert 'recibo o ticket' in msg.lower()
 
 
 # ---------------------------------------------------------------------------

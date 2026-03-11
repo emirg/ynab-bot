@@ -129,6 +129,44 @@ class TestProcessExpenseErrors:
 
 
 # ---------------------------------------------------------------------------
+# process_receipt_image
+# ---------------------------------------------------------------------------
+
+class TestProcessReceiptImage:
+
+    def test_success(self, service, mock_llm_parser, mock_ynab_repository):
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 45000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'account': 'Nu Card',
+            'memo': 'test', 'confidence': 0.95,
+        }
+        result = service.process_receipt_image(TELEGRAM_ID, 'base64_data', 'almuerzo')
+        assert result.success is True
+        assert result.expense.parser_source == 'receipt'
+        assert result.expense.amount == Decimal('45000')
+        mock_ynab_repository.create_transaction.assert_called_once()
+
+    def test_with_caption(self, service, mock_llm_parser):
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 1000.0, 'category': 'X', 'payee': 'Y', 'memo': 'z', 'confidence': 0.9,
+        }
+        service.process_receipt_image(TELEGRAM_ID, 'data', 'almuerzo con amigos')
+        mock_llm_parser.parse_receipt_image.assert_called_with('data', 'almuerzo con amigos')
+
+    def test_parse_failure(self, service, mock_llm_parser):
+        mock_llm_parser.parse_receipt_image.return_value = None
+        result = service.process_receipt_image(TELEGRAM_ID, 'data')
+        assert not result.success
+        assert 'legible' in result.error_message
+
+    def test_user_not_configured(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.process_receipt_image(999, 'data')
+        assert not result.success
+        assert 'not configured' in result.error_message.lower() or 'not configured' in result.error_message
+
+
+# ---------------------------------------------------------------------------
 # _update_llm_parser_data and category lookup maps
 # ---------------------------------------------------------------------------
 

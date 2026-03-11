@@ -13,7 +13,8 @@ from domain.exceptions import (
     ExpenseParsingException,
     YNABApiException,
     OAuthException,
-    InvalidExpenseException
+    InvalidExpenseException,
+    ImageProcessingException
 )
 from application.services.budget_query_service import BudgetQueryService
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
@@ -120,7 +121,7 @@ class ExpenseService:
         logger.info(f"Successfully processed expense: {expense.payee} ${expense.amount}")
         return ExpenseResult.success_result(expense, transaction_id)
 
-    def _build_expense_from_parsed(self, result: dict, message: str, categories) -> Optional[Expense]:
+    def _build_expense_from_parsed(self, result: dict, message: str, categories, parser_source: str = 'llm') -> Optional[Expense]:
         """Build an Expense domain object from a parsed LLM result dict."""
         try:
             if result.get('confidence', 0) < 0.3:
@@ -148,7 +149,7 @@ class ExpenseService:
                 account_id=account_id,
                 account_name=account_name_raw if account_id else None,
                 confidence=result.get('confidence', 0.0),
-                parser_source='llm',
+                parser_source=parser_source,
             )
 
             if category_name:
@@ -163,6 +164,52 @@ class ExpenseService:
         except Exception as e:
             logger.error(f"Error building expense from parsed data: {e}")
             return None
+
+    def process_receipt_image(self, telegram_user_id: int, image_base64: str, caption: str = None) -> ExpenseResult:
+        """Process a receipt image using GPT Vision and create a YNAB transaction."""
+        try:
+            user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+            if not user_config or not user_config.is_configured():
+                missing = "budget_id and account_id" if not user_config else "budget configuration"
+                raise UserNotConfiguredException(telegram_user_id, missing)
+
+            ynab_repository = self.ynab_factory.get_repository(user_config)
+            categories = ynab_repository.get_categories(user_config.budget_id)
+            accounts = ynab_repository.get_accounts(user_config.budget_id)
+            self._update_llm_parser_data(categories, accounts)
+
+            parsed = self.llm_parser.parse_receipt_image(image_base64, caption)
+            if not parsed:
+                return ExpenseResult.error_result("No se pudo analizar el recibo. Asegúrate de que la imagen sea legible.")
+
+            expense = self._build_expense_from_parsed(parsed, caption or "Recibo", categories, parser_source='receipt')
+            if not expense:
+                return ExpenseResult.error_result("No se pudo extraer información válida del recibo.")
+
+            expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+
+            if not expense.account_id:
+                expense.account_id = user_config.default_account_id
+                expense.account_name = user_config.default_account_name
+
+            transaction_id = ynab_repository.create_transaction(
+                expense, user_config.budget_id, expense.account_id
+            )
+            if not transaction_id:
+                raise YNABApiException("Failed to create transaction")
+
+            self.learning_repository.record_successful_transaction(telegram_user_id, expense)
+            self.learning_repository.add_recent_transaction(telegram_user_id, expense)
+
+            logger.info(f"Successfully processed receipt: {expense.payee} ${expense.amount}")
+            return ExpenseResult.success_result(expense, transaction_id)
+
+        except (UserNotConfiguredException, ExpenseParsingException, YNABApiException, OAuthException, ImageProcessingException) as e:
+            logger.error(f"Expected error processing receipt: {e}")
+            return ExpenseResult.error_result(str(e))
+        except Exception as e:
+            logger.error(f"Unexpected error processing receipt: {e}")
+            return ExpenseResult.error_result("Error interno procesando el recibo. Intenta de nuevo.")
 
     def process_expense_message(self, telegram_user_id: int, message: str) -> ExpenseResult:
         """Main business logic for processing expense messages"""
@@ -277,49 +324,9 @@ class ExpenseService:
         """Parse expense message using LLM parser"""
         try:
             result = self.llm_parser.parse_expense(message)
-            if not result or result.get('confidence', 0) < 0.3:
-                logger.warning(f"Low confidence parse result for: '{message}'")
+            if not result:
                 return None
-
-            # Convert category name to category ID
-            category_name = result.get('category')
-            category_id = None
-            if category_name:
-                category_id = self._find_category_id_by_name(category_name, categories)
-                if not category_id:
-                    logger.warning(f"Could not find category ID for name: '{category_name}'")
-
-            # Sanitize LLM output fields
-            payee = _CONTROL_CHARS_PATTERN.sub('', str(result.get('payee', '')))[:_MAX_PAYEE_LENGTH]
-            memo = _CONTROL_CHARS_PATTERN.sub('', str(result.get('memo', message)))[:_MAX_MESSAGE_LENGTH]
-
-            # Resolve account
-            account_name_raw = result.get('account')
-            account_id = self._find_account_id_by_name(account_name_raw)
-
-            # Convert to domain model
-            expense = Expense(
-                amount=Decimal(str(result['amount'])),
-                payee=payee,
-                memo=memo,
-                category_id=category_id,
-                account_id=account_id,
-                account_name=account_name_raw if account_id else None,
-                confidence=result.get('confidence', 0.0),
-                parser_source='llm'
-            )
-
-            # Set category name from the LLM result
-            if category_name:
-                expense.category_name = category_name
-
-            # Validate expense
-            if not expense.is_valid():
-                logger.error(f"Invalid expense data: {expense}")
-                return None
-
-            return expense
-
+            return self._build_expense_from_parsed(result, message, categories, parser_source='llm')
         except Exception as e:
             logger.error(f"Error parsing expense message: {e}")
             return None

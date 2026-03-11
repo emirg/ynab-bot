@@ -283,6 +283,7 @@ class GeneralResponseFormatter:
 
 🧠 *Características avanzadas:*
 • 🔍 Parseo inteligente con IA (OpenAI GPT)
+• 📸 Análisis de fotos de recibos/tickets
 • 🧩 Aprendizaje adaptativo por comercio
 • 📊 Categorías reales de tu presupuesto YNAB
 • 💬 Entiende lenguaje natural y jerga colombiana
@@ -300,6 +301,7 @@ Envía un mensaje como:
 • "Gasté $40000 en comida en Éxito"
 • "$25000 transporte Uber"
 • "30 lucas almuerzo McDonald's"
+• 📸 O simplemente envía una foto de un recibo
 
 ¡Empecemos! Usa `/config` para configurar.
         """.strip()
@@ -320,6 +322,11 @@ Envía un mensaje como:
 • "25 lucas almuerzo McDonald's"
 • "80k gasolina estación Terpel"
 • "150 mil supermercado Carulla"
+
+📸 *Recibos/Tickets:*
+• Envía una foto de un recibo o ticket
+• El bot extraerá monto, lugar y categoría automáticamente
+• Puedes agregar un comentario a la foto (ej: "almuerzo con amigos")
 
 🎤 *Mensajes de voz:*
 • También puedes enviar mensajes de voz

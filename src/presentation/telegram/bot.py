@@ -70,6 +70,7 @@ class YNABTelegramBot:
         
         # Message handlers (order matters - more specific first)
         self.application.add_handler(MessageHandler(filters.VOICE, self.expense_handler.handle_voice_message))
+        self.application.add_handler(MessageHandler(filters.PHOTO, self.expense_handler.handle_photo_message))
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.expense_handler.handle_text_message))
         
         # Unknown command handler (should be last)
