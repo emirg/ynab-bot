@@ -102,6 +102,14 @@ class TestParseMessageErrors:
         _mock_response(mock_openai_client, 'not json')
         assert parser.parse_message('test') is None
 
+    def test_markdown_json(self, parser, mock_openai_client):
+        response = "```json\n{\"intent\": \"expense\", \"amount\": 100, \"category\": \"C\", \"payee\": \"P\", \"memo\": \"M\", \"confidence\": 0.9}\n```"
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['intent'] == 'expense'
+        assert result['amount'] == 100.0
+
     def test_missing_intent(self, parser, mock_openai_client):
         _mock_response(mock_openai_client, json.dumps({'confidence': 0.9}))
         assert parser.parse_message('test') is None

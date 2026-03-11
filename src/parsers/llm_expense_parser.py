@@ -252,6 +252,17 @@ REGLAS CRÍTICAS:
 5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
 """
 
+    def _strip_markdown_code_blocks(self, content: str) -> str:
+        """Elimina bloques de código Markdown si existen"""
+        content = content.strip()
+        if content.startswith("```"):
+            # Eliminar la primera línea (```json o ```)
+            lines = content.split("\n")
+            if len(lines) > 2:
+                # Filtrar las líneas que empiezan con ```
+                content = "\n".join([line for line in lines if not line.strip().startswith("```")])
+        return content.strip()
+
     def parse_message(self, message: str) -> Optional[Dict]:
         """
         Clasifica el intent del mensaje y retorna la estructura correspondiente.
@@ -273,6 +284,7 @@ REGLAS CRÍTICAS:
             )
 
             content = response.choices[0].message.content.strip()
+            content = self._strip_markdown_code_blocks(content)
 
             try:
                 result = json.loads(content)
@@ -343,6 +355,7 @@ REGLAS CRÍTICAS:
             
             # Extraer el contenido de la respuesta
             content = response.choices[0].message.content.strip()
+            content = self._strip_markdown_code_blocks(content)
             
             # Parsear el JSON
             try:
@@ -422,6 +435,7 @@ REGLAS CRÍTICAS:
             )
 
             content = response.choices[0].message.content.strip()
+            content = self._strip_markdown_code_blocks(content)
 
             try:
                 result = json.loads(content)

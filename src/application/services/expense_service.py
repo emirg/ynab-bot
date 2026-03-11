@@ -337,6 +337,10 @@ class ExpenseService:
             return None
 
         account_name = account_name.strip()
+        
+        # Handle string "null" or "none" from LLM
+        if account_name.lower() in ('null', 'none'):
+            return None
 
         # Exact match
         if account_name in self._account_by_name:
