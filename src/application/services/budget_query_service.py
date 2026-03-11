@@ -95,24 +95,18 @@ class BudgetQueryService:
         name = name.strip()
         active = [c for c in categories if not c.deleted and not c.hidden]
 
-        # Exact match
+        # 1. Exact match
         for c in active:
             if c.name == name or c.full_name == name:
                 return c
 
-        # Case-insensitive
+        # 2. Case-insensitive
         name_lower = name.lower()
         for c in active:
             if c.name.lower() == name_lower or c.full_name.lower() == name_lower:
                 return c
 
-        # Partial match
-        for c in active:
-            c_lower = c.name.lower()
-            if name_lower in c_lower or c_lower in name_lower:
-                return c
-
-        # Match without special chars/emojis
+        # 3. Match without special chars/emojis (Clean Match)
         name_clean = _SPECIAL_CHARS_PATTERN.sub('', name).strip().lower()
         if name_clean:
             for c in active:
@@ -120,25 +114,39 @@ class BudgetQueryService:
                 if c_clean == name_clean:
                     return c
 
+        # 4. Partial match
+        for c in active:
+            c_lower = c.name.lower()
+            if name_lower in c_lower or c_lower in name_lower:
+                return c
+
         return None
 
     def _find_account(self, accounts: List[YNABAccount], name: str) -> Optional[YNABAccount]:
-        """Find account by name with fuzzy matching (exact → case-insensitive → partial)."""
+        """Find account by name with fuzzy matching (exact → case-insensitive → clean → partial)."""
         name = name.strip()
         active = [a for a in accounts if not a.deleted and not a.closed]
 
-        # Exact match
+        # 1. Exact match
         for a in active:
             if a.name == name:
                 return a
 
-        # Case-insensitive
+        # 2. Case-insensitive
         name_lower = name.lower()
         for a in active:
             if a.name.lower() == name_lower:
                 return a
 
-        # Partial match
+        # 3. Match without special chars/emojis (Clean Match)
+        name_clean = _SPECIAL_CHARS_PATTERN.sub('', name).strip().lower()
+        if name_clean:
+            for a in active:
+                a_clean = _SPECIAL_CHARS_PATTERN.sub('', a.name).strip().lower()
+                if a_clean == name_clean:
+                    return a
+
+        # 4. Partial match
         for a in active:
             a_lower = a.name.lower()
             if name_lower in a_lower or a_lower in name_lower:

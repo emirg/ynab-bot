@@ -101,13 +101,13 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         # Sección de categorías
         if self.ynab_categories:
             categories_text = "CATEGORÍAS DISPONIBLES EN TU PRESUPUESTO YNAB:\n"
-            for i, category in enumerate(self.ynab_categories[:20], 1):  # Limitar a 20 para no sobrecargar
+            for i, category in enumerate(self.ynab_categories[:100], 1):  # Aumentado a 100
                 categories_text += f"- {category['name']}\n"
             
-            if len(self.ynab_categories) > 20:
-                categories_text += f"... y {len(self.ynab_categories) - 20} categorías más\n"
+            if len(self.ynab_categories) > 100:
+                categories_text += f"... y {len(self.ynab_categories) - 100} categorías más\n"
             
-            categories_text += "\nUsa EXACTAMENTE estos nombres de categorías."
+            categories_text += "\n⚠️ REGLA DE ORO: Mapea el mensaje a la categoría más semánticamente cercana de la lista anterior. Usa EXACTAMENTE el nombre de la categoría, incluyendo emojis si los tiene."
         else:
             categories_text = """CATEGORÍAS COMUNES:
 - Comida/Alimentación: supermercado, groceries, mercado, comida
@@ -140,17 +140,21 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
     
     def _generate_message_system_prompt(self) -> str:
         """Genera el prompt del sistema para clasificar intent y parsear mensajes"""
-        categories_text = ""
+        categories_text = "No hay categorías disponibles."
         if self.ynab_categories:
             categories_text = "CATEGORÍAS DISPONIBLES:\n"
-            for category in self.ynab_categories[:20]:
+            for category in self.ynab_categories[:100]:
                 categories_text += f"- {category['name']}\n"
+            
+            categories_text += "\nSi el usuario pregunta por una categoría (ej: 'comida'), búscala semánticamente en esta lista (ej: '🛒 Groceries') y devuelve el NOMBRE EXACTO."
 
-        accounts_text = ""
+        accounts_text = "No hay cuentas disponibles."
         if self.ynab_accounts:
             accounts_text = "CUENTAS DISPONIBLES:\n"
             for account in self.ynab_accounts:
                 accounts_text += f"- {account}\n"
+            
+            accounts_text += "\nSi el usuario pregunta por una cuenta, usa el NOMBRE EXACTO de esta lista."
 
         return f"""Eres un asistente que clasifica mensajes de usuarios de una app de presupuesto en español colombiano.
 
@@ -162,6 +166,7 @@ Palabras clave de consulta: "cuánto", "cómo va", "resumen", "saldo", "debo", "
 GASTOS: mensajes que reportan un gasto realizado. Contienen un monto y un lugar/concepto.
 
 {categories_text}
+
 {accounts_text}
 
 RESPONDE EN JSON con UNA de estas dos estructuras:
@@ -170,7 +175,7 @@ Para CONSULTAS:
 {{
     "intent": "query",
     "query_type": "category_balance" | "account_balance" | "budget_summary",
-    "query_target": "<nombre_categoría_o_cuenta_o_null>",
+    "query_target": "<nombre_exacto_de_categoría_o_cuenta_o_null>",
     "confidence": <0.0_a_1.0>
 }}
 
@@ -178,19 +183,19 @@ Para GASTOS:
 {{
     "intent": "expense",
     "amount": <número_decimal>,
-    "category": "<categoría>",
+    "category": "<categoría_exacta_de_la_lista>",
     "payee": "<lugar>",
-    "account": "<cuenta_o_null>",
+    "account": "<cuenta_exacta_de_la_lista_o_null>",
     "memo": "<mensaje_original>",
     "confidence": <0.0_a_1.0>
 }}
 
-REGLAS:
-- "category_balance": pregunta por UNA categoría específica (ej: "cuánto me queda en Groceries")
-- "account_balance": pregunta por UNA cuenta específica (ej: "cuánto debo en mi Nu Card")
-- "budget_summary": pregunta general sobre el presupuesto (ej: "cómo va mi presupuesto")
-- Para gastos, sigue las mismas reglas de parseo que siempre (moneda colombiana, categorías exactas, etc.)
-- query_target debe ser null para budget_summary
+REGLAS CRÍTICAS:
+1. "category_balance": pregunta por UNA categoría específica. DEBES mapear lo que diga el usuario al nombre exacto de la lista de CATEGORÍAS DISPONIBLES.
+2. "account_balance": pregunta por UNA cuenta específica. DEBES mapear al nombre exacto de la lista de CUENTAS DISPONIBLES.
+3. "budget_summary": pregunta general sobre el presupuesto (ej: "cómo va mi presupuesto"). query_target debe ser null.
+4. Para GASTOS, la categoría DEBE ser una de la lista de CATEGORÍAS DISPONIBLES.
+5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
 """
 
     def parse_message(self, message: str) -> Optional[Dict]:
