@@ -30,6 +30,7 @@ def sample_expense():
         account_name='Nu Card',
         confidence=0.85,
         parser_source='llm',
+        category_explanation='sugerido por IA, confianza 85%',
         date=datetime(2026, 3, 9, 12, 0, 0),
     )
 

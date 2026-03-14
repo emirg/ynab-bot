@@ -28,8 +28,7 @@ class ExpenseResponseFormatter:
 🏪 *Lugar:* {expense.payee}
 📁 *Categoría:* {expense.category_name or 'Sin categoría'}
 💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
-{confidence_emoji} *Confianza:* {expense.confidence*100:.0f}%
-🤖 *Procesado por:* {expense.parser_source.upper()}
+{confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
 
 📝 *Memo:* {expense.memo}
         """

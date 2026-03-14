@@ -26,6 +26,7 @@ class Expense:
     account_name: Optional[str] = None
     confidence: float = 0.0
     parser_source: str = 'unknown'
+    category_explanation: Optional[str] = None
     date: datetime = field(default_factory=datetime.now)
 
     def to_ynab_format(self, budget_id: str, default_account_id: str) -> dict:

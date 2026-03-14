@@ -105,12 +105,14 @@ class TestRecordTransaction:
         result = repo.predict_category(TELEGRAM_ID, "McDonald's", [{'id': 'cat-restaurants'}])
         assert result is not None
         assert result[0] == 'cat-restaurants'
+        assert result[2] == 1
 
     def test_increments_count(self, repo, expense_mcdonalds):
         repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
         repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
         result = repo.predict_category(TELEGRAM_ID, "McDonald's", [{'id': 'cat-restaurants'}])
         assert result[1] == 1.0  # confidence stays 1.0 when only one category
+        assert result[2] == 2
 
     def test_updates_statistics(self, repo, expense_mcdonalds):
         repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
@@ -149,6 +151,7 @@ class TestPredictCategory:
         assert result is not None
         assert result[0] == 'cat-restaurants'
         assert result[1] == 1.0
+        assert result[2] == 1
 
     def test_returns_none_for_deleted_category(self, repo, expense_mcdonalds):
         repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
@@ -169,6 +172,7 @@ class TestPredictCategory:
         result = repo.predict_category(TELEGRAM_ID, 'Exito', categories)
         assert result[0] == 'cat-groceries'
         assert result[1] == 0.75  # 3/4
+        assert result[2] == 3
 
     def test_per_user_isolation(self, repo, db_manager, expense_mcdonalds):
         """Data from one user should not leak to another."""
@@ -194,6 +198,7 @@ class TestRecordCorrection:
         result = repo.predict_category(TELEGRAM_ID, "McDonald's", [{'id': 'cat-fast-food'}])
         assert result is not None
         assert result[0] == 'cat-fast-food'
+        assert result[2] == 1
 
     def test_correction_reduces_old_count(self, repo, expense_mcdonalds):
         repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
@@ -207,6 +212,7 @@ class TestRecordCorrection:
         result = repo.predict_category(TELEGRAM_ID, 'NewPlace', [{'id': 'cat-new'}])
         assert result is not None
         assert result[0] == 'cat-new'
+        assert result[2] == 1
 
     def test_correction_updates_statistics(self, repo, expense_mcdonalds):
         repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)

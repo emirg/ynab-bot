@@ -88,6 +88,12 @@ class TestExpense:
         e = Expense(amount=Decimal('1'), payee='T', memo='m')
         assert e.parser_source == 'unknown'
 
+    def test_category_explanation_field(self):
+        e = Expense(amount=Decimal('1'), payee='T', memo='m')
+        assert e.category_explanation is None
+        e.category_explanation = "sugerido por IA"
+        assert e.category_explanation == "sugerido por IA"
+
 
 class TestUUIDPattern:
 

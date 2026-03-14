@@ -104,6 +104,7 @@ class ExpenseService:
             raise ExpenseParsingException(message, 0.0)
 
         expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+        expense.category_explanation = self._build_category_explanation(expense)
 
         if not expense.account_id:
             expense.account_id = user_config.default_account_id
@@ -187,6 +188,7 @@ class ExpenseService:
                 return ExpenseResult.error_result("No se pudo extraer información válida del recibo.")
 
             expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+            expense.category_explanation = self._build_category_explanation(expense)
 
             if not expense.account_id:
                 expense.account_id = user_config.default_account_id
@@ -243,6 +245,7 @@ class ExpenseService:
 
             # 6. Enhance with learning predictions
             expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+            expense.category_explanation = self._build_category_explanation(expense)
 
             # 7. Set default account if not specified
             if not expense.account_id:
@@ -397,21 +400,19 @@ class ExpenseService:
 
     def _enhance_with_learning(self, expense: Expense, categories: List[YNABCategory], telegram_user_id: int) -> Expense:
         """Enhance expense with learning predictions if confidence is low"""
-        if expense.confidence > 0.7:  # High confidence, don't override
-            return expense
-
         # Try to get learning prediction
         category_list = [{'id': cat.id, 'name': cat.name} for cat in categories]
         prediction = self.learning_repository.predict_category(telegram_user_id, expense.payee, category_list)
 
         if prediction:
-            predicted_category_id, learning_confidence = prediction
+            predicted_category_id, learning_confidence, mapping_count = prediction
 
             # Use learning prediction if it's more confident
             if learning_confidence > expense.confidence:
-                logger.info(f"Using learning prediction for {expense.payee}: {predicted_category_id} (confidence: {learning_confidence:.2f})")
+                logger.info(f"Using learning prediction for {expense.payee}: {predicted_category_id} (confidence: {learning_confidence:.2f}, count: {mapping_count})")
                 expense.category_id = predicted_category_id
                 expense.confidence = learning_confidence
+                expense.category_explanation = f"aprendido de tus ultimas {mapping_count} compras en {expense.payee}"
 
                 # Update category name
                 category = next((cat for cat in categories if cat.id == predicted_category_id), None)
@@ -419,6 +420,24 @@ class ExpenseService:
                     expense.category_name = category.name
 
         return expense
+
+    def _build_category_explanation(self, expense: Expense) -> str:
+        """Build a Spanish explanation of why this category was chosen"""
+        if expense.category_explanation:
+            return expense.category_explanation
+
+        conf_pct = int(expense.confidence * 100)
+        
+        if expense.parser_source == 'receipt':
+            return f"detectado del recibo, confianza {conf_pct}%"
+        
+        if expense.parser_source == 'llm':
+            if expense.confidence > 0.7:
+                return f"sugerido por IA, confianza {conf_pct}%"
+            else:
+                return f"sugerido por IA, confianza {conf_pct}% - considera verificar"
+        
+        return f"confianza {conf_pct}%"
 
     def correct_recent_transaction(self, telegram_user_id: int, transaction_index: int, new_category_id: str) -> bool:
         """Correct a recent transaction category for learning purposes"""

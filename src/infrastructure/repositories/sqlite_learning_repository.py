@@ -85,7 +85,7 @@ class SQLiteLearningRepository(LearningRepository):
 
     def predict_category(
         self, telegram_id: int, payee: str, categories: List[Dict]
-    ) -> Optional[Tuple[str, float]]:
+    ) -> Optional[Tuple[str, float, int]]:
         if not payee:
             return None
 
@@ -117,7 +117,7 @@ class SQLiteLearningRepository(LearningRepository):
             return None
 
         logger.info(f"Predicted for '{payee}': {best_category_id} (confidence: {confidence:.2f})")
-        return best_category_id, confidence
+        return best_category_id, confidence, best['count']
 
     def record_user_correction(
         self, telegram_id: int, payee: str, old_category_id: str, new_category_id: str

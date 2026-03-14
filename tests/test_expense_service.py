@@ -301,17 +301,20 @@ class TestFindAccountByName:
 
 class TestEnhanceWithLearning:
 
-    def test_high_confidence_not_overridden(self, service, mock_learning_repository, sample_categories):
+    def test_high_confidence_overridden_if_learning_higher(self, service, mock_learning_repository, sample_categories):
+        # Even if LLM is high (0.8), if learning is higher (1.0), it should override
+        mock_learning_repository.predict_category.return_value = ('cat-2', 1.0, 5)
         expense = Expense(
             amount=Decimal('1000'), payee='Test', memo='x',
-            category_id='cat-1', confidence=0.9,
+            category_id='cat-1', confidence=0.8,
         )
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
-        assert result.category_id == 'cat-1'
-        mock_learning_repository.predict_category.assert_not_called()
+        assert result.category_id == 'cat-2'
+        assert result.confidence == 1.0
+        assert "aprendido de tus ultimas 5 compras" in result.category_explanation
 
     def test_low_confidence_enhanced(self, service, mock_learning_repository, sample_categories):
-        mock_learning_repository.predict_category.return_value = ('cat-2', 0.8)
+        mock_learning_repository.predict_category.return_value = ('cat-2', 0.8, 3)
         expense = Expense(
             amount=Decimal('1000'), payee='Test', memo='x',
             category_id='cat-1', confidence=0.3,
@@ -319,15 +322,17 @@ class TestEnhanceWithLearning:
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
         assert result.category_id == 'cat-2'
         assert result.confidence == 0.8
+        assert "aprendido de tus ultimas 3 compras" in result.category_explanation
 
     def test_learning_prediction_lower_confidence_not_used(self, service, mock_learning_repository, sample_categories):
-        mock_learning_repository.predict_category.return_value = ('cat-2', 0.2)
+        mock_learning_repository.predict_category.return_value = ('cat-2', 0.2, 1)
         expense = Expense(
             amount=Decimal('1000'), payee='Test', memo='x',
             category_id='cat-1', confidence=0.5,
         )
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
         assert result.category_id == 'cat-1'
+        assert result.category_explanation is None
 
     def test_no_prediction_available(self, service, mock_learning_repository, sample_categories):
         mock_learning_repository.predict_category.return_value = None
@@ -337,6 +342,30 @@ class TestEnhanceWithLearning:
         )
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
         assert result.category_id == 'cat-1'
+
+
+class TestBuildCategoryExplanation:
+
+    def test_uses_existing_explanation(self, service):
+        expense = Expense(amount=Decimal('1'), payee='T', memo='m')
+        expense.category_explanation = "Existing"
+        assert service._build_category_explanation(expense) == "Existing"
+
+    def test_receipt_source(self, service):
+        expense = Expense(amount=Decimal('1'), payee='T', memo='m', parser_source='receipt', confidence=0.95)
+        assert service._build_category_explanation(expense) == "detectado del recibo, confianza 95%"
+
+    def test_llm_high_confidence(self, service):
+        expense = Expense(amount=Decimal('1'), payee='T', memo='m', parser_source='llm', confidence=0.85)
+        assert service._build_category_explanation(expense) == "sugerido por IA, confianza 85%"
+
+    def test_llm_low_confidence(self, service):
+        expense = Expense(amount=Decimal('1'), payee='T', memo='m', parser_source='llm', confidence=0.6)
+        assert service._build_category_explanation(expense) == "sugerido por IA, confianza 60% - considera verificar"
+
+    def test_fallback(self, service):
+        expense = Expense(amount=Decimal('1'), payee='T', memo='m', parser_source='unknown', confidence=0.5)
+        assert service._build_category_explanation(expense) == "confianza 50%"
 
 
 # ---------------------------------------------------------------------------

@@ -13,8 +13,8 @@ class LearningRepository(ABC):
         pass
 
     @abstractmethod
-    def predict_category(self, telegram_id: int, payee: str, categories: List[Dict]) -> Optional[Tuple[str, float]]:
-        """Predict category for a payee, return (category_id, confidence)"""
+    def predict_category(self, telegram_id: int, payee: str, categories: List[Dict]) -> Optional[Tuple[str, float, int]]:
+        """Predict category for a payee, return (category_id, confidence, count)"""
         pass
 
     @abstractmethod

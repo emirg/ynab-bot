@@ -27,7 +27,14 @@ class TestExpenseResponseFormatter:
         assert 'registrado exitosamente' in msg
         assert "McDonald's" in msg
         assert '$25,000' in msg
-        assert 'LLM' in msg
+        assert 'Razon' in msg
+        assert 'sugerido por IA' in msg
+
+    def test_format_success_no_explanation(self, sample_expense):
+        sample_expense.category_explanation = None
+        result = ExpenseResult.success_result(sample_expense)
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert '*Razon:* desconocido' in msg
 
     def test_format_success_high_confidence(self, sample_expense):
         sample_expense.confidence = 0.95
