@@ -22,7 +22,7 @@ Nuevo comando `/aprendizaje` que muestra qué ha aprendido el bot del usuario:
 - Comando `/olvidar <payee>` para eliminar asociaciones incorrectas
 - Mejorar `/stats` con información más accionable
 
-### 1.3 — Explicación de Decisiones
+### 1.3 — Explicación de Decisiones [COMPLETADO]
 
 Cuando el bot registra un gasto, incluir en la respuesta por qué eligió esa categoría:
 

@@ -29,7 +29,7 @@ pip install -r requirements.txt
 python main.py
 
 # Tests
-pytest # All tests (~406, ~89% cov)
+pytest # All tests (~413, ~89% cov)
 pytest tests/test_domain_models.py # File
 pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
 pytest -k "test_predict_category" # Keyword filter

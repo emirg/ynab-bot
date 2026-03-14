@@ -57,7 +57,7 @@ ynab-bot/
 │   └── .env.example                 # Configuration template
 ├── data/                            # Persistent data
 │   └── users.db                     # SQLite database (users + learning data)
-└── tests/                           # Test suite (~406 tests, ~89% coverage)
+└── tests/                           # Test suite (~413 tests, ~89% coverage)
 ```
 
 ## 🚀 Installation & Setup
@@ -227,7 +227,7 @@ Each user connects their own YNAB account. No shared tokens.
 ## 🧪 Tests
 
 ```bash
-# Full suite (~406 tests, ~89% coverage)
+# Full suite (~413 tests, ~89% coverage)
 pytest
 
 # Single test file
