@@ -27,7 +27,7 @@ ynab-bot/
 ├── railway.toml                     # Railway deployment config (test-gating)
 ├── src/
 │   ├── domain/                      # Models, interfaces, exceptions
-│   │   ├── models/                  # Expense, BudgetQueryResult, UserConfiguration (with OAuth fields)
+│   │   ├── models/                  # Expense, BudgetQueryResult, UserConfiguration, SplitGroup (with OAuth fields)
 │   │   ├── repositories/           # Abstract interfaces (ABC)
 │   │   ├── services/               # AuthorizationService
 │   │   └── exceptions.py           # Includes OAuthException, TokenExpiredException
@@ -36,7 +36,8 @@ ynab-bot/
 │   │   ├── budget_query_service.py  # Budget queries (category/account balance, summary)
 │   │   ├── user_config_service.py   # Per-user configuration
 │   │   ├── oauth_service.py         # YNAB OAuth2 lifecycle (auth, tokens, refresh)
-│   │   └── learning_service.py
+│   │   ├── learning_service.py
+│   │   └── split_config_service.py  # Split group/alias/shared account management
 │   ├── infrastructure/
 │   │   ├── config/app_config.py     # Loads config/.env
 │   │   ├── container.py             # Dependency injection (DIContainer)
@@ -46,7 +47,7 @@ ynab-bot/
 │   ├── presentation/telegram/
 │   │   ├── bot.py                   # Handler registration
 │   │   ├── formatters.py           # Message formatting
-│   │   ├── handlers/               # General, Config, Expense, Learning, Admin
+│   │   ├── handlers/               # General, Config, Expense, Learning, SplitConfig, Admin
 │   │   └── middleware/             # @require_authentication, @require_admin
 │   ├── parsers/
 │   │   └── llm_expense_parser.py    # GPT-4o-mini parser
@@ -57,7 +58,7 @@ ynab-bot/
 │   └── .env.example                 # Configuration template
 ├── data/                            # Persistent data
 │   └── users.db                     # SQLite database (users + learning data)
-└── tests/                           # Test suite (~413 tests, ~89% coverage)
+└── tests/                           # Test suite (~458 tests, ~88% coverage)
 ```
 
 ## 🚀 Installation & Setup
@@ -121,6 +122,9 @@ python main.py     # Starts the bot
 - `/budgets` — List available budgets
 - `/accounts` — List available accounts
 - `/status` — View current configuration and YNAB connection status
+
+**Shared Expenses:**
+- `/splitwise` — Configure Splitwise groups, person aliases, and shared account
 
 **Learning:**
 - `/stats` — Learning statistics (top payees and categories)
@@ -227,7 +231,7 @@ Each user connects their own YNAB account. No shared tokens.
 ## 🧪 Tests
 
 ```bash
-# Full suite (~413 tests, ~89% coverage)
+# Full suite (~458 tests, ~88% coverage)
 pytest
 
 # Single test file

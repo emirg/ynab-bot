@@ -31,7 +31,7 @@ pip install -r requirements.txt
 .venv/bin/python main.py
 
 # Tests
-.venv/bin/pytest # All tests (~413, ~89% cov)
+.venv/bin/pytest # All tests (~458, ~88% cov)
 .venv/bin/pytest tests/test_domain_models.py # File
 .venv/bin/pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
 .venv/bin/pytest -k "test_predict_category" # Keyword filter
