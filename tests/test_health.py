@@ -1,7 +1,9 @@
 import urllib.request
 from unittest.mock import MagicMock
 
-from infrastructure.health import start_health_server, set_healthy, set_oauth_service
+from infrastructure.health import (
+    start_health_server, set_healthy, set_oauth_service, set_on_oauth_success
+)
 from domain.models.user import UserConfiguration, UserStatus
 
 _PORT = 18080
@@ -50,11 +52,22 @@ class TestOAuthCallback:
             telegram_id=1, status=UserStatus.AUTHORIZED
         )
         set_oauth_service(mock_service)
+        
+        # Setup callback mock
+        mock_callback = MagicMock()
+        set_on_oauth_success(mock_callback)
+        
         status, body = _get("/oauth/callback?code=abc&state=123.sig")
         assert status == 200
         assert b"conectada" in body.lower()
         mock_service.exchange_code_for_tokens.assert_called_once_with("abc", "123.sig")
+        
+        # Verify callback was called with correct telegram_id
+        mock_callback.assert_called_once_with(1)
+        
+        # Cleanup
         set_oauth_service(None)
+        set_on_oauth_success(None)
 
     def test_exchange_error_returns_400(self):
         mock_service = MagicMock()

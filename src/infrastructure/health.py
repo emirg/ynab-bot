@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 _healthy = True
 _oauth_service = None
+_on_oauth_success = None
 
 _SUCCESS_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>YNAB Bot</title></head>
@@ -32,6 +33,11 @@ def set_healthy(value: bool):
 def set_oauth_service(service):
     global _oauth_service
     _oauth_service = service
+
+
+def set_on_oauth_success(callback):
+    global _on_oauth_success
+    _on_oauth_success = callback
 
 
 class _HealthHandler(BaseHTTPRequestHandler):
@@ -63,8 +69,17 @@ class _HealthHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            _oauth_service.exchange_code_for_tokens(code, state)
+            user_config = _oauth_service.exchange_code_for_tokens(code, state)
             self._send_html(200, _SUCCESS_HTML)
+            
+            # Notify Telegram bot about successful OAuth
+            if _on_oauth_success:
+                try:
+                    # Run callback in a separate thread to avoid blocking health server response
+                    # or just call it directly since it's fire-and-forget sync
+                    _on_oauth_success(user_config.telegram_id)
+                except Exception as e:
+                    logger.error(f"Error in on_oauth_success callback: {e}")
         except Exception as e:
             logger.error(f"OAuth callback error: {e}")
             self._send_html(400, _ERROR_HTML.format(error=str(e)))

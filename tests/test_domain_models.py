@@ -9,6 +9,7 @@ from domain.models.user import (
     UserConfiguration, UserStatus,
     YNABBudget, YNABAccount, YNABCategory,
 )
+from domain.models.onboarding import OnboardingStep
 
 
 # ---------------------------------------------------------------------------
@@ -360,3 +361,20 @@ class TestMessageResult:
         r = MessageResult(intent='expense')
         assert r.expense_result is None
         assert r.query_result is None
+
+
+# ---------------------------------------------------------------------------
+# OnboardingStep
+# ---------------------------------------------------------------------------
+
+class TestOnboardingStep:
+
+    def test_enum_values(self):
+        assert OnboardingStep.NEEDS_YNAB_CONNECTION.value == "needs_ynab_connection"
+        assert OnboardingStep.NEEDS_BUDGET.value == "needs_budget"
+        assert OnboardingStep.NEEDS_ACCOUNT.value == "needs_account"
+        assert OnboardingStep.COMPLETE.value == "complete"
+
+    def test_enum_members(self):
+        assert len(OnboardingStep) == 4
+        assert OnboardingStep("needs_ynab_connection") == OnboardingStep.NEEDS_YNAB_CONNECTION

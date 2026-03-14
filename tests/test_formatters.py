@@ -12,6 +12,7 @@ from presentation.telegram.formatters import (
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
+from domain.models.onboarding import OnboardingStep
 
 
 # ---------------------------------------------------------------------------
@@ -203,10 +204,42 @@ class TestGeneralResponseFormatter:
 
     def test_help_message(self):
         msg = GeneralResponseFormatter.format_help_message()
-        assert '$40000' in msg or '40000' in msg
+        assert 'Guía de uso' in msg
+        assert '/connect' in msg
+        assert '/config' in msg
+        assert 'Aprendizaje' in msg
         assert '/corregir' in msg
-        assert 'lucas' in msg
-        assert 'recibo o ticket' in msg.lower()
+
+    def test_format_onboarding_welcome(self):
+        # NEEDS_YNAB_CONNECTION
+        msg = GeneralResponseFormatter.format_onboarding_welcome("Emir", OnboardingStep.NEEDS_YNAB_CONNECTION)
+        assert '¡Hola Emir!' in msg
+        assert '/connect' in msg
+        
+        # NEEDS_BUDGET
+        msg = GeneralResponseFormatter.format_onboarding_welcome("Emir", OnboardingStep.NEEDS_BUDGET)
+        assert 'YNAB conectado' in msg
+        assert 'selecciona el presupuesto' in msg
+        
+        # NEEDS_ACCOUNT
+        msg = GeneralResponseFormatter.format_onboarding_welcome("Emir", OnboardingStep.NEEDS_ACCOUNT)
+        assert 'Presupuesto seleccionado' in msg
+        assert 'elige la cuenta' in msg
+        
+        # COMPLETE
+        msg = GeneralResponseFormatter.format_onboarding_welcome("Emir", OnboardingStep.COMPLETE)
+        assert '¡Todo listo, Emir!' in msg
+        assert 'almuerzo 25000' in msg
+
+    def test_format_post_oauth_message(self):
+        msg = GeneralResponseFormatter.format_post_oauth_message()
+        assert 'exitosamente' in msg
+        assert 'configurar tu presupuesto' in msg
+
+    def test_format_onboarding_complete(self):
+        msg = GeneralResponseFormatter.format_onboarding_complete()
+        assert 'Configuración completada' in msg
+        assert 'comida 35000' in msg
 
 
 # ---------------------------------------------------------------------------

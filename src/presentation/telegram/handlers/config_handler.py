@@ -3,7 +3,11 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.base_handler import BaseHandler
-from presentation.telegram.formatters import ConfigResponseFormatter
+from presentation.telegram.formatters import ConfigResponseFormatter, GeneralResponseFormatter
+from presentation.telegram.keyboards import (
+    build_budget_selection_keyboard, 
+    build_account_selection_keyboard
+)
 from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.user_config_service import UserConfigService
 from application.services.oauth_service import YNABOAuthService
@@ -108,14 +112,7 @@ Selecciona una opción para configurar tu bot:
             response = self.formatter.format_budgets_list(budgets)
             
             # Create inline keyboard for budget selection
-            keyboard = []
-            for i, budget in enumerate(budgets[:10], 1):  # Limit to 10 budgets
-                keyboard.append([InlineKeyboardButton(
-                    f"{i}. {budget.name}", 
-                    callback_data=f"select_budget_{budget.id}"
-                )])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+            reply_markup = build_budget_selection_keyboard(budgets) if budgets else None
             
             await self.send_message(update, response)
             if reply_markup:
@@ -150,14 +147,7 @@ Selecciona una opción para configurar tu bot:
             response = self.formatter.format_accounts_list(accounts)
             
             # Create inline keyboard for account selection
-            keyboard = []
-            for i, account in enumerate(accounts[:10], 1):  # Limit to 10 accounts
-                keyboard.append([InlineKeyboardButton(
-                    f"{i}. {account.name}", 
-                    callback_data=f"select_account_{account.id}"
-                )])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+            reply_markup = build_account_selection_keyboard(accounts) if accounts else None
             
             await self.send_message(update, response)
             if reply_markup:
@@ -198,14 +188,7 @@ Selecciona una opción para configurar tu bot:
             response = self.formatter.format_budgets_list(budgets)
             
             # Create inline keyboard for budget selection
-            keyboard = []
-            for i, budget in enumerate(budgets[:10], 1):  # Limit to 10 budgets
-                keyboard.append([InlineKeyboardButton(
-                    f"{i}. {budget.name}", 
-                    callback_data=f"select_budget_{budget.id}"
-                )])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+            reply_markup = build_budget_selection_keyboard(budgets) if budgets else None
             
             await self.send_callback_message(query, response)
             if reply_markup:
@@ -233,14 +216,7 @@ Selecciona una opción para configurar tu bot:
             response = self.formatter.format_accounts_list(accounts)
             
             # Create inline keyboard for account selection
-            keyboard = []
-            for i, account in enumerate(accounts[:10], 1):  # Limit to 10 accounts
-                keyboard.append([InlineKeyboardButton(
-                    f"{i}. {account.name}", 
-                    callback_data=f"select_account_{account.id}"
-                )])
-            
-            reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+            reply_markup = build_account_selection_keyboard(accounts) if accounts else None
             
             await self.send_callback_message(query, response)
             if reply_markup:
@@ -300,7 +276,19 @@ Selecciona una opción para configurar tu bot:
                 budget_id = data.replace("select_budget_", "")
                 try:
                     self.user_config_service.set_user_budget(user_id, budget_id)
-                    await query.edit_message_text(f"✅ *Presupuesto configurado exitosamente*\n\n💡 Ahora configura tu cuenta por defecto con `/accounts`", parse_mode='Markdown')
+                    # Step 8: Auto-show accounts after budget selection
+                    accounts, error = self.user_config_service.get_user_accounts(user_id)
+                    if error:
+                        await query.edit_message_text(f"✅ *Presupuesto configurado!*\n\n⚠️ Pero hubo un error al obtener cuentas: {error}", parse_mode='Markdown')
+                        return
+                    
+                    reply_markup = build_account_selection_keyboard(accounts)
+                    await query.edit_message_text(
+                        "✅ *Presupuesto configurado exitosamente!*\n\n"
+                        "Ahora selecciona tu cuenta por defecto:",
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
                 except YNABApiException as e:
                     await query.edit_message_text(f"❌ *Error:* {str(e)}", parse_mode='Markdown')
 
@@ -308,7 +296,9 @@ Selecciona una opción para configurar tu bot:
                 account_id = data.replace("select_account_", "")
                 try:
                     self.user_config_service.set_default_account(user_id, account_id)
-                    await query.edit_message_text(f"✅ *Cuenta por defecto configurada*\n\n🎉 *¡Configuración completa!* Ya puedes enviar mensajes de gastos.", parse_mode='Markdown')
+                    # Step 9: Show onboarding complete message
+                    message = GeneralResponseFormatter.format_onboarding_complete()
+                    await query.edit_message_text(message, parse_mode='Markdown')
                 except YNABApiException as e:
                     await query.edit_message_text(f"❌ *Error:* {str(e)}", parse_mode='Markdown')
 

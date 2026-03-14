@@ -6,6 +6,7 @@ from decimal import Decimal
 from domain.models.expense import ExpenseResult
 from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
+from domain.models.onboarding import OnboardingStep
 
 
 class ExpenseResponseFormatter:
@@ -309,38 +310,84 @@ Envía un mensaje como:
     @staticmethod
     def format_help_message() -> str:
         """Format help message"""
+        return f"""
+📖 *Guía de uso de YNAB Bot*
+
+{GeneralResponseFormatter.format_command_list()}
+
+💡 *Tip:* Si el bot se equivoca de categoría, usa `/corregir`. ¡Así aprenderá para la próxima vez!
+        """.strip()
+
+    @staticmethod
+    def format_command_list() -> str:
+        """Returns the base list of available commands"""
         return """
-📝 *Ejemplos de mensajes válidos:*
+🔧 *Configuración*
+• `/connect` - Conectar cuenta YNAB
+• `/config` - Panel de configuración
+• `/status` - Ver estado actual
+• `/budgets` - Ver presupuestos
+• `/accounts` - Ver cuentas
+• `/disconnect` - Cerrar sesión
 
-💰 *Con formato colombiano:*
-• "Gasté $40000 en comida en Éxito"
-• "$25000 transporte Uber"
-• "30000,56 pesos entretenimiento Netflix"
-• "Compré ropa por $80000 en Falabella"
+💰 *Registro de Gastos*
+• Texto, fotos de recibos o mensajes de voz
 
-🗣️ *Con jerga colombiana:*
-• "25 lucas almuerzo McDonald's"
-• "80k gasolina estación Terpel"
-• "150 mil supermercado Carulla"
+📊 *Consultas*
+• Saldo de cuentas o categorías en lenguaje natural
 
-📸 *Recibos/Tickets:*
-• Envía una foto de un recibo o ticket
-• El bot extraerá monto, lugar y categoría automáticamente
-• Puedes agregar un comentario a la foto (ej: "almuerzo con amigos")
+🧠 *Aprendizaje*
+• `/corregir` - Corregir categorías
+• `/recent` - Últimos gastos
+• `/stats` - Estadísticas
+        """.strip()
 
-🎤 *Mensajes de voz:*
-• También puedes enviar mensajes de voz
-• El bot los convertirá a texto automáticamente
+    @staticmethod
+    def format_onboarding_welcome(user_name: str, step: OnboardingStep) -> str:
+        """Format the appropriate welcome message based on onboarding step"""
+        if step == OnboardingStep.NEEDS_YNAB_CONNECTION:
+            return f"""
+👋 *¡Hola {user_name}!* 
 
-💡 *Consejos:*
-• Incluye monto, lugar y opcionalmente categoría
-• Usa formato colombiano: $40000 o 40000,56 (coma para decimales)
-• El bot entiende lenguaje natural completo
-• 🧠 *Aprende automáticamente* de tus patrones
+Soy tu bot inteligente de YNAB. Para empezar, necesito conectarme con tu cuenta de YNAB de forma segura.
 
-🔧 *Comandos útiles:*
-/config - Configurar presupuesto y cuentas
-/status - Ver tu configuración actual
-/stats - Ver estadísticas de aprendizaje
-/corregir - Corregir transacciones recientes
+Presiona el botón de abajo o usa `/connect` para autorizar el acceso.
+            """.strip()
+
+        elif step == OnboardingStep.NEEDS_BUDGET:
+            return "✅ *¡YNAB conectado!* Ahora, selecciona el presupuesto que quieres usar:"
+
+        elif step == OnboardingStep.NEEDS_ACCOUNT:
+            return "📝 *Presupuesto seleccionado.* Ahora elige la cuenta por defecto donde se registrarán tus gastos:"
+
+        elif step == OnboardingStep.COMPLETE:
+            return f"""
+✅ *¡Todo listo, {user_name}!* 
+
+Ya configuramos tu presupuesto y cuenta por defecto. Ya puedes empezar a registrar gastos.
+
+💰 *Prueba enviando algo como:*
+• "almuerzo 25000"
+• "45000 gasolina"
+• "supermercado 120000"
+
+¡Disfruta de tu control financiero! 🚀
+            """.strip()
+
+        return "👋 ¡Hola! Usa `/help` para ver cómo empezar."
+
+    @staticmethod
+    def format_post_oauth_message() -> str:
+        """Message sent after OAuth success"""
+        return "🎉 *¡Cuenta YNAB conectada exitosamente!* \n\nAhora vamos a configurar tu presupuesto. Selecciona uno de la lista:"
+
+    @staticmethod
+    def format_onboarding_complete() -> str:
+        """Final congratulations message with usage example"""
+        return """
+✨ *¡Configuración completada con éxito!*
+
+Ya puedes empezar a registrar gastos enviando mensajes de texto, voz o fotos de recibos.
+
+💰 *Ejemplo:* "comida 35000"
         """.strip()

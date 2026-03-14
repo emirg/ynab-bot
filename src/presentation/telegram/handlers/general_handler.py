@@ -1,10 +1,15 @@
 import logging
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.formatters import GeneralResponseFormatter
+from presentation.telegram.keyboards import (
+    build_budget_selection_keyboard,
+    build_account_selection_keyboard
+)
 from presentation.telegram.middleware.auth_middleware import require_authentication
+from domain.models.onboarding import OnboardingStep
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +20,8 @@ class GeneralHandler(BaseHandler):
     def __init__(self, container):
         super().__init__(container)
         self.formatter = GeneralResponseFormatter()
+        self.onboarding_service = container.get_onboarding_service()
+        self.user_config_service = container.get_user_config_service()
     
     async def handle_start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command - registration/welcome for all users"""
@@ -28,10 +35,40 @@ class GeneralHandler(BaseHandler):
             
             # Show appropriate message based on user status
             if user_config.is_authorized():
-                # Authorized user gets full welcome
+                # Authorized user gets guided onboarding
                 try:
-                    message = self.formatter.format_welcome_message()
-                    await self.send_message(update, message)
+                    user_id = user.id
+                    step = self.onboarding_service.get_onboarding_step(user_id)
+                    user_name = user.first_name or user_config.get_display_name()
+                    
+                    message = self.formatter.format_onboarding_welcome(user_name, step)
+                    
+                    if step == OnboardingStep.NEEDS_YNAB_CONNECTION:
+                        # Add connect button
+                        oauth_service = self.container.get_oauth_service()
+                        auth_url = oauth_service.generate_auth_url(user_id)
+                        keyboard = [[InlineKeyboardButton("🔗 Conectar YNAB", url=auth_url)]]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+                        
+                    elif step == OnboardingStep.NEEDS_BUDGET:
+                        # Auto-show budgets
+                        budgets = self.user_config_service.get_available_budgets(user_id)
+                        reply_markup = build_budget_selection_keyboard(budgets)
+                        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+                        
+                    elif step == OnboardingStep.NEEDS_ACCOUNT:
+                        # Auto-show accounts
+                        accounts, error = self.user_config_service.get_user_accounts(user_id)
+                        if error:
+                            await self.send_error_message(update, error)
+                            return
+                        reply_markup = build_account_selection_keyboard(accounts)
+                        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+                        
+                    else: # COMPLETE
+                        await self.send_message(update, message)
+                        
                     self.log_handler_success("GeneralHandler.handle_start_command", update)
                     return
                 except Exception as e:
@@ -129,13 +166,7 @@ class GeneralHandler(BaseHandler):
 ❓ *Comando no reconocido:* `{command}`
 
 🔹 *Comandos disponibles:*
-• `/start` - Mensaje de bienvenida
-• `/help` - Ayuda y ejemplos
-• `/config` - Configurar presupuesto y cuentas
-• `/status` - Ver configuración actual
-• `/stats` - Estadísticas de aprendizaje
-• `/recent` - Ver transacciones recientes
-• `/corregir` - Corregir categorías{admin_commands}
+{self.formatter.format_command_list()}{admin_commands}
 
 💡 *O simplemente envía un mensaje de gasto:*
 "Gasté $40000 en comida en Éxito"
