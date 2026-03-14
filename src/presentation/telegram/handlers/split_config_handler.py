@@ -33,7 +33,7 @@ class SplitConfigHandler(BaseHandler):
         self.log_handler_start("SplitwiseCommand", update)
         user_id = self.get_user_id(update)
         
-        user_config = self.user_service.get_user_config(user_id)
+        user_config = self.user_service.get_or_create_user_config(user_id)
         if not user_config or not user_config.is_configured():
             await self.send_message(update, SplitConfigResponseFormatter.format_no_budget_configured())
             return

@@ -32,7 +32,7 @@ def mock_split_config_service():
 @pytest.fixture
 def mock_user_config_service():
     service = MagicMock()
-    service.get_user_config.return_value = None
+    service.get_or_create_user_config.return_value = None
     return service
 
 @pytest.fixture
@@ -57,7 +57,7 @@ async def test_handle_splitwise_command_not_configured(handler, mock_user_config
     update.callback_query = None
     
     # User not configured
-    mock_user_config_service.get_user_config.return_value = UserConfiguration(telegram_id=123, status=UserStatus.AUTHORIZED)
+    mock_user_config_service.get_or_create_user_config.return_value = UserConfiguration(telegram_id=123, status=UserStatus.AUTHORIZED)
     
     context = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
     
@@ -75,7 +75,7 @@ async def test_handle_splitwise_command_success(handler, mock_user_config_servic
     update.callback_query = None
     
     # User fully configured
-    mock_user_config_service.get_user_config.return_value = UserConfiguration(
+    mock_user_config_service.get_or_create_user_config.return_value = UserConfiguration(
         telegram_id=123, status=UserStatus.AUTHORIZED, budget_id="b1", default_account_id="a1"
     )
     
