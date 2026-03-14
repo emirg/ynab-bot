@@ -7,6 +7,23 @@ The primary system architecture, conventions, and rules are maintained by Claude
 1. **CRITICAL:** Before answering any architectural or coding question, you MUST read the `CLAUDE.md` file in the root directory to understand the project context, layered architecture, and testing conventions.
 2. **Respect the Plans:** If you are asked to implement code, check if there is an active plan in `docs/plans/` and follow it strictly.
 3. **Do not modify CLAUDE.md:** Leave the maintenance of the core system prompt to Claude, unless the user explicitly asks you to update it.
+4. **Do not modify ROADMAP.md:** Leave the maintenance of the roadmap to Claude, unless the user explicitly asks you to update it.
+
+## Commands
+```bash
+# Setup
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Run
+python main.py
+
+# Tests
+pytest # All tests (~349, ~86% cov)
+pytest tests/test_domain_models.py # File
+pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
+pytest -k "test_predict_category" # Keyword filter
+```
 
 ## Reverse Handoff Protocol (Back to Claude)
 When the user explicitly tells you to "prepare handoff", "prepare handoff back to Claude", or "wrap up for Claude", you MUST generate the exact Markdown content to update the state file. 

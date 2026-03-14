@@ -57,7 +57,7 @@ ynab-bot/
 │   └── .env.example                 # Configuration template
 ├── data/                            # Persistent data
 │   └── users.db                     # SQLite database (users + learning data)
-└── tests/                           # Test suite (~349 tests, ~86% coverage)
+└── tests/                           # Test suite (~406 tests, ~89% coverage)
 ```
 
 ## 🚀 Installation & Setup
@@ -123,7 +123,9 @@ python main.py     # Starts the bot
 - `/status` — View current configuration and YNAB connection status
 
 **Learning:**
-- `/stats` — Learning statistics
+- `/stats` — Learning statistics (top payees and categories)
+- `/aprendizaje` — View learned payee-category associations with frequency
+- `/olvidar <payee>` — Delete incorrect associations for a payee
 - `/recent` — View recent transactions
 - `/corregir` — Correct a transaction's category
 
@@ -225,7 +227,7 @@ Each user connects their own YNAB account. No shared tokens.
 ## 🧪 Tests
 
 ```bash
-# Full suite (~349 tests, ~86% coverage)
+# Full suite (~406 tests, ~89% coverage)
 pytest
 
 # Single test file
