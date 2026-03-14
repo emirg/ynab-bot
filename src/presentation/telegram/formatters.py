@@ -288,9 +288,9 @@ class SplitConfigResponseFormatter:
 
 Aquí puedes configurar cómo el bot maneja los gastos que divides con otras personas (Splitwise style).
 
-1️⃣ *Grupos Splitwise:* Asocia categorías de YNAB (ej: "Gastos E") con personas (ej: "Eliana").
+1️⃣ *Grupos Splitwise:* Asocia categorías de YNAB (ej: "Gastos Compartidos") con personas (ej: "Juan").
 2️⃣ *Cuenta Compartida:* Define en qué cuenta se registran estos gastos (ej: "Nu Savings").
-3️⃣ *Detección Inteligente:* Cuando digas "con Eliana", el bot usará automáticamente la categoría y cuenta configuradas.
+3️⃣ *Detección Inteligente:* Cuando digas "con Juan", el bot usará automáticamente la categoría y cuenta configuradas.
 
 Selecciona una opción abajo para empezar:
         """.strip()

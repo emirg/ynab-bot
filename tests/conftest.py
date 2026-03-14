@@ -235,8 +235,8 @@ def sample_split_groups():
             id=1,
             telegram_id=123456789,
             category_id='cat-123',
-            category_name='Gastos E',
-            person_aliases=['Eliana', 'Eli'],
+            category_name='Gastos Compartidos',
+            person_aliases=['Juan', 'Juancho'],
             created_at=datetime(2026, 3, 14, 10, 0, 0)
         ),
         SplitGroup(

@@ -70,16 +70,32 @@ def build_split_panel_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def build_split_category_selection_keyboard(categories: List[YNABCategory]) -> InlineKeyboardMarkup:
-    """Shows YNAB categories for selection as split groups"""
+SPLIT_CATEGORIES_PAGE_SIZE = 8
+
+
+def build_split_category_selection_keyboard(categories: List[YNABCategory], page: int = 0) -> InlineKeyboardMarkup:
+    """Shows YNAB categories for selection as split groups, with pagination"""
+    total = len(categories)
+    start = page * SPLIT_CATEGORIES_PAGE_SIZE
+    end = start + SPLIT_CATEGORIES_PAGE_SIZE
+    page_categories = categories[start:end]
+
     keyboard = []
-    # Limit to 15 categories to avoid Telegram limits
-    for cat in categories[:15]:
+    for cat in page_categories:
         keyboard.append([InlineKeyboardButton(
             cat.name,
             callback_data=f"split_select_cat_{cat.id}"
         )])
-    
+
+    # Pagination row
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Anterior", callback_data=f"split_cat_page_{page - 1}"))
+    if end < total:
+        nav_buttons.append(InlineKeyboardButton("Siguiente ➡️", callback_data=f"split_cat_page_{page + 1}"))
+    if nav_buttons:
+        keyboard.append(nav_buttons)
+
     keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="split_back")])
     return InlineKeyboardMarkup(keyboard)
 

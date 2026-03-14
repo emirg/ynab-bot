@@ -85,12 +85,51 @@ def test_build_split_panel_keyboard():
     assert markup.inline_keyboard[5][0].callback_data == "split_manage_aliases"
 
 
-def test_build_split_category_selection_keyboard():
+def test_build_split_category_selection_keyboard_first_page():
     cats = [YNABCategory(id=f"c{i}", name=f"Cat {i}", group_name="G", full_name=f"G: Cat {i}") for i in range(20)]
-    markup = build_split_category_selection_keyboard(cats)
-    assert len(markup.inline_keyboard) == 16  # 15 cats + 1 back
+    markup = build_split_category_selection_keyboard(cats, page=0)
+    # 8 cats + 1 nav row (next) + 1 back = 10 rows
+    assert len(markup.inline_keyboard) == 10
     assert markup.inline_keyboard[0][0].callback_data == "split_select_cat_c0"
-    assert markup.inline_keyboard[15][0].callback_data == "split_back"
+    assert markup.inline_keyboard[7][0].callback_data == "split_select_cat_c7"
+    # Nav row: only "Siguiente"
+    assert len(markup.inline_keyboard[8]) == 1
+    assert markup.inline_keyboard[8][0].callback_data == "split_cat_page_1"
+    assert markup.inline_keyboard[9][0].callback_data == "split_back"
+
+
+def test_build_split_category_selection_keyboard_middle_page():
+    cats = [YNABCategory(id=f"c{i}", name=f"Cat {i}", group_name="G", full_name=f"G: Cat {i}") for i in range(25)]
+    markup = build_split_category_selection_keyboard(cats, page=1)
+    # 8 cats + 1 nav row (prev + next) + 1 back = 10 rows
+    assert len(markup.inline_keyboard) == 10
+    assert markup.inline_keyboard[0][0].callback_data == "split_select_cat_c8"
+    # Nav row: both buttons
+    nav_row = markup.inline_keyboard[8]
+    assert len(nav_row) == 2
+    assert nav_row[0].callback_data == "split_cat_page_0"
+    assert nav_row[1].callback_data == "split_cat_page_2"
+
+
+def test_build_split_category_selection_keyboard_last_page():
+    cats = [YNABCategory(id=f"c{i}", name=f"Cat {i}", group_name="G", full_name=f"G: Cat {i}") for i in range(20)]
+    markup = build_split_category_selection_keyboard(cats, page=2)
+    # 4 remaining cats + 1 nav row (prev only) + 1 back = 6 rows
+    assert len(markup.inline_keyboard) == 6
+    assert markup.inline_keyboard[0][0].callback_data == "split_select_cat_c16"
+    assert markup.inline_keyboard[3][0].callback_data == "split_select_cat_c19"
+    nav_row = markup.inline_keyboard[4]
+    assert len(nav_row) == 1
+    assert nav_row[0].callback_data == "split_cat_page_1"
+
+
+def test_build_split_category_selection_keyboard_few_categories():
+    """No pagination when categories fit in one page"""
+    cats = [YNABCategory(id=f"c{i}", name=f"Cat {i}", group_name="G", full_name=f"G: Cat {i}") for i in range(5)]
+    markup = build_split_category_selection_keyboard(cats)
+    # 5 cats + 1 back = 6 rows, no nav
+    assert len(markup.inline_keyboard) == 6
+    assert markup.inline_keyboard[5][0].callback_data == "split_back"
 
 
 def test_build_split_group_selection_keyboard():

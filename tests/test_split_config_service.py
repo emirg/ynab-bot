@@ -36,12 +36,12 @@ def test_add_split_group_success(service, mock_repo, mock_user_repo, mock_ynab_f
     mock_ynab_repo = MagicMock()
     mock_ynab_factory.get_repository.return_value = mock_ynab_repo
     mock_ynab_repo.get_categories.return_value = [
-        YNABCategory(id=category_id, name="Gastos E", group_name="Shared", full_name="Shared: Gastos E", hidden=False)
+        YNABCategory(id=category_id, name="Gastos Compartidos", group_name="Shared", full_name="Shared: Gastos Compartidos", hidden=False)
     ]
 
     service.add_split_group(telegram_id, category_id)
 
-    mock_repo.add_split_group.assert_called_once_with(telegram_id, category_id, "Gastos E")
+    mock_repo.add_split_group.assert_called_once_with(telegram_id, category_id, "Gastos Compartidos")
 
 
 def test_add_split_group_not_found(service, mock_user_repo, mock_ynab_factory):

@@ -115,14 +115,14 @@ async def test_handle_alias_text_message_success(handler, mock_split_config_serv
     update = MagicMock(spec=Update)
     update.effective_user.id = 123
     update.message = AsyncMock(spec=Message)
-    update.message.text = "Eliana"
+    update.message.text = "Juan"
     update.callback_query = None
     
     context = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
     context.user_data = {"pending_alias_category_id": "cat-123"}
     
     mock_split_config_service.get_split_config_summary.return_value = {
-        "groups": [SplitGroup(id=1, telegram_id=123, category_id="cat-123", category_name="Gastos E", person_aliases=[])],
+        "groups": [SplitGroup(id=1, telegram_id=123, category_id="cat-123", category_name="Gastos Compartidos", person_aliases=[])],
         "shared_account": None,
         "configured": True
     }
@@ -132,10 +132,10 @@ async def test_handle_alias_text_message_success(handler, mock_split_config_serv
     
     assert handled is True
     assert "pending_alias_category_id" not in context.user_data
-    mock_split_config_service.add_person_alias.assert_called_with(123, "cat-123", "Eliana")
+    mock_split_config_service.add_person_alias.assert_called_with(123, "cat-123", "Juan")
     # Should send confirmation and panel
     assert update.message.reply_text.call_count == 2
-    assert "Alias *Eliana* agregado" in update.message.reply_text.call_args_list[0][0][0]
+    assert "Alias *Juan* agregado" in update.message.reply_text.call_args_list[0][0][0]
     assert "Gastos Compartidos" in update.message.reply_text.call_args_list[1][0][0]
 
 @pytest.mark.anyio

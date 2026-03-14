@@ -3,17 +3,17 @@ from src.domain.models.split_config import SplitGroup, SharedAccountConfig
 
 
 def test_split_group_add_alias():
-    group = SplitGroup(telegram_id=123, category_id="cat1", category_name="Gastos E")
+    group = SplitGroup(telegram_id=123, category_id="cat1", category_name="Gastos Compartidos")
     
-    group.add_alias("Eliana")
-    assert "Eliana" in group.person_aliases
+    group.add_alias("Juan")
+    assert "Juan" in group.person_aliases
     
     # Case-insensitive dedup
-    group.add_alias("eliana")
+    group.add_alias("Juan")
     assert len(group.person_aliases) == 1
     
-    group.add_alias(" Eli ")
-    assert "Eli" in group.person_aliases
+    group.add_alias(" Juancho ")
+    assert "Juancho" in group.person_aliases
     assert len(group.person_aliases) == 2
 
 
@@ -21,12 +21,12 @@ def test_split_group_remove_alias():
     group = SplitGroup(
         telegram_id=123, 
         category_id="cat1", 
-        category_name="Gastos E",
-        person_aliases=["Eliana", "Eli"]
+        category_name="Gastos Compartidos",
+        person_aliases=["Juan", "Juancho"]
     )
     
-    assert group.remove_alias("eliana") is True
-    assert "Eliana" not in group.person_aliases
+    assert group.remove_alias("Juan") is True
+    assert "Juan" not in group.person_aliases
     assert len(group.person_aliases) == 1
     
     assert group.remove_alias("Unknown") is False
@@ -37,17 +37,18 @@ def test_split_group_matches_alias():
     group = SplitGroup(
         telegram_id=123, 
         category_id="cat1", 
-        category_name="Gastos E",
-        person_aliases=["Eliana", "Eli"]
+        category_name="Gastos Compartidos",
+        person_aliases=["Juan", "Juancho"]
     )
     
-    assert group.matches_alias("Eliana") is True
-    assert group.matches_alias("ELI") is True
-    assert group.matches_alias(" Juan ") is False
+    assert group.matches_alias("Juan") is True
+    assert group.matches_alias("Juancho") is True
+    assert group.matches_alias(" Juan ") is True  # strip before matching
+    assert group.matches_alias("Pedro") is False
 
 
 def test_split_group_empty_alias():
-    group = SplitGroup(telegram_id=123, category_id="cat1", category_name="Gastos E")
+    group = SplitGroup(telegram_id=123, category_id="cat1", category_name="Gastos Compartidos")
     group.add_alias("")
     group.add_alias("   ")
     assert len(group.person_aliases) == 0

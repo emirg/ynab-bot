@@ -55,6 +55,9 @@ class SplitConfigHandler(BaseHandler):
         
         if data == "split_add_group":
             await self._handle_add_group(query, user_id)
+        elif data.startswith("split_cat_page_"):
+            page = int(data.replace("split_cat_page_", ""))
+            await self._handle_add_group(query, user_id, page)
         elif data.startswith("split_select_cat_"):
             category_id = data.replace("split_select_cat_", "")
             await self._handle_select_category(query, user_id, category_id)
@@ -98,12 +101,12 @@ class SplitConfigHandler(BaseHandler):
         elif data == "split_back":
             await self._handle_back(query, user_id)
 
-    async def _handle_add_group(self, query, user_id: int):
+    async def _handle_add_group(self, query, user_id: int, page: int = 0):
         try:
             categories = self.split_service.get_available_categories_for_split(user_id)
             await query.edit_message_text(
                 "Selecciona la categoría de YNAB para el nuevo grupo Splitwise:",
-                reply_markup=build_split_category_selection_keyboard(categories),
+                reply_markup=build_split_category_selection_keyboard(categories, page),
                 parse_mode='Markdown'
             )
         except Exception as e:

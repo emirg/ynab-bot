@@ -11,8 +11,8 @@
 ## Design Decisions (Agreed)
 
 1. **UX pattern:** Inline keyboard panel (matches existing `ConfigHandler`/`/config` pattern). No `ConversationHandler`.
-2. **Group label:** Each Splitwise category entry stores a `label` equal to the YNAB category name (e.g., "Gastos E").
-3. **Person aliases:** Stored explicitly alongside the group config. Example: group "Gastos E" has aliases `["Eliana", "Eli"]`. Used later by the LLM parser to route "con Eliana" to the correct group.
+2. **Group label:** Each Splitwise category entry stores a `label` equal to the YNAB category name (e.g., "Gastos Compartidos").
+3. **Person aliases:** Stored explicitly alongside the group config. Example: group "Gastos Compartidos" has aliases `["Juan", "Juancho"]`. Used later by the LLM parser to route "con Juan" to the correct group.
 4. **Shared Transactions account:** One per user (not per person). Stored separately from split groups.
 5. **Default ratio:** Global 50/50. Not stored per group. Per-message ratios are deferred to 2.2/2.3.
 6. **Scope:** Configuration only. No changes to `ExpenseService`, `LLMExpenseParser`, or `Expense` model.

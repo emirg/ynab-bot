@@ -31,7 +31,7 @@ def test_add_get_split_group(repo, db_manager):
     telegram_id = 123
     _create_user(db_manager, telegram_id)
     category_id = "cat1"
-    category_name = "Gastos E"
+    category_name = "Gastos Compartidos"
     
     group = repo.add_split_group(telegram_id, category_id, category_name)
     
@@ -65,11 +65,11 @@ def test_remove_group_cascades_aliases(repo, db_manager):
     _create_user(db_manager, telegram_id)
     category_id = "cat1"
     
-    repo.add_split_group(telegram_id, category_id, "Gastos E")
-    repo.add_person_alias(telegram_id, category_id, "Eliana")
+    repo.add_split_group(telegram_id, category_id, "Gastos Compartidos")
+    repo.add_person_alias(telegram_id, category_id, "Juan")
     
     # Check alias exists
-    group = repo.find_split_group_by_alias(telegram_id, "Eliana")
+    group = repo.find_split_group_by_alias(telegram_id, "Juan")
     assert group is not None
     
     # Remove group
@@ -77,40 +77,40 @@ def test_remove_group_cascades_aliases(repo, db_manager):
     
     # Verify group and alias are gone
     assert len(repo.get_split_groups(telegram_id)) == 0
-    assert repo.find_split_group_by_alias(telegram_id, "Eliana") is None
+    assert repo.find_split_group_by_alias(telegram_id, "Juan") is None
 
 
 def test_person_aliases_ops(repo, db_manager):
     telegram_id = 123
     _create_user(db_manager, telegram_id)
     category_id = "cat1"
-    repo.add_split_group(telegram_id, category_id, "Gastos E")
+    repo.add_split_group(telegram_id, category_id, "Gastos Compartidos")
     
-    assert repo.add_person_alias(telegram_id, category_id, "Eliana") is True
-    assert repo.add_person_alias(telegram_id, category_id, "Eli") is True
+    assert repo.add_person_alias(telegram_id, category_id, "Juan") is True
+    assert repo.add_person_alias(telegram_id, category_id, "Juancho") is True
     # Duplicate alias for same group
-    assert repo.add_person_alias(telegram_id, category_id, "Eliana") is False
+    assert repo.add_person_alias(telegram_id, category_id, "Juan") is False
     
     groups = repo.get_split_groups(telegram_id)
     assert len(groups[0].person_aliases) == 2
-    assert "Eliana" in groups[0].person_aliases
-    assert "Eli" in groups[0].person_aliases
+    assert "Juan" in groups[0].person_aliases
+    assert "Juancho" in groups[0].person_aliases
     
     # Remove alias
-    assert repo.remove_person_alias(telegram_id, category_id, "Eli") is True
+    assert repo.remove_person_alias(telegram_id, category_id, "Juancho") is True
     groups = repo.get_split_groups(telegram_id)
     assert len(groups[0].person_aliases) == 1
-    assert "Eli" not in groups[0].person_aliases
+    assert "Juancho" not in groups[0].person_aliases
 
 
 def test_find_split_group_by_alias_case_insensitive(repo, db_manager):
     telegram_id = 123
     _create_user(db_manager, telegram_id)
     category_id = "cat1"
-    repo.add_split_group(telegram_id, category_id, "Gastos E")
-    repo.add_person_alias(telegram_id, category_id, "Eliana")
+    repo.add_split_group(telegram_id, category_id, "Gastos Compartidos")
+    repo.add_person_alias(telegram_id, category_id, "Juan")
     
-    group = repo.find_split_group_by_alias(telegram_id, "ELIANA")
+    group = repo.find_split_group_by_alias(telegram_id, "Juan")
     assert group is not None
     assert group.category_id == category_id
     

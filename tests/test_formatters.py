@@ -371,9 +371,9 @@ class TestSplitConfigResponseFormatter:
             'configured': True
         }
         msg = SplitConfigResponseFormatter.format_split_summary(summary)
-        assert 'Gastos E' in msg
-        assert 'Eliana' in msg
-        assert 'Eli' in msg
+        assert 'Gastos Compartidos' in msg
+        assert 'Juan' in msg
+        assert 'Juancho' in msg
         assert 'Gastos con Juan' in msg
         assert 'Juan' in msg
         assert 'Nu Savings' in msg
@@ -391,25 +391,25 @@ class TestSplitConfigResponseFormatter:
         assert 'Nota:' in msg
 
     def test_format_group_added(self):
-        msg = SplitConfigResponseFormatter.format_group_added('Gastos E')
-        assert 'Gastos E' in msg
+        msg = SplitConfigResponseFormatter.format_group_added('Gastos Compartidos')
+        assert 'Gastos Compartidos' in msg
         assert 'agregado' in msg
 
     def test_format_group_removed(self):
-        msg = SplitConfigResponseFormatter.format_group_removed('Gastos E')
-        assert 'Gastos E' in msg
+        msg = SplitConfigResponseFormatter.format_group_removed('Gastos Compartidos')
+        assert 'Gastos Compartidos' in msg
         assert 'eliminado' in msg
 
     def test_format_alias_added(self):
-        msg = SplitConfigResponseFormatter.format_alias_added('Eli', 'Gastos E')
-        assert 'Eli' in msg
-        assert 'Gastos E' in msg
+        msg = SplitConfigResponseFormatter.format_alias_added('Juancho', 'Gastos Compartidos')
+        assert 'Juancho' in msg
+        assert 'Gastos Compartidos' in msg
         assert 'agregado' in msg
 
     def test_format_alias_removed(self):
-        msg = SplitConfigResponseFormatter.format_alias_removed('Eli', 'Gastos E')
-        assert 'Eli' in msg
-        assert 'Gastos E' in msg
+        msg = SplitConfigResponseFormatter.format_alias_removed('Juancho', 'Gastos Compartidos')
+        assert 'Juancho' in msg
+        assert 'Gastos Compartidos' in msg
         assert 'eliminado' in msg
 
     def test_format_shared_account_set(self):
@@ -428,9 +428,9 @@ class TestSplitConfigResponseFormatter:
         assert '/config' in msg
 
     def test_format_ask_alias(self):
-        msg = SplitConfigResponseFormatter.format_ask_alias('Gastos E')
+        msg = SplitConfigResponseFormatter.format_ask_alias('Gastos Compartidos')
         assert 'alias' in msg
-        assert 'Gastos E' in msg
+        assert 'Gastos Compartidos' in msg
         
         msg_no_group = SplitConfigResponseFormatter.format_ask_alias()
         assert 'alias' in msg_no_group
