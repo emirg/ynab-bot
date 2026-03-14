@@ -14,7 +14,7 @@ Hoy un usuario nuevo que hace `/start` no sabe qué hacer después. La mejora es
 - Al completar configuración → enviar ejemplo: "Ahora probá enviando algo como: almuerzo 25000"
 - Agregar `/help` con resumen de comandos disponibles
 
-### 1.2 — Learning Dashboard
+### 1.2 — Learning Dashboard [COMPLETADO]
 
 Nuevo comando `/aprendizaje` que muestra qué ha aprendido el bot del usuario:
 

@@ -176,6 +176,8 @@ def mock_learning_repository():
         'total_corrections': 2,
     }
     repo.get_recent_transactions.return_value = []
+    repo.get_payee_associations.return_value = []
+    repo.delete_payee_associations.return_value = 0
     return repo
 
 

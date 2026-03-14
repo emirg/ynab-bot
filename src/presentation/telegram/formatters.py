@@ -337,6 +337,8 @@ Envía un mensaje como:
 • Saldo de cuentas o categorías en lenguaje natural
 
 🧠 *Aprendizaje*
+• `/aprendizaje` - Panel de aprendizaje
+• `/olvidar` - Borrar asociaciones
 • `/corregir` - Corregir categorías
 • `/recent` - Últimos gastos
 • `/stats` - Estadísticas

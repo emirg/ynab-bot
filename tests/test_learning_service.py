@@ -117,3 +117,74 @@ class TestFormatRecentTransactionsMessage:
         ]
         msg = service.format_recent_transactions_message(TELEGRAM_ID)
         assert '❓' in msg
+
+
+class TestLearningDashboard:
+
+    def test_get_payee_associations_delegates(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_associations.return_value = [{'payee': 'X'}]
+        assert service.get_payee_associations(TELEGRAM_ID) == [{'payee': 'X'}]
+
+    def test_forget_payee_success(self, service, mock_learning_repository):
+        mock_learning_repository.delete_payee_associations.return_value = 1
+        assert service.forget_payee(TELEGRAM_ID, "McDonald's") is True
+        mock_learning_repository.delete_payee_associations.assert_called_with(
+            TELEGRAM_ID, 'mcdonalds'
+        )
+
+    def test_forget_payee_failure(self, service, mock_learning_repository):
+        mock_learning_repository.delete_payee_associations.return_value = 0
+        assert service.forget_payee(TELEGRAM_ID, "McDonald's") is False
+
+    def test_format_learning_dashboard_empty(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_associations.return_value = []
+        msg = service.format_learning_dashboard_message(TELEGRAM_ID)
+        assert 'Todavía no he aprendido nada' in msg
+
+    def test_format_learning_dashboard_with_data(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_associations.return_value = [
+            {'normalized_payee': 'mcdonalds', 'category_name': 'Restaurants', 'count': 5},
+            {'normalized_payee': 'carulla', 'category_name': 'Groceries', 'count': 2},
+        ]
+        msg = service.format_learning_dashboard_message(TELEGRAM_ID)
+        assert 'Mcdonalds' in msg
+        assert 'Restaurants' in msg
+        assert '5 veces' in msg
+        assert 'Carulla' in msg
+        assert 'Groceries' in msg
+        assert '2 veces' in msg
+
+    def test_format_learning_dashboard_missing_category_name(
+        self, service, mock_learning_repository
+    ):
+        mock_learning_repository.get_payee_associations.return_value = [
+            {'normalized_payee': 'old_shop', 'category_name': '', 'count': 1},
+        ]
+        msg = service.format_learning_dashboard_message(TELEGRAM_ID)
+        assert 'Categoría desconocida' in msg
+
+    def test_format_forget_result_message(self, service):
+        assert 'He olvidado' in service.format_forget_result_message('Test', True)
+        assert 'No encontré' in service.format_forget_result_message('Test', False)
+
+
+class TestEnhancedStatistics:
+
+    def test_contains_top_payees(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_associations.return_value = [
+            {'normalized_payee': 'mcdonalds', 'count': 10},
+        ]
+        msg = service.format_statistics_message(TELEGRAM_ID)
+        assert 'Comercios más frecuentes' in msg
+        assert 'Mcdonalds' in msg
+
+    def test_contains_top_categories(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_associations.return_value = [
+            {'category_id': 'c1', 'category_name': 'Food', 'count': 10},
+            {'category_id': 'c1', 'category_name': 'Food', 'count': 5},
+            {'category_id': 'c2', 'category_name': 'Transport', 'count': 3},
+        ]
+        msg = service.format_statistics_message(TELEGRAM_ID)
+        assert 'Categorías más usadas' in msg
+        assert 'Food (15 txn)' in msg
+        assert 'Transport (3 txn)' in msg

@@ -50,6 +50,8 @@ class YNABTelegramBot:
         self.application.add_handler(CommandHandler("stats", self.learning_handler.handle_stats_command))
         self.application.add_handler(CommandHandler("recent", self.learning_handler.handle_recent_command))
         self.application.add_handler(CommandHandler("corregir", self.learning_handler.handle_correction_command))
+        self.application.add_handler(CommandHandler("aprendizaje", self.learning_handler.handle_learning_dashboard_command))
+        self.application.add_handler(CommandHandler("olvidar", self.learning_handler.handle_forget_command))
         
         # Admin commands
         self.application.add_handler(CommandHandler("admin", self.admin_handler.handle_admin_command))

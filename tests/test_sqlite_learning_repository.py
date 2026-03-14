@@ -274,3 +274,71 @@ class TestStatistics:
         stats = repo.get_learning_statistics(TELEGRAM_ID)
         assert stats['total_transactions'] == 2
         assert stats['learned_payees'] == 2
+
+
+# ---------------------------------------------------------------------------
+# Payee associations
+# ---------------------------------------------------------------------------
+
+class TestPayeeAssociations:
+
+    def test_get_payee_associations_returns_correct_data(self, repo, expense_mcdonalds, expense_carulla):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        repo.record_successful_transaction(TELEGRAM_ID, expense_carulla)
+        # Add another mcdonalds to test sorting by count
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+
+        associations = repo.get_payee_associations(TELEGRAM_ID)
+        assert len(associations) == 2
+        # McDonald's should be first because count=2
+        assert associations[0]['normalized_payee'] == 'mcdonalds'
+        assert associations[0]['count'] == 2
+        assert associations[0]['category_name'] == 'Restaurants'
+
+        assert associations[1]['normalized_payee'] == 'carulla'
+        assert associations[1]['count'] == 1
+        assert associations[1]['category_name'] == 'Groceries'
+
+    def test_get_payee_associations_empty_for_new_user(self, repo):
+        assert repo.get_payee_associations(TELEGRAM_ID) == []
+
+    def test_get_payee_associations_per_user_isolation(self, repo, db_manager, expense_mcdonalds):
+        other_user_id = 999999999
+        # Create the other user
+        user_repo = SQLiteUserRepository(db_manager)
+        user_repo.save(UserConfiguration(telegram_id=other_user_id, status=UserStatus.AUTHORIZED))
+
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        assert len(repo.get_payee_associations(TELEGRAM_ID)) == 1
+        assert repo.get_payee_associations(other_user_id) == []
+
+    def test_delete_payee_associations(self, repo, expense_mcdonalds, expense_carulla):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        repo.record_successful_transaction(TELEGRAM_ID, expense_carulla)
+
+        deleted_count = repo.delete_payee_associations(TELEGRAM_ID, "McDonald's")
+        assert deleted_count == 1
+
+        associations = repo.get_payee_associations(TELEGRAM_ID)
+        assert len(associations) == 1
+        assert associations[0]['normalized_payee'] == 'carulla'
+
+    def test_delete_payee_associations_non_existent(self, repo, expense_carulla):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_carulla)
+        deleted_count = repo.delete_payee_associations(TELEGRAM_ID, "McDonald's")
+        assert deleted_count == 0
+        assert len(repo.get_payee_associations(TELEGRAM_ID)) == 1
+
+    def test_delete_payee_associations_per_user_isolation(self, repo, db_manager, expense_mcdonalds):
+        other_user_id = 999999999
+        # Create the other user
+        user_repo = SQLiteUserRepository(db_manager)
+        user_repo.save(UserConfiguration(telegram_id=other_user_id, status=UserStatus.AUTHORIZED))
+
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        repo.record_successful_transaction(other_user_id, expense_mcdonalds)
+
+        repo.delete_payee_associations(TELEGRAM_ID, "McDonald's")
+
+        assert repo.get_payee_associations(TELEGRAM_ID) == []
+        assert len(repo.get_payee_associations(other_user_id)) == 1

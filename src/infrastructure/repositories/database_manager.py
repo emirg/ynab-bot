@@ -86,6 +86,14 @@ _MIGRATIONS = [
         ALTER TABLE user_configurations ADD COLUMN ynab_token_expires_at TIMESTAMP;
         """,
     ),
+    # Version 4: Add category_name to payee_category_mappings
+    (
+        4,
+        "Add category_name to payee_category_mappings",
+        """
+        ALTER TABLE payee_category_mappings ADD COLUMN category_name TEXT DEFAULT '';
+        """,
+    ),
 ]
 
 

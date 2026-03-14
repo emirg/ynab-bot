@@ -117,16 +117,76 @@ class LearningHandler(BaseHandler):
             self.log_handler_error("LearningHandler.handle_correction_command", update, e)
             await self.send_error_message(update, f"Error procesando corrección: {str(e)}")
 
+    @require_authentication(lambda self: self.container.get_auth_service())
+    async def handle_learning_dashboard_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        """Handle /aprendizaje command - show learned payee-category associations"""
+        self.log_handler_start("LearningHandler.handle_learning_dashboard_command", update)
+
+        try:
+            user_id = self.get_user_id(update)
+            message = self.learning_service.format_learning_dashboard_message(user_id)
+            await self.send_message(update, message)
+            self.log_handler_success(
+                "LearningHandler.handle_learning_dashboard_command", update
+            )
+
+        except Exception as e:
+            self.log_handler_error(
+                "LearningHandler.handle_learning_dashboard_command", update, e
+            )
+            await self.send_error_message(
+                update, f"Error obteniendo panel de aprendizaje: {str(e)}"
+            )
+
+    @require_authentication(lambda self: self.container.get_auth_service())
+    async def handle_forget_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /olvidar command - delete incorrect associations for a payee"""
+        self.log_handler_start("LearningHandler.handle_forget_command", update)
+
+        try:
+            if not context.args:
+                help_message = """
+🗑️ *Uso del comando /olvidar:*
+
+`/olvidar <comercio>`
+
+*Ejemplo:*
+`/olvidar McDonald's`
+
+Borraré todo lo que he aprendido sobre ese comercio y la próxima vez te preguntaré la categoría.
+                """.strip()
+                await self.send_message(update, help_message)
+                return
+
+            payee = " ".join(context.args)
+            user_id = self.get_user_id(update)
+
+            success = self.learning_service.forget_payee(user_id, payee)
+            message = self.learning_service.format_forget_result_message(payee, success)
+
+            await self.send_message(update, message)
+            self.log_handler_success("LearningHandler.handle_forget_command", update)
+
+        except Exception as e:
+            self.log_handler_error("LearningHandler.handle_forget_command", update, e)
+            await self.send_error_message(update, f"Error olvidando comercio: {str(e)}")
+
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Main handler entry point"""
         # Determine which command was called
         message_text = update.message.text or ""
 
-        if message_text.startswith('/stats'):
+        if message_text.startswith("/stats"):
             await self.handle_stats_command(update, context)
-        elif message_text.startswith('/recent'):
+        elif message_text.startswith("/recent"):
             await self.handle_recent_command(update, context)
-        elif message_text.startswith('/corregir'):
+        elif message_text.startswith("/corregir"):
             await self.handle_correction_command(update, context)
+        elif message_text.startswith("/aprendizaje"):
+            await self.handle_learning_dashboard_command(update, context)
+        elif message_text.startswith("/olvidar"):
+            await self.handle_forget_command(update, context)
         else:
             await self.send_error_message(update, "Comando de aprendizaje no reconocido")

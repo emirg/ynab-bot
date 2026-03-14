@@ -74,11 +74,117 @@ class LearningService:
 📊 *Métricas:*
 • *Tasa de aprendizaje:* {stats.get('accuracy_rate', 0):.1f}%
 • *Tasa de corrección:* {stats.get('correction_rate', 0):.1f}%
+"""
 
-💡 *Estado del sistema:* {"🟢 Activo" if stats.get('total_transactions', 0) > 0 else "🟡 Iniciando"}
-        """
+        # Add top payees
+        top_payees = self._get_top_payees(telegram_id, 3)
+        if top_payees:
+            message += "\n🏪 *Comercios más frecuentes:*\n"
+            for p in top_payees:
+                payee = p.get("normalized_payee", "Desconocido").title()
+                count = p.get("count", 0)
+                message += f"• {payee} ({count} {'vez' if count == 1 else 'veces'})\n"
+
+        # Add top categories
+        top_categories = self._get_top_categories(telegram_id, 3)
+        if top_categories:
+            message += "\n📁 *Categorías más usadas:*\n"
+            for c in top_categories:
+                name = c.get("name", "Desconocida")
+                count = c.get("count", 0)
+                message += f"• {name} ({count} txn)\n"
+
+        message += f'\n💡 *Estado del sistema:* {"🟢 Activo" if stats.get("total_transactions", 0) > 0 else "🟡 Iniciando"}'
 
         return message.strip()
+
+    def get_payee_associations(self, telegram_id: int) -> List[Dict]:
+        """Get all payee-category associations for a user"""
+        try:
+            return self.learning_repository.get_payee_associations(telegram_id)
+        except Exception as e:
+            logger.error(f"Failed to get payee associations: {e}")
+            return []
+
+    def forget_payee(self, telegram_id: int, payee: str) -> bool:
+        """Forget all associations for a given payee"""
+        try:
+            from domain.services.payee_normalizer import normalize_payee
+
+            normalized = normalize_payee(payee)
+            deleted_count = self.learning_repository.delete_payee_associations(
+                telegram_id, normalized
+            )
+            if deleted_count > 0:
+                logger.info(
+                    f"User {telegram_id} forgot payee '{payee}' ({normalized}) - {deleted_count} rows deleted"
+                )
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to forget payee '{payee}': {e}")
+            return False
+
+    def format_learning_dashboard_message(self, telegram_id: int) -> str:
+        """Build the /aprendizaje response message"""
+        associations = self.get_payee_associations(telegram_id)
+
+        if not associations:
+            return "📔 *Todavía no he aprendido nada sobre tus gastos.*\n\nA medida que registres transacciones, iré aprendiendo a qué categorías pertenecen tus comercios favoritos."
+
+        # Limit to top 20 to avoid message overflow
+        top_associations = associations[:20]
+
+        message = "🧠 *Panel de Aprendizaje*\n\n"
+        message += "Estos son los comercios que he aprendido a categorizar:\n\n"
+
+        for assoc in top_associations:
+            payee = assoc.get("normalized_payee", "Desconocido").title()
+            category = assoc.get("category_name") or "Categoría desconocida"
+            count = assoc.get("count", 0)
+
+            message += (
+                f"• *{payee}* → {category} ({count} {'vez' if count == 1 else 'veces'})\n"
+            )
+
+        if len(associations) > 20:
+            message += f"\n... y {len(associations) - 20} comercios más."
+
+        message += "\n\n💡 Si me he equivocado con alguno, usa `/olvidar <comercio>` para que borre lo aprendido sobre él."
+
+        return message
+
+    def format_forget_result_message(self, payee: str, success: bool) -> str:
+        """Return Spanish success/failure message for /olvidar"""
+        if success:
+            return f"✅ He olvidado todo lo que sabía sobre *{payee}*. La próxima vez que registres un gasto allí, te preguntaré de nuevo la categoría."
+        else:
+            return f"❓ No encontré ninguna información guardada sobre *{payee}*."
+
+    def _get_top_payees(self, telegram_id: int, limit: int = 3) -> List[Dict]:
+        """Helper to get top frequent payees"""
+        associations = self.get_payee_associations(telegram_id)
+        # They are already sorted by count DESC from repo
+        return associations[:limit]
+
+    def _get_top_categories(self, telegram_id: int, limit: int = 3) -> List[Dict]:
+        """Helper to get top frequent categories"""
+        associations = self.get_payee_associations(telegram_id)
+
+        # Group by category
+        cat_counts = {}
+        for assoc in associations:
+            cat_id = assoc.get("category_id")
+            cat_name = assoc.get("category_name") or "Categoría desconocida"
+            count = assoc.get("count", 0)
+
+            if cat_id not in cat_counts:
+                cat_counts[cat_id] = {"name": cat_name, "count": 0}
+            cat_counts[cat_id]["count"] += count
+
+        # Sort by count
+        sorted_cats = sorted(cat_counts.values(), key=lambda x: x["count"], reverse=True)
+        return sorted_cats[:limit]
 
     def format_recent_transactions_message(self, telegram_id: int, limit: int = 5) -> str:
         """Format recent transactions into a user-friendly message"""

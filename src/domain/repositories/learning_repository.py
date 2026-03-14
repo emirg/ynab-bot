@@ -36,3 +36,13 @@ class LearningRepository(ABC):
     def get_recent_transactions(self, telegram_id: int, limit: int = 10) -> List[Dict]:
         """Get recent transactions for correction purposes"""
         pass
+
+    @abstractmethod
+    def get_payee_associations(self, telegram_id: int) -> List[Dict]:
+        """Get all payee-category associations for a user, ordered by count DESC"""
+        pass
+
+    @abstractmethod
+    def delete_payee_associations(self, telegram_id: int, normalized_payee: str) -> int:
+        """Delete all associations for a given payee for a user. Returns row count deleted."""
+        pass

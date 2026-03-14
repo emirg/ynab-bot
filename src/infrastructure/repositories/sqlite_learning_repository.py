@@ -31,16 +31,57 @@ class SQLiteLearningRepository(LearningRepository):
         conn.execute(
             """
             INSERT INTO payee_category_mappings
-                (telegram_id, normalized_payee, category_id, count, last_updated)
-            VALUES (?, ?, ?, 1, ?)
+                (telegram_id, normalized_payee, category_id, category_name, count, last_updated)
+            VALUES (?, ?, ?, ?, 1, ?)
             ON CONFLICT(telegram_id, normalized_payee, category_id) DO UPDATE SET
                 count = count + 1,
-                last_updated = excluded.last_updated
+                last_updated = excluded.last_updated,
+                category_name = excluded.category_name
             """,
-            (telegram_id, normalized, expense.category_id, datetime.now().isoformat()),
+            (
+                telegram_id,
+                normalized,
+                expense.category_id,
+                expense.category_name or "",
+                datetime.now().isoformat(),
+            ),
         )
         conn.commit()
         logger.info(f"Learned: {normalized} -> {expense.category_name} (user {telegram_id})")
+
+    def get_payee_associations(self, telegram_id: int) -> List[Dict]:
+        """Get all payee-category associations for a user, ordered by count DESC"""
+        conn = self._db.get_connection()
+        cursor = conn.execute(
+            """
+            SELECT normalized_payee, category_id, category_name, count
+            FROM payee_category_mappings
+            WHERE telegram_id = ?
+            ORDER BY count DESC
+            """,
+            (telegram_id,),
+        )
+        return [
+            {
+                "normalized_payee": row["normalized_payee"],
+                "category_id": row["category_id"],
+                "category_name": row["category_name"],
+                "count": row["count"],
+            }
+            for row in cursor.fetchall()
+        ]
+
+    def delete_payee_associations(self, telegram_id: int, normalized_payee: str) -> int:
+        """Delete all associations for a given payee for a user. Returns row count deleted."""
+        # Ensure we use normalized version for matching
+        normalized = normalize_payee(normalized_payee)
+        conn = self._db.get_connection()
+        cursor = conn.execute(
+            "DELETE FROM payee_category_mappings WHERE telegram_id = ? AND normalized_payee = ?",
+            (telegram_id, normalized),
+        )
+        conn.commit()
+        return cursor.rowcount
 
     def predict_category(
         self, telegram_id: int, payee: str, categories: List[Dict]
