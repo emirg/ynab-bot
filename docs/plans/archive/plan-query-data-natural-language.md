@@ -1,7 +1,7 @@
 # Plan: Consultas de Presupuesto por Texto Libre
 
 ## 🎯 Metadata
-- **Status:** Draft
+- **Status:** Completed
 - **Primary Objective:** Permitir a los usuarios consultar saldos de categorías, cuentas y resumen de presupuesto en lenguaje natural, reutilizando el mismo flujo de texto libre que ya procesa gastos.
 - **Risk / Complexity:** Medium
 
