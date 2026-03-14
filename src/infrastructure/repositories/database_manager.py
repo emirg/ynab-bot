@@ -94,6 +94,43 @@ _MIGRATIONS = [
         ALTER TABLE payee_category_mappings ADD COLUMN category_name TEXT DEFAULT '';
         """,
     ),
+    # Version 5: Split configuration tables
+    (
+        5,
+        "Create split configuration tables",
+        """
+        CREATE TABLE IF NOT EXISTS split_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id INTEGER NOT NULL,
+            category_id TEXT NOT NULL,
+            category_name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(telegram_id, category_id),
+            FOREIGN KEY (telegram_id) REFERENCES user_configurations(telegram_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS split_person_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            split_group_id INTEGER NOT NULL,
+            alias TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(split_group_id, alias),
+            FOREIGN KEY (split_group_id) REFERENCES split_groups(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS split_shared_account (
+            telegram_id INTEGER PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            account_name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (telegram_id) REFERENCES user_configurations(telegram_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_split_groups_user ON split_groups(telegram_id);
+        CREATE INDEX IF NOT EXISTS idx_split_aliases_group ON split_person_aliases(split_group_id);
+        """,
+    ),
 ]
 
 

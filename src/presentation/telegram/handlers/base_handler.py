@@ -28,35 +28,35 @@ class BaseHandler(ABC):
         user = update.effective_user
         return user.full_name or user.username or f"User {user.id}"
     
-    async def send_message(self, update: Update, message: str, parse_mode: str = 'Markdown'):
+    async def send_message(self, update: Update, message: str, parse_mode: str = 'Markdown', reply_markup=None):
         """Send formatted message to user"""
         try:
             if update.callback_query:
                 # For callback queries, reply to the original message
-                await update.callback_query.message.reply_text(message, parse_mode=parse_mode)
+                await update.callback_query.message.reply_text(message, parse_mode=parse_mode, reply_markup=reply_markup)
             else:
                 # For regular messages
-                await update.message.reply_text(message, parse_mode=parse_mode)
+                await update.message.reply_text(message, parse_mode=parse_mode, reply_markup=reply_markup)
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
             # Fallback without formatting
             try:
                 if update.callback_query:
-                    await update.callback_query.message.reply_text(message)
+                    await update.callback_query.message.reply_text(message, reply_markup=reply_markup)
                 else:
-                    await update.message.reply_text(message)
+                    await update.message.reply_text(message, reply_markup=reply_markup)
             except Exception as e2:
                 logger.error(f"Failed to send fallback message: {e2}")
     
-    async def send_callback_message(self, query, message: str, parse_mode: str = 'Markdown'):
+    async def send_callback_message(self, query, message: str, parse_mode: str = 'Markdown', reply_markup=None):
         """Send message as reply to callback query"""
         try:
-            await query.message.reply_text(message, parse_mode=parse_mode)
+            await query.message.reply_text(message, parse_mode=parse_mode, reply_markup=reply_markup)
         except Exception as e:
             logger.error(f"Failed to send callback message: {e}")
             # Fallback without formatting
             try:
-                await query.message.reply_text(message)
+                await query.message.reply_text(message, reply_markup=reply_markup)
             except Exception as e2:
                 logger.error(f"Failed to send fallback callback message: {e2}")
     

@@ -21,7 +21,8 @@ class ConfigHandler(BaseHandler):
 
     def __init__(self, container):
         super().__init__(container)
-        self.user_config_service = container.get(UserConfigService)
+        self.user_config_service = container.get_user_config_service()
+        self.split_config_service = container.get_split_config_service()
         self.oauth_service = container.get_oauth_service()
         self.auth_service = container.get_auth_service()
         self.formatter = ConfigResponseFormatter()
@@ -171,6 +172,11 @@ Selecciona una opción para configurar tu bot:
         try:
             user_id = self.get_user_id(update)
             status = self.user_config_service.get_user_status(user_id)
+            
+            # Add split config info
+            summary = self.split_config_service.get_split_config_summary(user_id)
+            status["split_group_count"] = len(summary.get("groups", []))
+            
             response = self.formatter.format_user_status(status)
             
             await self.send_message(update, response)
@@ -234,6 +240,11 @@ Selecciona una opción para configurar tu bot:
         try:
             user_id = query.from_user.id
             status = self.user_config_service.get_user_status(user_id)
+            
+            # Add split config info
+            summary = self.split_config_service.get_split_config_summary(user_id)
+            status["split_group_count"] = len(summary.get("groups", []))
+            
             response = self.formatter.format_user_status(status)
             
             await self.send_callback_message(query, response)

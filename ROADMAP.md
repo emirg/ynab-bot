@@ -32,27 +32,28 @@ Cuando el bot registra un gasto, incluir en la respuesta por qué eligió esa ca
 
 ## Milestone 2: Gastos Compartidos (Split)
 
-### 2.1 — Split Transaction Support
+### 2.1 — Configuración de Split [COMPLETADO]
+
+- Comando `/splitwise` para configurar cuál es la categoría Splitwise del usuario (una sola vez, se persiste)
+- El usuario puede tener varias categorías Splitwise (por ejemplo, una para cada persona con la que divide gastos)
+- El usuario también configura cuál es su cuenta "Shared Transactions" en YNAB (para gastos pagados por otra persona en su nombre)
+- División por defecto: 50/50
+- Soporte para proporciones ("compartido 60000 restaurantes 2/3") o monto fijo ("compartido 60000 restaurantes mi parte 20000")
+
+### 2.2 — Detección de Intent en LLM Parser
+
+- Palabras clave como "compartido", "split", "mitad" activan el intent `shared_expense`
+- El LLM parser extrae: monto total, categoría, proporción si la hay, y nombre de la persona si aplica
+- Respuesta clara mostrando el desglose: "Registrado: Almuerzo $50.000 → Splitwise $25.000 + Restaurantes $25.000"
+
+### 2.3 — Split Transaction Support
 
 Registrar gastos compartidos que se dividen en dos categorías YNAB usando subtransactions:
 
 - Una parte va a la categoría "Splitwise" (o como el usuario la tenga en YNAB)
 - La otra parte va a la categoría real del presupuesto
 - Ejemplo: "almuerzo compartido 50000 restaurantes" → split 25000 Splitwise + 25000 Restaurantes
-- El usuario debe ser capaz de registrar gastos que hizo la otra persona en su nombre. Por ejemplo, "Juan compró un almuerzo por 50000 en restaurantes" → split 25000 Splitwise + 25000 Restaurantes". Eso debe ir a una cuenta "Shared Transactions" en YNAB.
-
-### 2.2 — Configuración de Split
-
-- Comando `/splitwise` para configurar cuál es la categoría Splitwise del usuario (una sola vez, se persiste)
-- El usuario puede tener varias categorías Splitwise (por ejemplo, una para cada persona con la que divide gastos)
-- División por defecto: 50/50
-- Soporte para proporciones ("compartido 60000 restaurantes 2/3") o monto fijo ("compartido 60000 restaurantes mi parte 20000")
-
-### 2.3 — Detección de Intent en LLM Parser
-
-- Palabras clave como "compartido", "split", "mitad" activan el intent `shared_expense`
-- El LLM parser extrae: monto total, categoría, y proporción si la hay
-- Respuesta clara mostrando el desglose: "Registrado: Almuerzo $50.000 → Splitwise $25.000 + Restaurantes $25.000"
+- El usuario debe ser capaz de registrar gastos que hizo la otra persona en su nombre. Por ejemplo, "Juan compró un almuerzo por 50000 en restaurantes" → split 25000 Splitwise + 25000 Restaurantes. Eso debe ir a la cuenta "Shared Transactions" configurada en 2.1.
 
 ## Milestone 3: Robustez & Calidad de Vida
 

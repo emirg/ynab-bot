@@ -8,6 +8,7 @@ from presentation.telegram.formatters import (
     ConfigResponseFormatter,
     LearningResponseFormatter,
     GeneralResponseFormatter,
+    SplitConfigResponseFormatter,
 )
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.budget_query import BudgetQueryResult
@@ -349,3 +350,88 @@ class TestBudgetQueryFormatter:
         })
         msg = BudgetQueryFormatter.format_response(result)
         assert 'Saldo' in msg
+
+
+# ---------------------------------------------------------------------------
+# SplitConfigResponseFormatter
+# ---------------------------------------------------------------------------
+
+class TestSplitConfigResponseFormatter:
+
+    def test_format_split_panel(self):
+        msg = SplitConfigResponseFormatter.format_split_panel()
+        assert 'Gastos Compartidos' in msg
+        assert 'Splitwise' in msg
+        assert 'Selecciona una opción' in msg
+
+    def test_format_split_summary_full(self, sample_split_groups, sample_shared_account):
+        summary = {
+            'groups': sample_split_groups,
+            'shared_account': sample_shared_account,
+            'configured': True
+        }
+        msg = SplitConfigResponseFormatter.format_split_summary(summary)
+        assert 'Gastos E' in msg
+        assert 'Eliana' in msg
+        assert 'Eli' in msg
+        assert 'Gastos con Juan' in msg
+        assert 'Juan' in msg
+        assert 'Nu Savings' in msg
+        assert '50/50' in msg
+
+    def test_format_split_summary_empty(self):
+        summary = {
+            'groups': [],
+            'shared_account': None,
+            'configured': False
+        }
+        msg = SplitConfigResponseFormatter.format_split_summary(summary)
+        assert 'Ninguno configurado' in msg
+        assert 'No configurada' in msg
+        assert 'Nota:' in msg
+
+    def test_format_group_added(self):
+        msg = SplitConfigResponseFormatter.format_group_added('Gastos E')
+        assert 'Gastos E' in msg
+        assert 'agregado' in msg
+
+    def test_format_group_removed(self):
+        msg = SplitConfigResponseFormatter.format_group_removed('Gastos E')
+        assert 'Gastos E' in msg
+        assert 'eliminado' in msg
+
+    def test_format_alias_added(self):
+        msg = SplitConfigResponseFormatter.format_alias_added('Eli', 'Gastos E')
+        assert 'Eli' in msg
+        assert 'Gastos E' in msg
+        assert 'agregado' in msg
+
+    def test_format_alias_removed(self):
+        msg = SplitConfigResponseFormatter.format_alias_removed('Eli', 'Gastos E')
+        assert 'Eli' in msg
+        assert 'Gastos E' in msg
+        assert 'eliminado' in msg
+
+    def test_format_shared_account_set(self):
+        msg = SplitConfigResponseFormatter.format_shared_account_set('Nu Savings')
+        assert 'Nu Savings' in msg
+        assert 'configurada' in msg
+
+    def test_format_shared_account_removed(self):
+        msg = SplitConfigResponseFormatter.format_shared_account_removed()
+        assert 'eliminada' in msg
+        assert 'cuenta por defecto' in msg
+
+    def test_format_no_budget_configured(self):
+        msg = SplitConfigResponseFormatter.format_no_budget_configured()
+        assert 'Presupuesto no configurado' in msg
+        assert '/config' in msg
+
+    def test_format_ask_alias(self):
+        msg = SplitConfigResponseFormatter.format_ask_alias('Gastos E')
+        assert 'alias' in msg
+        assert 'Gastos E' in msg
+        
+        msg_no_group = SplitConfigResponseFormatter.format_ask_alias()
+        assert 'alias' in msg_no_group
+

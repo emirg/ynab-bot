@@ -225,6 +225,11 @@ class ConfigResponseFormatter:
         else:
             message += "💳 *Cuenta por defecto:* ❌ No configurada\n"
         
+        # Split info
+        split_count = status.get("split_group_count", 0)
+        if split_count > 0:
+            message += f"🤝 *Gastos compartidos:* {split_count} grupos configurados\n"
+        
         message += f"\n📊 *Estado:* {status.get('message', 'Desconocido')}\n"
         
         if status.get("created_at"):
@@ -270,6 +275,101 @@ class LearningResponseFormatter:
     def format_correction_error(error_message: str) -> str:
         """Format correction error response"""
         return f"❌ *Error en corrección:* {error_message}"
+
+
+class SplitConfigResponseFormatter:
+    """Formatter for split configuration-related responses"""
+
+    @staticmethod
+    def format_split_panel() -> str:
+        """Main panel message text for split configuration"""
+        return """
+*Configuración de Gastos Compartidos* 🤝
+
+Aquí puedes configurar cómo el bot maneja los gastos que divides con otras personas (Splitwise style).
+
+1️⃣ *Grupos Splitwise:* Asocia categorías de YNAB (ej: "Gastos E") con personas (ej: "Eliana").
+2️⃣ *Cuenta Compartida:* Define en qué cuenta se registran estos gastos (ej: "Nu Savings").
+3️⃣ *Detección Inteligente:* Cuando digas "con Eliana", el bot usará automáticamente la categoría y cuenta configuradas.
+
+Selecciona una opción abajo para empezar:
+        """.strip()
+
+    @staticmethod
+    def format_split_summary(summary: dict) -> str:
+        """Format the split configuration summary"""
+        message = "*Configuración de Gastos Compartidos*\n\n"
+
+        groups = summary.get("groups", [])
+        if groups:
+            message += "*Grupos Splitwise:*\n"
+            for i, group in enumerate(groups, 1):
+                aliases = ", ".join(group.person_aliases) if group.person_aliases else "Sin aliases"
+                message += f"{i}. *{group.category_name}* (aliases: {aliases})\n"
+        else:
+            message += "*Grupos Splitwise:* ❌ Ninguno configurado\n"
+
+        message += "\n"
+
+        shared_account = summary.get("shared_account")
+        if shared_account:
+            message += f"*Cuenta compartida:* {shared_account.account_name}\n"
+        else:
+            message += "*Cuenta compartida:* ❌ No configurada\n"
+
+        message += "\n*División por defecto:* 50/50"
+
+        if not summary.get("configured"):
+            message += "\n\n⚠️ *Nota:* Debes configurar al menos un grupo para activar la detección de gastos compartidos."
+
+        return message.strip()
+
+    @staticmethod
+    def format_group_added(category_name: str) -> str:
+        """Confirmation message when a group is added"""
+        return f"✅ Grupo *{category_name}* agregado exitosamente."
+
+    @staticmethod
+    def format_group_removed(category_name: str) -> str:
+        """Confirmation message when a group is removed"""
+        return f"🗑️ Grupo *{category_name}* eliminado."
+
+    @staticmethod
+    def format_alias_added(alias: str, category_name: str) -> str:
+        """Confirmation message when an alias is added"""
+        return f"✅ Alias *{alias}* agregado al grupo *{category_name}*."
+
+    @staticmethod
+    def format_alias_removed(alias: str, category_name: str) -> str:
+        """Confirmation message when an alias is removed"""
+        return f"🗑️ Alias *{alias}* eliminado del grupo *{category_name}*."
+
+    @staticmethod
+    def format_shared_account_set(account_name: str) -> str:
+        """Confirmation message when shared account is set"""
+        return f"✅ Cuenta compartida configurada como: *{account_name}*."
+
+    @staticmethod
+    def format_shared_account_removed() -> str:
+        """Confirmation message when shared account is removed"""
+        return "🗑️ Cuenta compartida eliminada. Se usará la cuenta por defecto."
+
+    @staticmethod
+    def format_no_budget_configured() -> str:
+        """Error message when no budget is configured"""
+        return """
+❌ *Presupuesto no configurado*
+
+Para configurar gastos compartidos, primero debes seleccionar un presupuesto de YNAB.
+
+Usa `/config` o `/budgets` para empezar.
+        """.strip()
+
+    @staticmethod
+    def format_ask_alias(category_name: str = "") -> str:
+        """Message asking for an alias"""
+        group_info = f" para el grupo *{category_name}*" if category_name else ""
+        return f"👤 Por favor, escribe el nombre de la persona (alias){group_info}:"
 
 
 class GeneralResponseFormatter:
@@ -331,6 +431,9 @@ Envía un mensaje como:
 
 💰 *Registro de Gastos*
 • Texto, fotos de recibos o mensajes de voz
+
+🤝 *Gastos Compartidos*
+• `/splitwise` - Configurar grupos y cuenta
 
 📊 *Consultas*
 • Saldo de cuentas o categorías en lenguaje natural

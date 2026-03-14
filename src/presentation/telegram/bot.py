@@ -1,11 +1,13 @@
 import logging
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
 from infrastructure.container import DIContainer
 from presentation.telegram.handlers.general_handler import GeneralHandler
 from presentation.telegram.handlers.config_handler import ConfigHandler
 from presentation.telegram.handlers.learning_handler import LearningHandler
 from presentation.telegram.handlers.expense_handler import ExpenseHandler
+from presentation.telegram.handlers.split_config_handler import SplitConfigHandler
 from presentation.telegram.handlers.admin_handler import AdminHandler
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,7 @@ class YNABTelegramBot:
         self.config_handler = ConfigHandler(container)
         self.learning_handler = LearningHandler(container)
         self.expense_handler = ExpenseHandler(container)
+        self.split_config_handler = SplitConfigHandler(container)
         self.admin_handler = AdminHandler(container)
         
         # Initialize Telegram application
@@ -46,6 +49,9 @@ class YNABTelegramBot:
         self.application.add_handler(CommandHandler("accounts", self.config_handler.handle_accounts_command))
         self.application.add_handler(CommandHandler("status", self.config_handler.handle_status_command))
         
+        # Split configuration commands
+        self.application.add_handler(CommandHandler("splitwise", self.split_config_handler.handle_splitwise_command))
+        
         # Learning system commands
         self.application.add_handler(CommandHandler("stats", self.learning_handler.handle_stats_command))
         self.application.add_handler(CommandHandler("recent", self.learning_handler.handle_recent_command))
@@ -66,6 +72,10 @@ class YNABTelegramBot:
             pattern=r"^(config_|select_)"
         ))
         self.application.add_handler(CallbackQueryHandler(
+            self.split_config_handler.handle_callback_query,
+            pattern=r"^split_"
+        ))
+        self.application.add_handler(CallbackQueryHandler(
             self.admin_handler.handle_admin_callback,
             pattern=r"^(approve_|block_)"
         ))
@@ -73,13 +83,20 @@ class YNABTelegramBot:
         # Message handlers (order matters - more specific first)
         self.application.add_handler(MessageHandler(filters.VOICE, self.expense_handler.handle_voice_message))
         self.application.add_handler(MessageHandler(filters.PHOTO, self.expense_handler.handle_photo_message))
-        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.expense_handler.handle_text_message))
+        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_dispatch))
         
         # Unknown command handler (should be last)
         self.application.add_handler(MessageHandler(filters.COMMAND, self.general_handler.handle_unknown_command))
         
         logger.info("All Telegram handlers registered successfully")
     
+    async def handle_text_dispatch(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Dispatch text messages to either split config (if pending alias) or expense handler"""
+        if context.user_data.get("pending_alias_category_id"):
+            await self.split_config_handler.handle_alias_text_message(update, context)
+        else:
+            await self.expense_handler.handle_text_message(update, context)
+
     async def post_init(self):
         """Post-initialization tasks"""
         try:

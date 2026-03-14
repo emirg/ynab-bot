@@ -5,6 +5,7 @@ from infrastructure.config.app_config import AppConfig
 from infrastructure.repositories.database_manager import DatabaseManager
 from infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from infrastructure.repositories.sqlite_learning_repository import SQLiteLearningRepository
+from infrastructure.repositories.sqlite_split_config_repository import SQLiteSplitConfigRepository
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 from infrastructure.token_encryption import TokenEncryptor
 from application.services.expense_service import ExpenseService
@@ -12,6 +13,7 @@ from application.services.budget_query_service import BudgetQueryService
 from application.services.user_config_service import UserConfigService
 from application.services.learning_service import LearningService
 from application.services.onboarding_service import OnboardingService
+from application.services.split_config_service import SplitConfigService
 from application.services.oauth_service import YNABOAuthService
 from domain.services.auth_service import AuthorizationService
 from parsers.llm_expense_parser import LLMExpenseParser
@@ -58,6 +60,11 @@ class DIContainer:
         self.register_singleton(
             SQLiteLearningRepository,
             lambda: SQLiteLearningRepository(self.get(DatabaseManager))
+        )
+
+        self.register_singleton(
+            SQLiteSplitConfigRepository,
+            lambda: SQLiteSplitConfigRepository(self.get(DatabaseManager))
         )
 
         # OAuth service
@@ -125,6 +132,15 @@ class DIContainer:
             OnboardingService,
             lambda: OnboardingService(
                 user_repository=self.get(SQLiteUserRepository)
+            )
+        )
+
+        self.register_transient(
+            SplitConfigService,
+            lambda: SplitConfigService(
+                split_config_repository=self.get(SQLiteSplitConfigRepository),
+                user_repository=self.get(SQLiteUserRepository),
+                ynab_factory=self.get(YNABRepositoryFactory)
             )
         )
 
@@ -209,6 +225,9 @@ class DIContainer:
     def get_auth_service(self):
         return self.get(AuthorizationService)
 
+    def get_authorization_service(self):
+        return self.get(AuthorizationService)
+
     def get_expense_service(self):
         return self.get(ExpenseService)
 
@@ -220,6 +239,9 @@ class DIContainer:
 
     def get_onboarding_service(self):
         return self.get(OnboardingService)
+
+    def get_split_config_service(self):
+        return self.get(SplitConfigService)
 
     def get_speech_processor(self):
         return self.get(SpeechToTextProcessor)

@@ -4,9 +4,16 @@ from presentation.telegram.keyboards import (
     build_budget_selection_keyboard,
     build_account_selection_keyboard,
     budget_keyboard_to_dict,
-    account_keyboard_to_dict
+    account_keyboard_to_dict,
+    build_split_panel_keyboard,
+    build_split_category_selection_keyboard,
+    build_split_group_selection_keyboard,
+    build_split_account_selection_keyboard,
+    build_split_alias_action_keyboard,
+    build_split_ask_alias_keyboard,
 )
-from domain.models.user import YNABBudget, YNABAccount
+from domain.models.user import YNABBudget, YNABAccount, YNABCategory
+from domain.models.split_config import SplitGroup
 
 
 @pytest.fixture
@@ -64,3 +71,59 @@ def test_empty_keyboards():
     assert len(build_account_selection_keyboard([]).inline_keyboard) == 0
     assert len(budget_keyboard_to_dict([])["inline_keyboard"]) == 0
     assert len(account_keyboard_to_dict([])["inline_keyboard"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Split configuration keyboards
+# ---------------------------------------------------------------------------
+
+def test_build_split_panel_keyboard():
+    markup = build_split_panel_keyboard()
+    assert isinstance(markup, InlineKeyboardMarkup)
+    assert len(markup.inline_keyboard) == 6
+    assert markup.inline_keyboard[0][0].callback_data == "split_add_group"
+    assert markup.inline_keyboard[5][0].callback_data == "split_manage_aliases"
+
+
+def test_build_split_category_selection_keyboard():
+    cats = [YNABCategory(id=f"c{i}", name=f"Cat {i}", group_name="G", full_name=f"G: Cat {i}") for i in range(20)]
+    markup = build_split_category_selection_keyboard(cats)
+    assert len(markup.inline_keyboard) == 16  # 15 cats + 1 back
+    assert markup.inline_keyboard[0][0].callback_data == "split_select_cat_c0"
+    assert markup.inline_keyboard[15][0].callback_data == "split_back"
+
+
+def test_build_split_group_selection_keyboard():
+    groups = [
+        SplitGroup(id=1, telegram_id=1, category_id="cat1", category_name="G1", person_aliases=[]),
+        SplitGroup(id=2, telegram_id=1, category_id="cat2", category_name="G2", person_aliases=[])
+    ]
+    markup = build_split_group_selection_keyboard(groups, "rm")
+    assert len(markup.inline_keyboard) == 3  # 2 groups + 1 back
+    assert markup.inline_keyboard[0][0].callback_data == "split_rm_cat1"
+    assert markup.inline_keyboard[2][0].callback_data == "split_back"
+
+
+def test_build_split_account_selection_keyboard():
+    accs = [YNABAccount(id=f"a{i}", name=f"Acc {i}", type="checking") for i in range(15)]
+    markup = build_split_account_selection_keyboard(accs)
+    assert len(markup.inline_keyboard) == 11  # 10 accs + 1 back
+    assert markup.inline_keyboard[0][0].callback_data == "split_select_acc_a0"
+
+
+def test_build_split_alias_action_keyboard():
+    group = SplitGroup(id=1, telegram_id=1, category_id="uuid-1", category_name="G1", person_aliases=["A1", "A2"])
+    markup = build_split_alias_action_keyboard(group)
+    assert len(markup.inline_keyboard) == 4  # 1 add + 2 current + 1 back
+    assert markup.inline_keyboard[0][0].callback_data == "split_add_alias_uuid-1"
+    assert markup.inline_keyboard[1][0].callback_data == "split_rma_uuid-1_0"
+    assert markup.inline_keyboard[2][0].callback_data == "split_rma_uuid-1_1"
+    assert markup.inline_keyboard[3][0].callback_data == "split_manage_aliases"
+
+
+def test_build_split_ask_alias_keyboard():
+    markup = build_split_ask_alias_keyboard("cat-id")
+    assert len(markup.inline_keyboard) == 2
+    assert markup.inline_keyboard[0][0].callback_data == "split_ask_alias_cat-id"
+    assert markup.inline_keyboard[1][0].callback_data == "split_skip_alias"
+

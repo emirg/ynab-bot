@@ -105,4 +105,4 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - Query matching uses a two-tier approach: LLM performs semantic matching (user term → exact YNAB name), then `BudgetQueryService` applies 4-step fuzzy matching as fallback (exact → case-insensitive → clean/no-emoji → partial)
 - YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`
 - YNAB services use `YNABRepositoryFactory` (not a singleton repo) — always resolve per-user via `factory.get_repository(user_config)`
-- SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v4)
+- SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v5)

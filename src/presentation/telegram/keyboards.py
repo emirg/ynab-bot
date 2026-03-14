@@ -1,6 +1,7 @@
 from typing import List
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from domain.models.user import YNABBudget, YNABAccount
+from domain.models.user import YNABBudget, YNABAccount, YNABCategory
+from domain.models.split_config import SplitGroup
 
 
 def build_budget_selection_keyboard(budgets: List[YNABBudget]) -> InlineKeyboardMarkup:
@@ -54,3 +55,85 @@ def account_keyboard_to_dict(accounts: List[YNABAccount]) -> dict:
         }])
     
     return {"inline_keyboard": inline_keyboard}
+
+
+def build_split_panel_keyboard() -> InlineKeyboardMarkup:
+    """Main panel for split configuration"""
+    keyboard = [
+        [InlineKeyboardButton("➕ Agregar grupo Splitwise", callback_data="split_add_group")],
+        [InlineKeyboardButton("👁️ Ver configuración", callback_data="split_view")],
+        [InlineKeyboardButton("🗑️ Quitar grupo Splitwise", callback_data="split_remove_group")],
+        [InlineKeyboardButton("💳 Configurar cuenta compartida", callback_data="split_set_account")],
+        [InlineKeyboardButton("❌ Quitar cuenta compartida", callback_data="split_remove_account")],
+        [InlineKeyboardButton("👤 Gestionar aliases", callback_data="split_manage_aliases")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def build_split_category_selection_keyboard(categories: List[YNABCategory]) -> InlineKeyboardMarkup:
+    """Shows YNAB categories for selection as split groups"""
+    keyboard = []
+    # Limit to 15 categories to avoid Telegram limits
+    for cat in categories[:15]:
+        keyboard.append([InlineKeyboardButton(
+            cat.name,
+            callback_data=f"split_select_cat_{cat.id}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="split_back")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def build_split_group_selection_keyboard(groups: List[SplitGroup], action: str) -> InlineKeyboardMarkup:
+    """Shows existing split groups for removal or alias management"""
+    keyboard = []
+    for group in groups:
+        keyboard.append([InlineKeyboardButton(
+            group.category_name,
+            callback_data=f"split_{action}_{group.category_id}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="split_back")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def build_split_account_selection_keyboard(accounts: List[YNABAccount]) -> InlineKeyboardMarkup:
+    """Shows YNAB accounts for shared account selection"""
+    keyboard = []
+    # Limit to 10
+    for acc in accounts[:10]:
+        keyboard.append([InlineKeyboardButton(
+            acc.name,
+            callback_data=f"split_select_acc_{acc.id}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="split_back")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def build_split_alias_action_keyboard(group: SplitGroup) -> InlineKeyboardMarkup:
+    """For a specific group, shows options to add or remove aliases"""
+    keyboard = [
+        [InlineKeyboardButton("➕ Agregar alias", callback_data=f"split_add_alias_{group.category_id}")]
+    ]
+    
+    # Current aliases as removable buttons
+    # Using alias index in callback_data to avoid long alias names exceeding limit (64 bytes)
+    for i, alias in enumerate(group.person_aliases):
+        keyboard.append([InlineKeyboardButton(
+            f"🗑️ Quitar {alias}", 
+            callback_data=f"split_rma_{group.category_id}_{i}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="split_manage_aliases")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def build_split_ask_alias_keyboard(category_id: str) -> InlineKeyboardMarkup:
+    """Asks if user wants to add an alias after adding a group"""
+    keyboard = [
+        [InlineKeyboardButton("✅ Sí, agregar alias", callback_data=f"split_ask_alias_{category_id}")],
+        [InlineKeyboardButton("⏭️ Omitir", callback_data="split_skip_alias")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+

@@ -10,19 +10,21 @@ The primary system architecture, conventions, and rules are maintained by Claude
 4. **Do not modify ROADMAP.md:** Leave the maintenance of the roadmap to Claude, unless the user explicitly asks you to update it.
 
 ## Commands
+All Python commands must be run using the `.venv` virtual environment.
+
 ```bash
-# Setup
+# Setup (one-time)
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # Run
-python main.py
+.venv/bin/python main.py
 
 # Tests
-pytest # All tests (~349, ~86% cov)
-pytest tests/test_domain_models.py # File
-pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
-pytest -k "test_predict_category" # Keyword filter
+.venv/bin/pytest # All tests (~413, ~89% cov)
+.venv/bin/pytest tests/test_domain_models.py # File
+.venv/bin/pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
+.venv/bin/pytest -k "test_predict_category" # Keyword filter
 ```
 
 ## Reverse Handoff Protocol (Back to Claude)

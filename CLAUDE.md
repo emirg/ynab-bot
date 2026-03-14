@@ -20,19 +20,21 @@ Whenever you start a new session or the user asks to "resume", your VERY FIRST a
 - Move finished plans to `docs/plans/archive/` and update references.
 
 ## Commands
+All Python commands must be run using the `.venv` virtual environment.
+
 ```bash
-# Setup
+# Setup (one-time)
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # Run
-python main.py
+.venv/bin/python main.py
 
 # Tests
-pytest # All tests (~413, ~89% cov)
-pytest tests/test_domain_models.py # File
-pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
-pytest -k "test_predict_category" # Keyword filter
+.venv/bin/pytest # All tests (~413, ~89% cov)
+.venv/bin/pytest tests/test_domain_models.py # File
+.venv/bin/pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
+.venv/bin/pytest -k "test_predict_category" # Keyword filter
 ```
 
 ## Handoff Protocol

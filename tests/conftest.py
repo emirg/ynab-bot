@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.user import UserConfiguration, UserStatus, YNABBudget, YNABAccount, YNABCategory
+from domain.models.split_config import SplitGroup, SharedAccountConfig
 
 
 # ---------------------------------------------------------------------------
@@ -221,3 +222,55 @@ def mock_ynab_factory(mock_ynab_repository):
     factory = MagicMock()
     factory.get_repository.return_value = mock_ynab_repository
     return factory
+
+
+# ---------------------------------------------------------------------------
+# Split config fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def sample_split_groups():
+    return [
+        SplitGroup(
+            id=1,
+            telegram_id=123456789,
+            category_id='cat-123',
+            category_name='Gastos E',
+            person_aliases=['Eliana', 'Eli'],
+            created_at=datetime(2026, 3, 14, 10, 0, 0)
+        ),
+        SplitGroup(
+            id=2,
+            telegram_id=123456789,
+            category_id='cat-456',
+            category_name='Gastos con Juan',
+            person_aliases=['Juan'],
+            created_at=datetime(2026, 3, 14, 11, 0, 0)
+        )
+    ]
+
+
+@pytest.fixture
+def sample_shared_account():
+    return SharedAccountConfig(
+        telegram_id=123456789,
+        account_id='acc-shared',
+        account_name='Nu Savings',
+        created_at=datetime(2026, 3, 14, 10, 0, 0),
+        updated_at=datetime(2026, 3, 14, 10, 0, 0)
+    )
+
+
+@pytest.fixture
+def mock_split_config_repository(sample_split_groups, sample_shared_account):
+    repo = MagicMock()
+    repo.get_split_groups.return_value = sample_split_groups
+    repo.get_shared_account.return_value = sample_shared_account
+    repo.add_split_group.return_value = sample_split_groups[0]
+    repo.remove_split_group.return_value = True
+    repo.add_person_alias.return_value = True
+    repo.remove_person_alias.return_value = True
+    repo.set_shared_account.return_value = sample_shared_account
+    repo.remove_shared_account.return_value = True
+    repo.find_split_group_by_alias.return_value = sample_split_groups[0]
+    return repo
