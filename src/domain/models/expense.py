@@ -28,6 +28,11 @@ class Expense:
     parser_source: str = 'unknown'
     category_explanation: Optional[str] = None
     date: datetime = field(default_factory=datetime.now)
+    is_split: bool = False
+    split_person: Optional[str] = None
+    split_proportion: Decimal = field(default_factory=lambda: Decimal('0.5'))
+    split_category_id: Optional[str] = None
+    split_category_name: Optional[str] = None
 
     def to_ynab_format(self, budget_id: str, default_account_id: str) -> dict:
         """Convert to YNAB API transaction format"""
@@ -43,12 +48,24 @@ class Expense:
             "cleared": "uncleared"
         }
 
-        # Only add category_id if available and valid UUID format
-        if self.category_id and self.category_id.strip():
-            if _UUID_PATTERN.match(self.category_id):
-                transaction_data["category_id"] = self.category_id
-            else:
-                logger.warning(f"Invalid category UUID format: {self.category_id}, omitting from transaction")
+        # Split transaction: create subtransactions instead of top-level category
+        if self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
+            user_share = int(self.amount * self.split_proportion * -1000)
+            split_share = amount_milliunits - user_share
+            subtransactions = [
+                {"amount": user_share},
+                {"amount": split_share, "category_id": self.split_category_id},
+            ]
+            if self.category_id and _UUID_PATTERN.match(self.category_id):
+                subtransactions[0]["category_id"] = self.category_id
+            transaction_data["subtransactions"] = subtransactions
+        else:
+            # Only add category_id if available and valid UUID format
+            if self.category_id and self.category_id.strip():
+                if _UUID_PATTERN.match(self.category_id):
+                    transaction_data["category_id"] = self.category_id
+                else:
+                    logger.warning(f"Invalid category UUID format: {self.category_id}, omitting from transaction")
 
         return {"transaction": transaction_data}
     

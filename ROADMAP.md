@@ -40,20 +40,17 @@ Cuando el bot registra un gasto, incluir en la respuesta por qué eligió esa ca
 - División por defecto: 50/50
 - Soporte para proporciones ("compartido 60000 restaurantes 2/3") o monto fijo ("compartido 60000 restaurantes mi parte 20000")
 
-### 2.2 — Detección de Intent en LLM Parser
+### 2.2 — Split Transaction Parsing & Creation
 
-- Palabras clave como "compartido", "split", "mitad" activan el intent `shared_expense`
-- El LLM parser extrae: monto total, categoría, proporción si la hay, y nombre de la persona si aplica
-- Respuesta clara mostrando el desglose: "Registrado: Almuerzo $50.000 → Splitwise $25.000 + Restaurantes $25.000"
+Esta etapa unifica la detección del intento de gasto compartido (intent) y la creación de sus correspondientes sub-transacciones en YNAB:
 
-### 2.3 — Split Transaction Support
-
-Registrar gastos compartidos que se dividen en dos categorías YNAB usando subtransactions:
-
-- Una parte va a la categoría "Splitwise" (o como el usuario la tenga en YNAB)
-- La otra parte va a la categoría real del presupuesto
-- Ejemplo: "almuerzo compartido 50000 restaurantes" → split 25000 Splitwise + 25000 Restaurantes
-- El usuario debe ser capaz de registrar gastos que hizo la otra persona en su nombre. Por ejemplo, "Juan compró un almuerzo por 50000 en restaurantes" → split 25000 Splitwise + 25000 Restaurantes. Eso debe ir a la cuenta "Shared Transactions" configurada en 2.1.
+- **Detección de Intent**: Palabras clave como "compartido", "split", "mitad" activan el intent `shared_expense`.
+- **Extracción de Datos**: El LLM parser extrae el monto total, categoría, proporción (ej. mitad, 2/3) y nombre de la persona si aplica.
+- **Creación de Subtransactions**: Registrar el gasto estructurado dividido en dos o más sub-categorías en YNAB.
+  - Una parte va a la categoría "Splitwise" del grupo correspondiente.
+  - La otra parte va a la categoría real del presupuesto (ej. Restaurantes).
+- **Gastos por terceros**: Soportar gastos que hizo otra persona en nombre del usuario (ej: "Juan compró un almuerzo por 50000 en restaurantes" → split 25000 Splitwise + 25000 Restaurantes). Esto debe registrarse usando la cuenta "Shared Transactions" configurada en la etapa 2.1.
+- **Respuesta UI**: Mostrar un desglose claro: "Registrado: Almuerzo $50.000 → Splitwise $25.000 + Restaurantes $25.000".
 
 ## Milestone 3: Robustez & Calidad de Vida
 

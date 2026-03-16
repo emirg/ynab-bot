@@ -29,6 +29,20 @@ def service(mock_user_repository, mock_ynab_factory, mock_learning_repository, m
     )
 
 
+@pytest.fixture
+def service_with_split(mock_user_repository, mock_ynab_factory, mock_learning_repository, mock_llm_parser, mock_budget_query_service, mock_split_config_repository, authorized_user):
+    authorized_user.ynab_access_token = 'test-token'
+    mock_user_repository.find_by_telegram_id.return_value = authorized_user
+    return ExpenseService(
+        user_repository=mock_user_repository,
+        ynab_factory=mock_ynab_factory,
+        learning_repository=mock_learning_repository,
+        llm_parser=mock_llm_parser,
+        budget_query_service=mock_budget_query_service,
+        split_config_repository=mock_split_config_repository,
+    )
+
+
 # ---------------------------------------------------------------------------
 # _SPECIAL_CHARS_PATTERN
 # ---------------------------------------------------------------------------
@@ -450,3 +464,102 @@ class TestProcessMessage:
         result = service.process_message(999, 'test')
         assert result.intent == 'expense'
         assert result.expense_result.success is False
+
+    def test_routes_shared_expense(self, service_with_split, mock_llm_parser, mock_ynab_repository):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo mitad con Juan',
+            'confidence': 0.85,
+            'person': 'Juan',
+            'proportion': '1/2',
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'almuerzo mitad 50k con Juan')
+        assert result.intent == 'shared_expense'
+        assert result.expense_result.success is True
+        assert result.expense_result.expense.is_split is True
+        assert result.expense_result.expense.split_person == 'Juan'
+        assert result.expense_result.expense.split_category_id == 'cat-123'
+        assert result.expense_result.expense.split_category_name == 'Gastos Compartidos'
+        mock_ynab_repository.create_transaction.assert_called_once()
+
+    def test_shared_expense_custom_proportion(self, service_with_split, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 90000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.85,
+            'person': 'Juan',
+            'proportion': '1/3',
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'test')
+        assert result.expense_result.success is True
+        assert result.expense_result.expense.split_proportion == Decimal('1') / Decimal('3')
+
+    def test_shared_expense_person_not_found(self, service_with_split, mock_llm_parser, mock_split_config_repository):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.85,
+            'person': 'Pedro',
+            'proportion': None,
+        }
+        mock_split_config_repository.find_split_group_by_alias.return_value = None
+        result = service_with_split.process_message(TELEGRAM_ID, 'test')
+        assert result.intent == 'shared_expense'
+        assert result.expense_result.success is False
+        assert 'Pedro' in result.expense_result.error_message
+
+    def test_shared_expense_no_split_config(self, service, mock_llm_parser):
+        """Service without split_config_repository returns error."""
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.85,
+            'person': 'Juan',
+            'proportion': None,
+        }
+        result = service.process_message(TELEGRAM_ID, 'test')
+        assert result.intent == 'shared_expense'
+        assert result.expense_result.success is False
+        assert '/splitwise' in result.expense_result.error_message
+
+
+# ---------------------------------------------------------------------------
+# _parse_proportion
+# ---------------------------------------------------------------------------
+
+class TestParseProportion:
+
+    def test_none_defaults_to_half(self):
+        assert ExpenseService._parse_proportion(None) == Decimal('0.5')
+
+    def test_fraction_half(self):
+        assert ExpenseService._parse_proportion('1/2') == Decimal('0.5')
+
+    def test_fraction_third(self):
+        result = ExpenseService._parse_proportion('1/3')
+        assert abs(result - Decimal('0.333333')) < Decimal('0.001')
+
+    def test_decimal_string(self):
+        assert ExpenseService._parse_proportion('0.25') == Decimal('0.25')
+
+    def test_invalid_falls_back(self):
+        assert ExpenseService._parse_proportion('abc') == Decimal('0.5')
+
+    def test_empty_string_falls_back(self):
+        assert ExpenseService._parse_proportion('') == Decimal('0.5')

@@ -94,6 +94,100 @@ class TestExpense:
         e.category_explanation = "sugerido por IA"
         assert e.category_explanation == "sugerido por IA"
 
+    def test_split_defaults(self):
+        e = Expense(amount=Decimal('1000'), payee='T', memo='m')
+        assert e.is_split is False
+        assert e.split_person is None
+        assert e.split_proportion == Decimal('0.5')
+        assert e.split_category_id is None
+        assert e.split_category_name is None
+
+    def test_to_ynab_format_split_50_50(self):
+        e = Expense(
+            amount=Decimal('50000'), payee='McDonalds', memo='almuerzo',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='660e8400-e29b-41d4-a716-446655440000',
+            split_proportion=Decimal('0.5'),
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert 'category_id' not in txn
+        subs = txn['subtransactions']
+        assert len(subs) == 2
+        assert subs[0]['amount'] == -25000000
+        assert subs[0]['category_id'] == '550e8400-e29b-41d4-a716-446655440000'
+        assert subs[1]['amount'] == -25000000
+        assert subs[1]['category_id'] == '660e8400-e29b-41d4-a716-446655440000'
+        assert subs[0]['amount'] + subs[1]['amount'] == txn['amount']
+
+    def test_to_ynab_format_split_odd_amount(self):
+        e = Expense(
+            amount=Decimal('50001'), payee='Test', memo='m',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='660e8400-e29b-41d4-a716-446655440000',
+            split_proportion=Decimal('0.5'),
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        subs = txn['subtransactions']
+        # Sum of subtransactions must equal total
+        assert subs[0]['amount'] + subs[1]['amount'] == txn['amount']
+        # User share: int(50001 * 0.5 * -1000) = -25000500
+        assert subs[0]['amount'] == -25000500
+        # Remainder: -50001000 - (-25000500) = -25000500
+        assert subs[1]['amount'] == -25000500
+
+    def test_to_ynab_format_split_custom_proportion(self):
+        e = Expense(
+            amount=Decimal('90000'), payee='Test', memo='m',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='660e8400-e29b-41d4-a716-446655440000',
+            split_proportion=Decimal('1') / Decimal('3'),
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        subs = txn['subtransactions']
+        assert subs[0]['amount'] + subs[1]['amount'] == txn['amount']
+
+    def test_to_ynab_format_split_no_top_level_category(self):
+        e = Expense(
+            amount=Decimal('10000'), payee='T', memo='m',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='660e8400-e29b-41d4-a716-446655440000',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert 'category_id' not in txn
+        assert 'subtransactions' in txn
+
+    def test_to_ynab_format_split_missing_split_category_falls_back(self):
+        e = Expense(
+            amount=Decimal('10000'), payee='T', memo='m',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id=None,
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert 'subtransactions' not in txn
+        assert txn['category_id'] == '550e8400-e29b-41d4-a716-446655440000'
+
+    def test_to_ynab_format_split_invalid_split_category_falls_back(self):
+        e = Expense(
+            amount=Decimal('10000'), payee='T', memo='m',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='not-a-uuid',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert 'subtransactions' not in txn
+        assert txn['category_id'] == '550e8400-e29b-41d4-a716-446655440000'
+
 
 class TestUUIDPattern:
 

@@ -223,7 +223,7 @@ GASTOS: mensajes que reportan un gasto realizado. Contienen un monto y un lugar/
 
 {accounts_text}
 
-RESPONDE EN JSON con UNA de estas dos estructuras:
+RESPONDE EN JSON con UNA de estas tres estructuras:
 
 Para CONSULTAS:
 {{
@@ -242,6 +242,19 @@ Para GASTOS:
     "account": "<cuenta_exacta_de_la_lista_o_null>",
     "memo": "<mensaje_original>",
     "confidence": <0.0_a_1.0>
+}}
+
+Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]"):
+{{
+    "intent": "shared_expense",
+    "amount": <número_decimal>,
+    "category": "<categoría_exacta_de_la_lista>",
+    "payee": "<lugar>",
+    "account": "<cuenta_exacta_de_la_lista_o_null>",
+    "memo": "<mensaje_original>",
+    "confidence": <0.0_a_1.0>,
+    "person": "<nombre_de_la_persona>",
+    "proportion": "<fraccion_o_null>"
 }}
 
 REGLAS CRÍTICAS:
@@ -310,6 +323,18 @@ REGLAS CRÍTICAS:
                     required = ['amount', 'category', 'payee', 'memo']
                     if not all(f in result for f in required):
                         logger.error(f"Expense sin campos requeridos: {result}")
+                        return None
+                    if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
+                        logger.error(f"Cantidad inválida: {result['amount']}")
+                        return None
+                    result['amount'] = float(result['amount'])
+                elif result['intent'] == 'shared_expense':
+                    required = ['amount', 'category', 'payee', 'memo', 'person']
+                    if not all(f in result for f in required):
+                        logger.error(f"Shared expense sin campos requeridos: {result}")
+                        return None
+                    if not result.get('person') or not str(result['person']).strip():
+                        logger.error(f"Shared expense sin persona: {result}")
                         return None
                     if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
                         logger.error(f"Cantidad inválida: {result['amount']}")

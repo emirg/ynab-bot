@@ -171,6 +171,86 @@ class TestParseMessageErrors:
         assert parser.parse_message('test') is None
 
 
+class TestParseMessageSharedExpense:
+
+    def test_valid_shared_expense(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo mitad 50k con Juan',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': '1/2',
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('almuerzo mitad 50k con Juan')
+        assert result['intent'] == 'shared_expense'
+        assert result['amount'] == 50000.0
+        assert result['person'] == 'Juan'
+        assert result['proportion'] == '1/2'
+
+    def test_missing_person_returns_none(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+        })
+        _mock_response(mock_openai_client, response)
+        assert parser.parse_message('test') is None
+
+    def test_empty_person_returns_none(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+            'person': '  ',
+        })
+        _mock_response(mock_openai_client, response)
+        assert parser.parse_message('test') is None
+
+    def test_null_proportion_accepted(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['proportion'] is None
+
+    def test_invalid_amount_returns_none(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': -100,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+            'person': 'Juan',
+        })
+        _mock_response(mock_openai_client, response)
+        assert parser.parse_message('test') is None
+
+
 class TestParseExpenseUnchanged:
     """Verify parse_expense() still works independently."""
 

@@ -17,11 +17,30 @@ class ExpenseResponseFormatter:
         """Format successful expense processing"""
         if not result.success or not result.expense:
             return "❌ Error procesando respuesta"
-        
+
         expense = result.expense
         confidence_emoji = "🔥" if expense.confidence > 0.8 else "✅" if expense.confidence > 0.5 else "⚠️"
-        
-        message = f"""
+
+        if expense.is_split:
+            user_pct = int(expense.split_proportion * 100)
+            split_pct = 100 - user_pct
+            user_share = int(expense.amount * expense.split_proportion)
+            split_share = int(expense.amount) - user_share
+            message = f"""
+✅ *Gasto compartido registrado*
+
+💰 *Total:* ${expense.amount:,.0f}
+🤝 *Compartido con:* {expense.split_person}
+📊 *Tu parte ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
+📊 *Splitwise ({split_pct}%):* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}
+🏪 *Lugar:* {expense.payee}
+💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
+{confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
+
+📝 *Memo:* {expense.memo}
+            """
+        else:
+            message = f"""
 ✅ *Gasto registrado exitosamente*
 
 💰 *Monto:* ${expense.amount:,.0f}
@@ -31,8 +50,8 @@ class ExpenseResponseFormatter:
 {confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
 
 📝 *Memo:* {expense.memo}
-        """
-        
+            """
+
         return message.strip()
     
     @staticmethod

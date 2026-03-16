@@ -39,9 +39,12 @@ class ExpenseHandler(BaseHandler):
             if result.intent == 'query':
                 response = self.query_formatter.format_response(result.query_result)
                 self.log_handler_success("ExpenseHandler.handle_text_message", update)
-            elif result.expense_result and result.expense_result.success:
-                response = self.formatter.format_success(result.expense_result)
-                self.log_handler_success("ExpenseHandler.handle_text_message", update)
+            elif result.intent in ('expense', 'shared_expense'):
+                if result.expense_result and result.expense_result.success:
+                    response = self.formatter.format_success(result.expense_result)
+                    self.log_handler_success("ExpenseHandler.handle_text_message", update)
+                else:
+                    response = self.formatter.format_error(result.expense_result)
             else:
                 response = self.formatter.format_error(result.expense_result)
 

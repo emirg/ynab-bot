@@ -17,6 +17,7 @@ from domain.exceptions import (
     ImageProcessingException
 )
 from application.services.budget_query_service import BudgetQueryService
+from domain.repositories.split_config_repository import SplitConfigRepository
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 from parsers.llm_expense_parser import LLMExpenseParser
 
@@ -38,12 +39,14 @@ class ExpenseService:
         learning_repository: LearningRepository,
         llm_parser: LLMExpenseParser,
         budget_query_service: BudgetQueryService = None,
+        split_config_repository: SplitConfigRepository = None,
     ):
         self.user_repository = user_repository
         self.ynab_factory = ynab_factory
         self.learning_repository = learning_repository
         self.llm_parser = llm_parser
         self.budget_query_service = budget_query_service or BudgetQueryService()
+        self.split_config_repository = split_config_repository
         self._account_by_name: Dict[str, str] = {}
         self._account_by_name_lower: Dict[str, str] = {}
 
@@ -80,6 +83,12 @@ class ExpenseService:
                     accounts,
                 )
                 return MessageResult(intent='query', query_result=query_result)
+
+            if parsed.get('intent') == 'shared_expense':
+                expense_result = self._process_shared_expense(
+                    parsed, message, categories, user_config, ynab_repository, telegram_user_id,
+                )
+                return MessageResult(intent='shared_expense', expense_result=expense_result)
 
             # Intent is "expense" — delegate to existing pipeline
             expense_result = self._process_parsed_expense(
@@ -121,6 +130,65 @@ class ExpenseService:
 
         logger.info(f"Successfully processed expense: {expense.payee} ${expense.amount}")
         return ExpenseResult.success_result(expense, transaction_id)
+
+    def _process_shared_expense(self, parsed, message, categories, user_config, ynab_repository, telegram_user_id) -> ExpenseResult:
+        """Process a shared_expense intent through the split pipeline."""
+        if self.split_config_repository is None:
+            return ExpenseResult.error_result(
+                "No tienes configuración de gastos compartidos. Usa /splitwise para configurar."
+            )
+
+        person = parsed.get('person', '').strip()
+        split_group = self.split_config_repository.find_split_group_by_alias(telegram_user_id, person)
+        if not split_group:
+            return ExpenseResult.error_result(
+                f"No encontré un grupo para '{person}'. Usa /splitwise para agregar aliases."
+            )
+
+        proportion = self._parse_proportion(parsed.get('proportion'))
+
+        expense = self._build_expense_from_parsed(parsed, message, categories)
+        if not expense:
+            raise ExpenseParsingException(message, 0.0)
+
+        expense.is_split = True
+        expense.split_person = person
+        expense.split_proportion = proportion
+        expense.split_category_id = split_group.category_id
+        expense.split_category_name = split_group.category_name
+
+        expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+        expense.category_explanation = self._build_category_explanation(expense)
+
+        if not expense.account_id:
+            expense.account_id = user_config.default_account_id
+            expense.account_name = user_config.default_account_name
+
+        transaction_id = ynab_repository.create_transaction(
+            expense, user_config.budget_id, expense.account_id
+        )
+        if not transaction_id:
+            raise YNABApiException("Failed to create transaction")
+
+        self.learning_repository.record_successful_transaction(telegram_user_id, expense)
+        self.learning_repository.add_recent_transaction(telegram_user_id, expense)
+
+        logger.info(f"Successfully processed shared expense: {expense.payee} ${expense.amount} with {person}")
+        return ExpenseResult.success_result(expense, transaction_id)
+
+    @staticmethod
+    def _parse_proportion(value) -> Decimal:
+        """Parse a proportion string like '1/2', '1/3' into a Decimal. Defaults to 0.5."""
+        if value is None:
+            return Decimal('0.5')
+        try:
+            value = str(value).strip()
+            if '/' in value:
+                parts = value.split('/')
+                return Decimal(parts[0]) / Decimal(parts[1])
+            return Decimal(value)
+        except Exception:
+            return Decimal('0.5')
 
     def _build_expense_from_parsed(self, result: dict, message: str, categories, parser_source: str = 'llm') -> Optional[Expense]:
         """Build an Expense domain object from a parsed LLM result dict."""

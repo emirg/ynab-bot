@@ -91,6 +91,26 @@ class TestExpenseResponseFormatter:
         msg = ExpenseResponseFormatter.format_error(result)
         assert 'Something unknown' in msg
 
+    def test_format_success_split_expense(self):
+        expense = Expense(
+            amount=Decimal('50000'), payee="McDonald's", memo='almuerzo mitad',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA, confianza 85%',
+            is_split=True, split_person='Juan',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Compartidos',
+        )
+        result = ExpenseResult.success_result(expense, 'txn-1')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'Gasto compartido registrado' in msg
+        assert 'Juan' in msg
+        assert '$50,000' in msg
+        assert '$25,000' in msg
+        assert 'Restaurants' in msg
+        assert 'Gastos Compartidos' in msg
+        assert 'Tu parte (50%)' in msg
+        assert 'Splitwise (50%)' in msg
+
     def test_format_error_success_result(self):
         result = ExpenseResult(success=True)
         msg = ExpenseResponseFormatter.format_error(result)

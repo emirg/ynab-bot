@@ -110,6 +110,7 @@ class DIContainer:
                 learning_repository=self.get(SQLiteLearningRepository),
                 llm_parser=self.get(LLMExpenseParser),
                 budget_query_service=self.get(BudgetQueryService),
+                split_config_repository=self.get(SQLiteSplitConfigRepository),
             )
         )
 
