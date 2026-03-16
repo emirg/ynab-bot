@@ -111,6 +111,51 @@ class TestExpenseResponseFormatter:
         assert 'Tu parte (50%)' in msg
         assert 'Splitwise (50%)' in msg
 
+    def test_format_success_other_paid_expense(self):
+        expense = Expense(
+            amount=Decimal('50000'), payee='Carulla', memo='Eli gastó 50k en carulla conmigo',
+            category_name='Groceries', account_name='Nu Savings',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos con Eli',
+            payer='other',
+        )
+        result = ExpenseResult.success_result(expense, 'txn-2')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'pagado por Eli' in msg
+        assert 'Eli' in msg
+        assert '$50,000' in msg
+        assert '$25,000' in msg
+        assert 'Tu deuda (50%)' in msg
+        assert 'Groceries' in msg
+        assert 'Nu Savings' in msg
+
+    def test_format_success_other_paid_no_category(self):
+        expense = Expense(
+            amount=Decimal('30000'), payee='Test', memo='test',
+            account_name='Nu Savings',
+            is_split=True, split_person='Maria',
+            split_proportion=Decimal('0.5'),
+            payer='other',
+        )
+        result = ExpenseResult.success_result(expense, 'txn-3')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'Maria' in msg
+        assert 'Sin categoría' in msg
+
+    def test_format_success_other_paid_does_not_show_splitwise_line(self):
+        """Other-paid format should NOT show the 'Splitwise (x%)' line."""
+        expense = Expense(
+            amount=Decimal('50000'), payee='Test', memo='test',
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            payer='other',
+        )
+        result = ExpenseResult.success_result(expense, 'txn-4')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'Splitwise' not in msg
+
     def test_format_error_success_result(self):
         result = ExpenseResult(success=True)
         msg = ExpenseResponseFormatter.format_error(result)

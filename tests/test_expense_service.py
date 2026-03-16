@@ -538,6 +538,67 @@ class TestProcessMessage:
         assert result.expense_result.success is False
         assert '/splitwise' in result.expense_result.error_message
 
+    def test_other_paid_uses_shared_account(self, service_with_split, mock_llm_parser, mock_ynab_repository, mock_split_config_repository, sample_shared_account):
+        """When payer='other', the shared account must be used for the transaction."""
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'Eli gastó 50k en carulla conmigo',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1/2',
+            'payer': 'other',
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'Eli gastó 50k en carulla conmigo')
+        assert result.intent == 'shared_expense'
+        assert result.expense_result.success is True
+        expense = result.expense_result.expense
+        assert expense.payer == 'other'
+        assert expense.account_id == sample_shared_account.account_id
+        assert expense.account_name == sample_shared_account.account_name
+
+    def test_other_paid_no_shared_account_returns_error(self, service_with_split, mock_llm_parser, mock_split_config_repository):
+        """When payer='other' and no shared account configured, return an error."""
+        mock_split_config_repository.get_shared_account.return_value = None
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'Eli gastó 50k en carulla conmigo',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1/2',
+            'payer': 'other',
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'Eli gastó 50k en carulla conmigo')
+        assert result.expense_result.success is False
+        assert 'compartida' in result.expense_result.error_message
+
+    def test_user_paid_split_uses_default_account(self, service_with_split, mock_llm_parser, mock_ynab_repository, authorized_user):
+        """When payer='user' (default), fall back to default account as before."""
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo mitad con Juan',
+            'confidence': 0.85,
+            'person': 'Juan',
+            'proportion': '1/2',
+            'payer': 'user',
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'almuerzo mitad con Juan')
+        assert result.expense_result.success is True
+        expense = result.expense_result.expense
+        assert expense.payer == 'user'
+        assert expense.account_id == authorized_user.default_account_id
+
 
 # ---------------------------------------------------------------------------
 # _parse_proportion

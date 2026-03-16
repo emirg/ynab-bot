@@ -188,6 +188,84 @@ class TestExpense:
         assert 'subtransactions' not in txn
         assert txn['category_id'] == '550e8400-e29b-41d4-a716-446655440000'
 
+    def test_default_payer_is_user(self):
+        e = Expense(amount=Decimal('1000'), payee='T', memo='m')
+        assert e.payer == 'user'
+
+    def test_to_ynab_format_other_paid_zero_sum(self):
+        """Other-paid: transaction amount is 0, subtransactions cancel each other out."""
+        e = Expense(
+            amount=Decimal('50000'), payee='Carulla', memo='mercado con Eli',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='660e8400-e29b-41d4-a716-446655440000',
+            split_proportion=Decimal('0.5'),
+            payer='other',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert txn['amount'] == 0
+        subs = txn['subtransactions']
+        assert len(subs) == 2
+        # User's share: outflow (negative)
+        assert subs[0]['amount'] == -25000000
+        assert subs[0]['category_id'] == '550e8400-e29b-41d4-a716-446655440000'
+        # Split person's inflow (positive, cancels user's share)
+        assert subs[1]['amount'] == 25000000
+        assert subs[1]['category_id'] == '660e8400-e29b-41d4-a716-446655440000'
+        # Subtransactions sum to 0
+        assert subs[0]['amount'] + subs[1]['amount'] == 0
+
+    def test_to_ynab_format_other_paid_no_category_id(self):
+        """Other-paid with no category_id omits category_id from first subtransaction."""
+        e = Expense(
+            amount=Decimal('60000'), payee='Test', memo='test',
+            is_split=True,
+            split_category_id='660e8400-e29b-41d4-a716-446655440000',
+            split_proportion=Decimal('0.5'),
+            payer='other',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert txn['amount'] == 0
+        subs = txn['subtransactions']
+        assert 'category_id' not in subs[0]
+        assert subs[1]['category_id'] == '660e8400-e29b-41d4-a716-446655440000'
+
+    def test_to_ynab_format_other_paid_custom_proportion(self):
+        """Other-paid with 1/3 proportion: user owes 1/3, inflow is 1/3."""
+        e = Expense(
+            amount=Decimal('90000'), payee='Test', memo='test',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='660e8400-e29b-41d4-a716-446655440000',
+            split_proportion=Decimal('1') / Decimal('3'),
+            payer='other',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert txn['amount'] == 0
+        subs = txn['subtransactions']
+        # user_share = int(90000 * (1/3) * -1000) = -30000000
+        assert subs[0]['amount'] == -30000000
+        assert subs[1]['amount'] == 30000000
+        assert subs[0]['amount'] + subs[1]['amount'] == 0
+
+    def test_to_ynab_format_other_paid_invalid_split_category_falls_back(self):
+        """Other-paid but split_category_id is invalid UUID: should fall through to normal non-split path."""
+        e = Expense(
+            amount=Decimal('10000'), payee='T', memo='m',
+            category_id='550e8400-e29b-41d4-a716-446655440000',
+            is_split=True,
+            split_category_id='not-a-uuid',
+            payer='other',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        # Falls through to normal (non-split) path, amount is full expense
+        assert txn['amount'] == -10000000
+        assert 'subtransactions' not in txn
+
 
 class TestUUIDPattern:
 

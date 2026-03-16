@@ -250,6 +250,82 @@ class TestParseMessageSharedExpense:
         _mock_response(mock_openai_client, response)
         assert parser.parse_message('test') is None
 
+    def test_payer_other_is_preserved(self, parser, mock_openai_client):
+        """When LLM returns payer='other', it must be preserved in the result."""
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'Eli gastó 50k en carulla conmigo',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1/2',
+            'payer': 'other',
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('Eli gastó 50k en carulla conmigo')
+        assert result is not None
+        assert result['payer'] == 'other'
+        assert result['person'] == 'Eli'
+
+    def test_payer_user_is_preserved(self, parser, mock_openai_client):
+        """When LLM returns payer='user', it must be preserved."""
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo a medias con Juan',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': '1/2',
+            'payer': 'user',
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('almuerzo a medias con Juan')
+        assert result is not None
+        assert result['payer'] == 'user'
+
+    def test_payer_defaults_to_user_when_missing(self, parser, mock_openai_client):
+        """When LLM omits payer field, it should default to 'user'."""
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['payer'] == 'user'
+
+    def test_payer_invalid_value_defaults_to_user(self, parser, mock_openai_client):
+        """When LLM returns an invalid payer value, it should default to 'user'."""
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+            'payer': 'someone_else',
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['payer'] == 'user'
+
 
 class TestParseExpenseUnchanged:
     """Verify parse_expense() still works independently."""

@@ -21,7 +21,21 @@ class ExpenseResponseFormatter:
         expense = result.expense
         confidence_emoji = "🔥" if expense.confidence > 0.8 else "✅" if expense.confidence > 0.5 else "⚠️"
 
-        if expense.is_split:
+        if expense.is_split and expense.payer == 'other':
+            user_pct = int(expense.split_proportion * 100)
+            user_share = int(expense.amount * expense.split_proportion)
+            message = f"""
+✅ *Gasto registrado (pagado por {expense.split_person})*
+
+💰 *Total del gasto:* ${expense.amount:,.0f}
+🤝 *Pagado por:* {expense.split_person}
+📊 *Tu deuda ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
+💳 *Cuenta compartida:* {expense.account_name or 'Cuenta por defecto'}
+🏪 *Lugar:* {expense.payee}
+
+📝 *Memo:* {expense.memo}
+            """
+        elif expense.is_split:
             user_pct = int(expense.split_proportion * 100)
             split_pct = 100 - user_pct
             user_share = int(expense.amount * expense.split_proportion)

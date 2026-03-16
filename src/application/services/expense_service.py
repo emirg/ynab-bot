@@ -146,6 +146,7 @@ class ExpenseService:
             )
 
         proportion = self._parse_proportion(parsed.get('proportion'))
+        payer = parsed.get('payer', 'user')
 
         expense = self._build_expense_from_parsed(parsed, message, categories)
         if not expense:
@@ -156,13 +157,24 @@ class ExpenseService:
         expense.split_proportion = proportion
         expense.split_category_id = split_group.category_id
         expense.split_category_name = split_group.category_name
+        expense.payer = payer
 
-        expense = self._enhance_with_learning(expense, categories, telegram_user_id)
-        expense.category_explanation = self._build_category_explanation(expense)
+        if payer == 'other':
+            # When the other person paid, use the shared tracking account
+            shared_account = self.split_config_repository.get_shared_account(telegram_user_id)
+            if not shared_account:
+                return ExpenseResult.error_result(
+                    "No tienes una cuenta compartida configurada. Usa /splitwise para configurarla."
+                )
+            expense.account_id = shared_account.account_id
+            expense.account_name = shared_account.account_name
+        else:
+            expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+            expense.category_explanation = self._build_category_explanation(expense)
 
-        if not expense.account_id:
-            expense.account_id = user_config.default_account_id
-            expense.account_name = user_config.default_account_name
+            if not expense.account_id:
+                expense.account_id = user_config.default_account_id
+                expense.account_name = user_config.default_account_name
 
         transaction_id = ynab_repository.create_transaction(
             expense, user_config.budget_id, expense.account_id
@@ -173,7 +185,7 @@ class ExpenseService:
         self.learning_repository.record_successful_transaction(telegram_user_id, expense)
         self.learning_repository.add_recent_transaction(telegram_user_id, expense)
 
-        logger.info(f"Successfully processed shared expense: {expense.payee} ${expense.amount} with {person}")
+        logger.info(f"Successfully processed shared expense: {expense.payee} ${expense.amount} with {person} (payer={payer})")
         return ExpenseResult.success_result(expense, transaction_id)
 
     @staticmethod

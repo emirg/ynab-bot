@@ -244,7 +244,7 @@ Para GASTOS:
     "confidence": <0.0_a_1.0>
 }}
 
-Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]"):
+Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó"):
 {{
     "intent": "shared_expense",
     "amount": <número_decimal>,
@@ -254,7 +254,8 @@ Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [perso
     "memo": "<mensaje_original>",
     "confidence": <0.0_a_1.0>,
     "person": "<nombre_de_la_persona>",
-    "proportion": "<fraccion_o_null>"
+    "proportion": "<fraccion_o_null>",
+    "payer": "user" | "other"
 }}
 
 REGLAS CRÍTICAS:
@@ -263,6 +264,7 @@ REGLAS CRÍTICAS:
 3. "budget_summary": pregunta general sobre el presupuesto (ej: "cómo va mi presupuesto"). query_target debe ser null.
 4. Para GASTOS, la categoría DEBE ser una de la lista de CATEGORÍAS DISPONIBLES.
 5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
+6. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Eli gastó 50k en carulla conmigo", "Juan pagó la cena"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
 """
 
     def _strip_markdown_code_blocks(self, content: str) -> str:
@@ -340,6 +342,12 @@ REGLAS CRÍTICAS:
                         logger.error(f"Cantidad inválida: {result['amount']}")
                         return None
                     result['amount'] = float(result['amount'])
+                    # Validate and normalise payer field (defaults to 'user')
+                    payer = result.get('payer', 'user')
+                    if payer not in ('user', 'other'):
+                        logger.warning(f"payer inválido '{payer}', usando 'user'")
+                        payer = 'user'
+                    result['payer'] = payer
                 else:
                     logger.error(f"Intent desconocido: {result['intent']}")
                     return None

@@ -33,6 +33,7 @@ class Expense:
     split_proportion: Decimal = field(default_factory=lambda: Decimal('0.5'))
     split_category_id: Optional[str] = None
     split_category_name: Optional[str] = None
+    payer: str = 'user'
 
     def to_ynab_format(self, budget_id: str, default_account_id: str) -> dict:
         """Convert to YNAB API transaction format"""
@@ -48,8 +49,19 @@ class Expense:
             "cleared": "uncleared"
         }
 
-        # Split transaction: create subtransactions instead of top-level category
-        if self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
+        # Other-paid split: 0-sum transaction with two subtransactions
+        if self.payer == 'other' and self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
+            transaction_data["amount"] = 0
+            user_share_milliunits = int(self.amount * self.split_proportion * -1000)
+            subtransactions = [
+                {"amount": user_share_milliunits},
+                {"amount": -user_share_milliunits, "category_id": self.split_category_id},
+            ]
+            if self.category_id and _UUID_PATTERN.match(self.category_id):
+                subtransactions[0]["category_id"] = self.category_id
+            transaction_data["subtransactions"] = subtransactions
+        # User-paid split transaction: create subtransactions instead of top-level category
+        elif self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
             user_share = int(self.amount * self.split_proportion * -1000)
             split_share = amount_milliunits - user_share
             subtransactions = [

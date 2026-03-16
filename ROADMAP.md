@@ -40,7 +40,7 @@ Cuando el bot registra un gasto, incluir en la respuesta por qué eligió esa ca
 - División por defecto: 50/50
 - Soporte para proporciones ("compartido 60000 restaurantes 2/3") o monto fijo ("compartido 60000 restaurantes mi parte 20000")
 
-### 2.2 — Split Transaction Parsing & Creation
+### 2.2 — Split Transaction Parsing & Creation [COMPLETADO]
 
 Esta etapa unifica la detección del intento de gasto compartido (intent) y la creación de sus correspondientes sub-transacciones en YNAB:
 
@@ -49,8 +49,15 @@ Esta etapa unifica la detección del intento de gasto compartido (intent) y la c
 - **Creación de Subtransactions**: Registrar el gasto estructurado dividido en dos o más sub-categorías en YNAB.
   - Una parte va a la categoría "Splitwise" del grupo correspondiente.
   - La otra parte va a la categoría real del presupuesto (ej. Restaurantes).
-- **Gastos por terceros**: Soportar gastos que hizo otra persona en nombre del usuario (ej: "Juan compró un almuerzo por 50000 en restaurantes" → split 25000 Splitwise + 25000 Restaurantes). Esto debe registrarse usando la cuenta "Shared Transactions" configurada en la etapa 2.1.
 - **Respuesta UI**: Mostrar un desglose claro: "Registrado: Almuerzo $50.000 → Splitwise $25.000 + Restaurantes $25.000".
+
+### 2.3 - Third-Party Paid Shared Expenses [COMPLETADO]
+
+Soportar gastos compartidos que hizo otra persona en nombre del usuario:
+- **Zero-Sum Transaction**: La transacción en YNAB se registra con un saldo total de $0.
+- **Flujo**: Restar monto de la categoría real del presupuesto (outflow) e incrementar la categoría Splitwise de la persona (inflow).
+- **Ejemplo**: "Juan compró un almuerzo por 50000 en restaurantes" → Tu deuda ($25.000) entra a la categoría Restaurantes, y Juan te "presta" los $25.000 (Inflow en categoría Splitwise).
+- Esto debe registrarse usando la cuenta "Shared Transactions" tracking account configurada en la etapa 2.1.
 
 ## Milestone 3: Robustez & Calidad de Vida
 
