@@ -144,6 +144,26 @@ class TestExpenseResponseFormatter:
         assert 'Maria' in msg
         assert 'Sin categoría' in msg
 
+    def test_format_success_full_owe_other_paid(self):
+        """100% debt case: other person paid, user owes full amount."""
+        expense = Expense(
+            amount=Decimal('100000'), payee='MercadoLibre',
+            memo='Eli gastó 100k en MercadoLibre por mí',
+            category_name='Groceries', account_name='Nu Savings',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('1'),
+            split_category_name='Gastos con Eli',
+            payer='other',
+        )
+        result = ExpenseResult.success_result(expense, 'txn-5')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'pagado por Eli' in msg
+        assert 'Tu deuda (100%)' in msg
+        assert '$100,000' in msg
+        assert 'Groceries' in msg
+        assert 'Nu Savings' in msg
+
     def test_format_success_other_paid_does_not_show_splitwise_line(self):
         """Other-paid format should NOT show the 'Splitwise (x%)' line."""
         expense = Expense(

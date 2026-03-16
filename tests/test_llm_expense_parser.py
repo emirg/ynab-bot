@@ -326,6 +326,29 @@ class TestParseMessageSharedExpense:
         assert result is not None
         assert result['payer'] == 'user'
 
+    def test_full_owe_other_paid(self, parser, mock_openai_client):
+        """100% debt: another person paid entirely for the user ('por mí')."""
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 100000.0,
+            'category': 'Groceries',
+            'payee': 'MercadoLibre',
+            'account': None,
+            'memo': 'Eli gastó 100k en MercadoLibre por mí',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1',
+            'payer': 'other',
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('Eli gastó 100k en MercadoLibre por mí')
+        assert result is not None
+        assert result['intent'] == 'shared_expense'
+        assert result['payer'] == 'other'
+        assert result['proportion'] == '1'
+        assert result['person'] == 'Eli'
+        assert result['amount'] == 100000.0
+
 
 class TestParseExpenseUnchanged:
     """Verify parse_expense() still works independently."""

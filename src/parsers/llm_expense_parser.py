@@ -244,7 +244,7 @@ Para GASTOS:
     "confidence": <0.0_a_1.0>
 }}
 
-Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó"):
+Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó", "por mí", "me compró", "para mí"):
 {{
     "intent": "shared_expense",
     "amount": <número_decimal>,
@@ -265,6 +265,7 @@ REGLAS CRÍTICAS:
 4. Para GASTOS, la categoría DEBE ser una de la lista de CATEGORÍAS DISPONIBLES.
 5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
 6. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Eli gastó 50k en carulla conmigo", "Juan pagó la cena"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
+7. "proportion" en gastos compartidos: cuando el gasto es COMPLETAMENTE para el usuario y otra persona pagó (frases como "por mí", "me compró", "para mí", "por mi cuenta"), usa proportion: "1" y payer: "other". Esto significa que el usuario debe el 100% del gasto. Ejemplo: "Eli gastó 100k en MercadoLibre por mí" → proportion: "1", payer: "other", person: "Eli". Si hay lenguaje de split ("a medias", "mitad"), usa la proporción correspondiente. Si no hay lenguaje de split NI de deuda total, usa proportion: null (default 50/50).
 """
 
     def _strip_markdown_code_blocks(self, content: str) -> str:
