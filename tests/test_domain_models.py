@@ -7,7 +7,7 @@ from domain.models.expense import Expense, ExpenseResult, _UUID_PATTERN
 from domain.models.budget_query import BudgetQueryResult, MessageResult
 from domain.models.user import (
     UserConfiguration, UserStatus,
-    YNABBudget, YNABAccount, YNABCategory,
+    YNABBudget, YNABAccount, YNABCategory, YNABPayee,
 )
 from domain.models.onboarding import OnboardingStep
 
@@ -75,6 +75,31 @@ class TestExpense:
         e = Expense(amount=Decimal('5000'), payee='Test', memo='x', category_id='   ')
         result = e.to_ynab_format('budget-1', 'acc-1')
         assert 'category_id' not in result['transaction']
+
+    def test_to_ynab_format_with_valid_payee_id(self):
+        e = Expense(
+            amount=Decimal('5000'), payee='Carulla', memo='x',
+            payee_id='550e8400-e29b-41d4-a716-446655440000',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        assert result['transaction']['payee_id'] == '550e8400-e29b-41d4-a716-446655440000'
+
+    def test_to_ynab_format_without_payee_id(self):
+        e = Expense(amount=Decimal('5000'), payee='Carulla', memo='x')
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        assert 'payee_id' not in result['transaction']
+
+    def test_to_ynab_format_invalid_uuid_payee_id_omitted(self):
+        e = Expense(
+            amount=Decimal('5000'), payee='Carulla', memo='x',
+            payee_id='not-a-valid-uuid',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        assert 'payee_id' not in result['transaction']
+
+    def test_payee_id_defaults_to_none(self):
+        e = Expense(amount=Decimal('1'), payee='T', memo='m')
+        assert e.payee_id is None
 
     def test_default_date_is_set(self):
         e = Expense(amount=Decimal('1'), payee='T', memo='m')
@@ -464,6 +489,41 @@ class TestYNABAccount:
         assert account.balance == 0
         assert not account.closed
         assert not account.deleted
+
+
+class TestYNABPayee:
+
+    def test_from_api_response_full(self):
+        data = {'id': 'p1', 'name': 'Carulla', 'deleted': False}
+        payee = YNABPayee.from_api_response(data)
+        assert payee.id == 'p1'
+        assert payee.name == 'Carulla'
+        assert payee.deleted is False
+
+    def test_from_api_response_deleted(self):
+        data = {'id': 'p2', 'name': 'Old Store', 'deleted': True}
+        payee = YNABPayee.from_api_response(data)
+        assert payee.deleted is True
+
+    def test_from_api_response_deleted_defaults_to_false(self):
+        data = {'id': 'p3', 'name': 'Rappi'}
+        payee = YNABPayee.from_api_response(data)
+        assert payee.deleted is False
+
+    def test_from_api_response_preserves_name(self):
+        data = {'id': 'p4', 'name': 'Café Juan Valdez'}
+        payee = YNABPayee.from_api_response(data)
+        assert payee.name == 'Café Juan Valdez'
+
+    def test_dataclass_equality(self):
+        p1 = YNABPayee(id='p1', name='Carulla', deleted=False)
+        p2 = YNABPayee(id='p1', name='Carulla', deleted=False)
+        assert p1 == p2
+
+    def test_dataclass_inequality(self):
+        p1 = YNABPayee(id='p1', name='Carulla')
+        p2 = YNABPayee(id='p2', name='Exito')
+        assert p1 != p2
 
 
 class TestYNABCategory:

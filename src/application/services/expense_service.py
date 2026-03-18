@@ -1,12 +1,13 @@
 import logging
 import re
+import unicodedata
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.budget_query import BudgetQueryResult, MessageResult
-from domain.models.user import UserConfiguration, YNABCategory
+from domain.models.user import UserConfiguration, YNABCategory, YNABPayee
 from domain.repositories.user_repository import UserRepository
 from domain.repositories.learning_repository import LearningRepository
 from domain.exceptions import (
@@ -50,6 +51,9 @@ class ExpenseService:
         self.split_config_repository = split_config_repository
         self._account_by_name: Dict[str, str] = {}
         self._account_by_name_lower: Dict[str, str] = {}
+        self._payee_by_name: Dict[str, Tuple[str, str]] = {}
+        self._payee_by_name_lower: Dict[str, Tuple[str, str]] = {}
+        self._payee_by_name_normalized: Dict[str, Tuple[str, str]] = {}
 
     def process_message(self, telegram_user_id: int, message: str) -> MessageResult:
         """Classify and process a user message as expense or query."""
@@ -70,7 +74,8 @@ class ExpenseService:
             ynab_repository = self.ynab_factory.get_repository(user_config)
             categories = ynab_repository.get_categories(user_config.budget_id)
             accounts = ynab_repository.get_accounts(user_config.budget_id)
-            self._update_llm_parser_data(categories, accounts)
+            payees = ynab_repository.get_payees(user_config.budget_id)
+            self._update_llm_parser_data(categories, accounts, payees)
 
             parsed = self.llm_parser.parse_message(message)
             if not parsed:
@@ -220,6 +225,14 @@ class ExpenseService:
             payee = _CONTROL_CHARS_PATTERN.sub('', str(result.get('payee', '')))[:_MAX_PAYEE_LENGTH]
             memo = _CONTROL_CHARS_PATTERN.sub('', str(result.get('memo', message)))[:_MAX_MESSAGE_LENGTH]
 
+            # Match payee against existing YNAB payees
+            payee_id = None
+            payee_match = self._match_payee(payee)
+            if payee_match:
+                payee_id, canonical_name = payee_match
+                logger.info(f"Matched payee '{payee}' -> '{canonical_name}' ({payee_id})")
+                payee = canonical_name
+
             account_name_raw = result.get('account')
             account_id = self._find_account_id_by_name(account_name_raw)
 
@@ -228,6 +241,7 @@ class ExpenseService:
                 payee=payee,
                 memo=memo,
                 category_id=category_id,
+                payee_id=payee_id,
                 account_id=account_id,
                 account_name=account_name_raw if account_id else None,
                 confidence=result.get('confidence', 0.0),
@@ -265,7 +279,8 @@ class ExpenseService:
             ynab_repository = self.ynab_factory.get_repository(user_config)
             categories = ynab_repository.get_categories(user_config.budget_id)
             accounts = ynab_repository.get_accounts(user_config.budget_id)
-            self._update_llm_parser_data(categories, accounts)
+            payees = ynab_repository.get_payees(user_config.budget_id)
+            self._update_llm_parser_data(categories, accounts, payees)
 
             parsed = self.llm_parser.parse_receipt_image(image_base64, caption)
             if not parsed:
@@ -322,9 +337,10 @@ class ExpenseService:
             # 3. Load YNAB data for parsing
             categories = ynab_repository.get_categories(user_config.budget_id)
             accounts = ynab_repository.get_accounts(user_config.budget_id)
+            payees = ynab_repository.get_payees(user_config.budget_id)
 
             # 4. Update LLM parser with current YNAB data
-            self._update_llm_parser_data(categories, accounts)
+            self._update_llm_parser_data(categories, accounts, payees)
 
             # 5. Parse expense message
             expense = self._parse_expense_message(message, categories)
@@ -362,8 +378,18 @@ class ExpenseService:
             logger.error(f"Unexpected error processing expense: {e}")
             return ExpenseResult.error_result("Error interno procesando el gasto. Intenta de nuevo.")
 
-    def _update_llm_parser_data(self, categories: List[YNABCategory], accounts: List):
-        """Update LLM parser with current YNAB categories and accounts"""
+    @staticmethod
+    def _normalize_payee_name(name: str) -> str:
+        """Normalize a payee name by stripping accents, punctuation, and lowercasing."""
+        # Strip accents: NFD decompose, remove combining chars, encode ascii
+        nfkd = unicodedata.normalize('NFD', name)
+        ascii_only = nfkd.encode('ascii', 'ignore').decode('ascii')
+        # Remove punctuation and extra whitespace, lowercase
+        clean = _SPECIAL_CHARS_PATTERN.sub('', ascii_only).strip().lower()
+        return clean
+
+    def _update_llm_parser_data(self, categories: List[YNABCategory], accounts: List, payees: List[YNABPayee] = None):
+        """Update LLM parser with current YNAB categories, accounts, and payees"""
         try:
             # Filter active categories once, reuse across parser and lookup maps
             active_categories = [cat for cat in categories if not cat.deleted and not cat.hidden]
@@ -400,13 +426,29 @@ class ExpenseService:
                 self._account_by_name[acc.name] = acc.id
                 self._account_by_name_lower[acc.name.lower()] = acc.id
 
+            # Build payee lookup maps for O(1) matching
+            if payees:
+                self._payee_by_name = {}
+                self._payee_by_name_lower = {}
+                self._payee_by_name_normalized = {}
+                for payee in payees:
+                    if payee.deleted:
+                        continue
+                    entry = (payee.id, payee.name)
+                    self._payee_by_name[payee.name] = entry
+                    self._payee_by_name_lower[payee.name.lower()] = entry
+                    normalized = self._normalize_payee_name(payee.name)
+                    if normalized:
+                        self._payee_by_name_normalized[normalized] = entry
+
             # Convert accounts to format expected by LLM parser
             account_names = [acc.name for acc in active_accounts]
 
             self.llm_parser.update_categories(category_list)
             self.llm_parser.update_accounts(account_names)
 
-            logger.info(f"Updated LLM parser with {len(category_list)} categories and {len(account_names)} accounts")
+            payee_count = len(self._payee_by_name) if payees else 0
+            logger.info(f"Updated LLM parser with {len(category_list)} categories, {len(account_names)} accounts, and {payee_count} payees")
 
         except Exception as e:
             logger.error(f"Failed to update LLM parser data: {e}")
@@ -421,6 +463,37 @@ class ExpenseService:
         except Exception as e:
             logger.error(f"Error parsing expense message: {e}")
             return None
+
+    def _match_payee(self, payee_name: str) -> Optional[Tuple[str, str]]:
+        """Match payee name against existing YNAB payees. Returns (payee_id, canonical_name) or None."""
+        if not payee_name or not self._payee_by_name:
+            return None
+
+        payee_name = payee_name.strip()
+        if not payee_name:
+            return None
+
+        # Exact match
+        if payee_name in self._payee_by_name:
+            return self._payee_by_name[payee_name]
+
+        # Case-insensitive match
+        payee_lower = payee_name.lower()
+        if payee_lower in self._payee_by_name_lower:
+            return self._payee_by_name_lower[payee_lower]
+
+        # Normalized match (no accents/punctuation)
+        payee_normalized = self._normalize_payee_name(payee_name)
+        if payee_normalized and payee_normalized in self._payee_by_name_normalized:
+            return self._payee_by_name_normalized[payee_normalized]
+
+        # Containment match (linear scan, last resort)
+        for name_lower, entry in self._payee_by_name_lower.items():
+            if payee_lower in name_lower or name_lower in payee_lower:
+                logger.debug(f"Partial payee match: '{payee_name}' -> '{entry[1]}'")
+                return entry
+
+        return None
 
     def _find_account_id_by_name(self, account_name: str) -> Optional[str]:
         """Find account ID by name using pre-built lookup maps"""

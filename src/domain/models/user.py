@@ -156,6 +156,22 @@ class YNABAccount:
 
 
 @dataclass
+class YNABPayee:
+    """Domain model for YNAB payee"""
+    id: str
+    name: str
+    deleted: bool = False
+
+    @classmethod
+    def from_api_response(cls, api_data: dict) -> 'YNABPayee':
+        return cls(
+            id=api_data['id'],
+            name=api_data['name'],
+            deleted=api_data.get('deleted', False)
+        )
+
+
+@dataclass
 class YNABCategory:
     """Domain model for YNAB category"""
     id: str

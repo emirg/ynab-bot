@@ -34,6 +34,7 @@ class Expense:
     split_category_id: Optional[str] = None
     split_category_name: Optional[str] = None
     payer: str = 'user'
+    payee_id: Optional[str] = None
 
     def to_ynab_format(self, budget_id: str, default_account_id: str) -> dict:
         """Convert to YNAB API transaction format"""
@@ -48,6 +49,10 @@ class Expense:
             "date": self.date.strftime("%Y-%m-%d"),
             "cleared": "uncleared"
         }
+
+        # Use payee_id when available (matched against existing YNAB payees)
+        if self.payee_id and _UUID_PATTERN.match(self.payee_id):
+            transaction_data["payee_id"] = self.payee_id
 
         # Other-paid split: 0-sum transaction with two subtransactions
         if self.payer == 'other' and self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):

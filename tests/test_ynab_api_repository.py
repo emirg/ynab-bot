@@ -153,6 +153,91 @@ class TestGetCategories:
 
 
 # ---------------------------------------------------------------------------
+# get_payees (with caching)
+# ---------------------------------------------------------------------------
+
+class TestGetPayees:
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_returns_non_deleted_payees(self, mock_get, repo):
+        mock_get.return_value = _mock_response({
+            'data': {'payees': [
+                {'id': 'p1', 'name': 'Carulla', 'deleted': False},
+                {'id': 'p2', 'name': 'OldStore', 'deleted': True},
+                {'id': 'p3', 'name': 'Rappi', 'deleted': False},
+            ]}
+        })
+        payees = repo.get_payees('budget-1')
+        assert len(payees) == 2
+        ids = {p.id for p in payees}
+        assert 'p1' in ids
+        assert 'p3' in ids
+        assert 'p2' not in ids
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_returned_payees_have_correct_attributes(self, mock_get, repo):
+        mock_get.return_value = _mock_response({
+            'data': {'payees': [
+                {'id': 'p1', 'name': 'Carulla', 'deleted': False},
+            ]}
+        })
+        payees = repo.get_payees('budget-1')
+        assert payees[0].name == 'Carulla'
+        assert payees[0].deleted is False
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_caches_result(self, mock_get, repo):
+        mock_get.return_value = _mock_response({
+            'data': {'payees': [
+                {'id': 'p1', 'name': 'Carulla', 'deleted': False},
+            ]}
+        })
+        repo.get_payees('budget-1')
+        repo.get_payees('budget-1')  # second call must use cache
+        assert mock_get.call_count == 1
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_different_budgets_cached_separately(self, mock_get, repo):
+        mock_get.return_value = _mock_response({
+            'data': {'payees': [{'id': 'p1', 'name': 'X', 'deleted': False}]}
+        })
+        repo.get_payees('budget-1')
+        repo.get_payees('budget-2')
+        assert mock_get.call_count == 2
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_expired_cache_refetches(self, mock_get, repo):
+        mock_get.return_value = _mock_response({
+            'data': {'payees': [{'id': 'p1', 'name': 'X', 'deleted': False}]}
+        })
+        # Manually plant a stale cache entry
+        repo._cache['payees:budget-1'] = (time.monotonic() - _CACHE_TTL_SECONDS - 1, [])
+        repo.get_payees('budget-1')
+        assert mock_get.call_count == 1
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_raises_on_network_error(self, mock_get, repo):
+        import requests as req
+        mock_get.side_effect = req.exceptions.ConnectionError('timeout')
+        with pytest.raises(YNABApiException):
+            repo.get_payees('budget-1')
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_empty_payee_list(self, mock_get, repo):
+        mock_get.return_value = _mock_response({'data': {'payees': []}})
+        payees = repo.get_payees('budget-1')
+        assert payees == []
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_calls_correct_endpoint(self, mock_get, repo):
+        mock_get.return_value = _mock_response({'data': {'payees': []}})
+        repo.get_payees('my-budget-id')
+        called_url = mock_get.call_args[0][0]
+        assert 'my-budget-id' in called_url
+        assert 'payees' in called_url
+
+
+# ---------------------------------------------------------------------------
 # create_transaction
 # ---------------------------------------------------------------------------
 

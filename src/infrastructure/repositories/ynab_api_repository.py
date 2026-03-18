@@ -8,7 +8,7 @@ import requests
 
 from domain.repositories.ynab_repository import YNABRepository
 from domain.models.expense import Expense
-from domain.models.user import UserConfiguration, YNABBudget, YNABAccount, YNABCategory
+from domain.models.user import UserConfiguration, YNABBudget, YNABAccount, YNABCategory, YNABPayee
 from domain.exceptions import YNABApiException, OAuthException
 
 if TYPE_CHECKING:
@@ -113,6 +113,34 @@ class YNABApiRepository(YNABRepository):
             logger.error(f"Failed to get categories for budget {budget_id}: {e}")
             raise YNABApiException(f"Failed to get categories: {e}")
     
+    def get_payees(self, budget_id: str) -> List[YNABPayee]:
+        """Get all payees for a budget (cached with TTL)"""
+        cache_key = f"payees:{budget_id}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            response = requests.get(
+                f"{self.base_url}/budgets/{budget_id}/payees",
+                headers=self.headers
+            )
+            response.raise_for_status()
+
+            payees_data = response.json()["data"]["payees"]
+            result = [
+                YNABPayee.from_api_response(payee)
+                for payee in payees_data
+                if not payee.get('deleted', False)
+            ]
+
+            self._set_cached(cache_key, result)
+            return result
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get payees for budget {budget_id}: {e}")
+            raise YNABApiException(f"Failed to get payees: {e}")
+
     def create_transaction(self, expense: Expense, budget_id: str, account_id: str) -> Optional[str]:
         """Create transaction and return transaction ID if successful"""
         try:

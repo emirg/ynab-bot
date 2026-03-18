@@ -7,9 +7,23 @@ from unittest.mock import MagicMock
 from application.services.expense_service import ExpenseService, _SPECIAL_CHARS_PATTERN
 from application.services.budget_query_service import BudgetQueryService
 from domain.models.expense import Expense
-from domain.models.user import UserConfiguration, UserStatus, YNABCategory
+from domain.models.user import UserConfiguration, UserStatus, YNABCategory, YNABPayee
 
 TELEGRAM_ID = 123456789
+
+_PAYEE_UUID_1 = '550e8400-e29b-41d4-a716-446655440001'
+_PAYEE_UUID_2 = '550e8400-e29b-41d4-a716-446655440002'
+_PAYEE_UUID_3 = '550e8400-e29b-41d4-a716-446655440003'
+
+
+@pytest.fixture
+def sample_payees():
+    return [
+        YNABPayee(id=_PAYEE_UUID_1, name='Carulla', deleted=False),
+        YNABPayee(id=_PAYEE_UUID_2, name='Café Juan Valdez', deleted=False),
+        YNABPayee(id=_PAYEE_UUID_3, name='Uber Eats', deleted=False),
+        YNABPayee(id='550e8400-e29b-41d4-a716-446655440099', name='OldPayee', deleted=True),
+    ]
 
 
 @pytest.fixture
@@ -714,3 +728,230 @@ class TestDatePropagation:
         assert result.expense_result.success is True
         delta = abs((result.expense_result.expense.date - datetime.now()).total_seconds())
         assert delta < 5
+
+
+# ---------------------------------------------------------------------------
+# _normalize_payee_name
+# ---------------------------------------------------------------------------
+
+class TestNormalizePayeeName:
+
+    def test_strips_accents(self):
+        assert ExpenseService._normalize_payee_name('Café') == 'cafe'
+
+    def test_lowercases(self):
+        assert ExpenseService._normalize_payee_name('CARULLA') == 'carulla'
+
+    def test_removes_punctuation(self):
+        result = ExpenseService._normalize_payee_name("McDonald's")
+        assert "'" not in result
+        assert 'mcdonalds' in result
+
+    def test_strips_whitespace(self):
+        assert ExpenseService._normalize_payee_name('  Rappi  ') == 'rappi'
+
+    def test_multiple_accents(self):
+        result = ExpenseService._normalize_payee_name('Café Ñoño')
+        assert result == 'cafe nono'
+
+    def test_empty_string(self):
+        assert ExpenseService._normalize_payee_name('') == ''
+
+
+# ---------------------------------------------------------------------------
+# _match_payee - individual tiers
+# ---------------------------------------------------------------------------
+
+class TestMatchPayee:
+
+    @pytest.fixture(autouse=True)
+    def setup_payee_maps(self, service, sample_categories, sample_accounts, sample_payees):
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+
+    def test_exact_match(self, service):
+        result = service._match_payee('Carulla')
+        assert result is not None
+        assert result[0] == _PAYEE_UUID_1
+        assert result[1] == 'Carulla'
+
+    def test_case_insensitive_match(self, service):
+        result = service._match_payee('carulla')
+        assert result is not None
+        assert result[0] == _PAYEE_UUID_1
+
+    def test_case_insensitive_match_uppercase(self, service):
+        result = service._match_payee('CARULLA')
+        assert result is not None
+        assert result[0] == _PAYEE_UUID_1
+
+    def test_normalized_match_strips_accent(self, service):
+        # 'cafe' should match 'Café Juan Valdez' via normalized map
+        result = service._match_payee('Cafe Juan Valdez')
+        assert result is not None
+        assert result[0] == _PAYEE_UUID_2
+
+    def test_containment_match_input_shorter(self, service):
+        # 'uber eats delivery' contains 'uber eats' (name_lower in payee_lower)
+        result = service._match_payee('uber eats delivery')
+        assert result is not None
+        assert result[0] == _PAYEE_UUID_3
+
+    def test_containment_match_input_is_prefix(self, service):
+        # 'Uber' is contained in 'uber eats' (payee_lower in name_lower)
+        result = service._match_payee('Uber')
+        assert result is not None
+        assert result[0] == _PAYEE_UUID_3
+
+    def test_no_match_returns_none(self, service):
+        result = service._match_payee('NewUnknownPlace')
+        assert result is None
+
+    def test_deleted_payee_not_matched(self, service):
+        # 'OldPayee' was added with deleted=True, so it must not appear
+        result = service._match_payee('OldPayee')
+        assert result is None
+
+    def test_none_input_returns_none(self, service):
+        result = service._match_payee(None)
+        assert result is None
+
+    def test_empty_string_returns_none(self, service):
+        result = service._match_payee('')
+        assert result is None
+
+    def test_whitespace_only_returns_none(self, service):
+        result = service._match_payee('   ')
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _match_payee with empty maps
+# ---------------------------------------------------------------------------
+
+class TestMatchPayeeEmptyMaps:
+
+    def test_returns_none_when_maps_not_populated(self, service):
+        # Service has empty payee maps by default (no _update_llm_parser_data call)
+        result = service._match_payee('Carulla')
+        assert result is None
+
+    def test_returns_none_when_payees_param_is_none(self, service, sample_categories, sample_accounts):
+        # Called with payees=None: maps stay empty
+        service._update_llm_parser_data(sample_categories, sample_accounts, None)
+        result = service._match_payee('Carulla')
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Payee matching integrates into expense building flow
+# ---------------------------------------------------------------------------
+
+class TestPayeeMatchingInExpenseFlow:
+
+    def test_matched_payee_sets_payee_id_and_canonical_name(self, service, sample_categories, sample_accounts, sample_payees, mock_ynab_repository):
+        mock_ynab_repository.get_payees.return_value = sample_payees
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+
+        # Build an expense whose payee matches 'Carulla' exactly
+        parsed = {
+            'amount': 25000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'mercado',
+            'confidence': 0.9,
+        }
+        active_categories = [c for c in sample_categories if not c.deleted and not c.hidden]
+        expense = service._build_expense_from_parsed(parsed, 'mercado', active_categories)
+
+        assert expense is not None
+        assert expense.payee_id == _PAYEE_UUID_1
+        assert expense.payee == 'Carulla'
+
+    def test_unmatched_payee_leaves_payee_id_none(self, service, sample_categories, sample_accounts, sample_payees):
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+
+        parsed = {
+            'amount': 10000.0,
+            'category': 'Groceries',
+            'payee': 'TotallyNewStore',
+            'account': None,
+            'memo': 'compra',
+            'confidence': 0.9,
+        }
+        active_categories = [c for c in sample_categories if not c.deleted and not c.hidden]
+        expense = service._build_expense_from_parsed(parsed, 'compra', active_categories)
+
+        assert expense is not None
+        assert expense.payee_id is None
+        assert expense.payee == 'TotallyNewStore'
+
+    def test_normalized_payee_match_updates_canonical_name(self, service, sample_categories, sample_accounts, sample_payees):
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+
+        # 'Cafe Juan Valdez' (no accent) should normalize-match 'Café Juan Valdez'
+        parsed = {
+            'amount': 8000.0,
+            'category': 'Restaurants',
+            'payee': 'Cafe Juan Valdez',
+            'account': None,
+            'memo': 'tinto',
+            'confidence': 0.85,
+        }
+        active_categories = [c for c in sample_categories if not c.deleted and not c.hidden]
+        expense = service._build_expense_from_parsed(parsed, 'tinto', active_categories)
+
+        assert expense is not None
+        assert expense.payee_id == _PAYEE_UUID_2
+        # canonical name replaces the LLM-returned name
+        assert expense.payee == 'Café Juan Valdez'
+
+    def test_process_message_includes_payee_id_in_transaction(self, service, mock_ynab_repository, mock_llm_parser, sample_payees):
+        mock_ynab_repository.get_payees.return_value = sample_payees
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'mercado',
+            'confidence': 0.9,
+        }
+        result = service.process_message(TELEGRAM_ID, 'mercado carulla 25k')
+        assert result.expense_result.success is True
+        assert result.expense_result.expense.payee_id == _PAYEE_UUID_1
+
+
+# ---------------------------------------------------------------------------
+# _update_llm_parser_data with payees
+# ---------------------------------------------------------------------------
+
+class TestUpdateLlmParserDataWithPayees:
+
+    def test_builds_payee_maps_from_active_payees(self, service, sample_categories, sample_accounts, sample_payees):
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+        # Active payees should be in all three maps
+        assert 'Carulla' in service._payee_by_name
+        assert 'carulla' in service._payee_by_name_lower
+        assert 'carulla' in service._payee_by_name_normalized
+
+    def test_deleted_payees_excluded_from_maps(self, service, sample_categories, sample_accounts, sample_payees):
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+        assert 'OldPayee' not in service._payee_by_name
+        assert 'oldpayee' not in service._payee_by_name_lower
+
+    def test_normalized_map_strips_accents(self, service, sample_categories, sample_accounts, sample_payees):
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+        # 'Café Juan Valdez' normalizes to 'cafe juan valdez'
+        assert 'cafe juan valdez' in service._payee_by_name_normalized
+
+    def test_no_payees_param_leaves_maps_unchanged(self, service, sample_categories, sample_accounts):
+        # Pre-populate maps, then call without payees — maps must not be cleared
+        service._payee_by_name = {'Pre': ('id-pre', 'Pre')}
+        service._update_llm_parser_data(sample_categories, sample_accounts, None)
+        assert 'Pre' in service._payee_by_name
+
+    def test_payee_map_entry_tuple_is_id_and_name(self, service, sample_categories, sample_accounts, sample_payees):
+        service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
+        entry = service._payee_by_name['Carulla']
+        assert entry == (_PAYEE_UUID_1, 'Carulla')
