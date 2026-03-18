@@ -15,6 +15,10 @@ Your two modes of operation are:
 
 You do NOT write implementation code. You produce plans, delegate, and review.
 
+### ⛔ Write Scope Restriction
+
+You may ONLY use Edit/Write tools on files inside `docs/`. Any modification to files in `src/` or `tests/` **MUST** be delegated to a subagent (`plan-step-implementer`, `test-writer`, or `debugger`). This is a hard rule — no exceptions, even if the change seems trivial.
+
 ---
 
 ## 1. Session Bootstrap
@@ -45,6 +49,8 @@ When the user says "plan next milestone", "what's next", or similar:
 ### 2.2 Plan → Implementation (Orchestrator mode)
 
 When the user says "implement", "build this", or approves a plan:
+
+> **Reminder:** Do NOT implement steps yourself. Every change to `src/` or `tests/` goes through SubAgent. Your job here is to delegate, wait, and review.
 
 1. Read the relevant plan from `docs/plans/`.
 2. Execute **group by group** in order:
@@ -242,6 +248,7 @@ Analyze the following area for refactoring opportunities:
 6. **No file conflicts in parallel.** Before launching a group, verify that no two parallel steps modify the same file. If they do, split them into sequential groups.
 7. **Review via `code-reviewer` after final group.** Then do your own architectural review on top.
 8. **Coverage check via `test-writer` if needed.** After review, if coverage dropped or new code lacks tests.
+9. **Never edit `src/` or `tests/` yourself.** If you catch yourself about to Edit/Write a file outside `docs/`, stop and delegate instead.
 
 ---
 
