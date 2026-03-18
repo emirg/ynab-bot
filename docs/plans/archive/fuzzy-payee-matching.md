@@ -130,8 +130,8 @@ No external fuzzy matching library (e.g., `fuzzywuzzy`, `rapidfuzz`) is needed. 
 - **Backward compatibility**: When `payee_id` is `None`, behavior is identical to current. Existing tests should pass without modification.
 
 ## Verification
-- [ ] Send "almuerzo carulla 50000" when YNAB has payee "Carulla" -- should reuse existing payee (no duplicate created)
-- [ ] Send "almuerzo mcdonald's 25000" when YNAB has "McDonald's" -- should match despite apostrophe
-- [ ] Send "café exito 15000" when YNAB has "Exito" -- should match despite accent difference
-- [ ] Send "almuerzo newplace 30000" when no matching payee exists -- should create new payee (current behavior preserved)
-- [ ] Check YNAB payee list after several transactions -- no duplicates
+- [x] Send "almuerzo carulla 50000" when YNAB has payee "Carulla" -- should reuse existing payee (no duplicate created)
+- [x] Send "almuerzo mcdonald's 25000" when YNAB has "McDonald's" -- should match despite apostrophe
+- [x] Send "café exito 15000" when YNAB has "Exito" -- should match despite accent difference
+- [x] Send "almuerzo newplace 30000" when no matching payee exists -- should create new payee (current behavior preserved)
+- [x] Check YNAB payee list after several transactions -- no duplicates
