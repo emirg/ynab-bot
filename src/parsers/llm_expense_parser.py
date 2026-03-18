@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from datetime import datetime
 from typing import Dict, Optional, List
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -39,6 +40,8 @@ FORMATO DE MONEDA:
 
 {accounts_section}
 
+{date_context}
+
 RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
 {{
     "amount": <número_decimal>,
@@ -46,6 +49,7 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
     "payee": "<lugar_o_comercio>",
     "account": "<cuenta_exacta_de_la_lista_o_null>",
     "memo": "<mensaje_original>",
+    "date": "<YYYY-MM-DD_o_null>",
     "confidence": <0.0_a_1.0>
 }}
 
@@ -96,6 +100,25 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         self.ynab_accounts = accounts
         logger.info(f"Actualizadas {len(accounts)} cuentas YNAB para LLM")
     
+    @staticmethod
+    def _get_date_context() -> str:
+        """Genera el contexto de fecha actual para inyectar en los prompts del LLM."""
+        now = datetime.now()
+        dias_semana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+        dia_semana = dias_semana[now.weekday()]
+        fecha_actual = now.strftime("%Y-%m-%d")
+        return (
+            f"FECHA ACTUAL DEL SISTEMA: {fecha_actual} ({dia_semana})\n\n"
+            "DETECCIÓN DE FECHAS:\n"
+            "- Si el mensaje menciona una fecha (relativa como \"ayer\", \"anteayer\", \"el lunes\", "
+            "\"la semana pasada\" o absoluta como \"24/07\", \"el 5 de marzo\", \"el 3\"), "
+            "resuélvela a formato YYYY-MM-DD.\n"
+            "- Para fechas absolutas sin año (ej: \"24/07\"): usa la ocurrencia más reciente en el pasado "
+            "respecto a la fecha actual. Si la fecha aún no ha pasado este año, usa el año anterior.\n"
+            "- Para fechas futuras explícitas (ej: \"mañana\", \"el viernes\"): resuelve normalmente.\n"
+            "- Si no hay mención de fecha, devuelve date: null."
+        )
+
     def _generate_system_prompt(self) -> str:
         """Genera el prompt del sistema con las categorías y cuentas actuales"""
         # Sección de categorías
@@ -135,7 +158,8 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         
         return self.base_system_prompt.format(
             categories_section=categories_text,
-            accounts_section=accounts_text
+            accounts_section=accounts_text,
+            date_context=self._get_date_context(),
         )
 
     def _generate_receipt_system_prompt(self) -> str:
@@ -169,12 +193,14 @@ INSTRUCCIONES ESPECÍFICAS PARA RECIBOS:
 2. **Lugar/Payee**: Identifica el nombre del establecimiento (ej: "Éxito", "Restaurante El Corral", "Gasolinera Terpel").
 3. **Categoría**: Elige la categoría más adecuada de la lista proporcionada basado en el lugar y los productos comprados.
 4. **Memo**: Genera un resumen breve de lo comprado (ej: "Almuerzo: Hamburguesa y soda", "Mercado quincenal").
-5. **Fecha**: Si la fecha es visible, inclúyela al inicio del memo en formato [DD/MM].
+5. **Fecha**: Si la fecha es visible, inclúyela al inicio del memo en formato [DD/MM] y también en el campo "date" en formato YYYY-MM-DD.
 6. **Cuenta**: Si el recibo indica medio de pago (ej: "VISA ****1234") y coincide con una de las CUENTAS DISPONIBLES, selecciónala. De lo contrario, usa null.
 
 CONTEXTO COLOMBIANO:
 - Moneda: Pesos Colombianos (COP). Los montos suelen ser números grandes (ej: 45000, 120000).
 - Impuestos: IVA (19%) e Impoconsumo (8%) suelen estar incluidos en el total.
+
+{self._get_date_context()}
 
 RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
 {{
@@ -183,6 +209,7 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
     "payee": "<lugar_o_comercio>",
     "account": "<cuenta_exacta_de_la_lista_o_null>",
     "memo": "<resumen_breve_del_recibo>",
+    "date": "<YYYY-MM-DD_o_null>",
     "confidence": <0.0_a_1.0>
 }}
 
@@ -223,6 +250,8 @@ GASTOS: mensajes que reportan un gasto realizado. Contienen un monto y un lugar/
 
 {accounts_text}
 
+{self._get_date_context()}
+
 RESPONDE EN JSON con UNA de estas tres estructuras:
 
 Para CONSULTAS:
@@ -241,6 +270,7 @@ Para GASTOS:
     "payee": "<lugar>",
     "account": "<cuenta_exacta_de_la_lista_o_null>",
     "memo": "<mensaje_original>",
+    "date": "<YYYY-MM-DD_o_null>",
     "confidence": <0.0_a_1.0>
 }}
 
@@ -252,6 +282,7 @@ Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [perso
     "payee": "<lugar>",
     "account": "<cuenta_exacta_de_la_lista_o_null>",
     "memo": "<mensaje_original>",
+    "date": "<YYYY-MM-DD_o_null>",
     "confidence": <0.0_a_1.0>,
     "person": "<nombre_de_la_persona>",
     "proportion": "<fraccion_o_null>",

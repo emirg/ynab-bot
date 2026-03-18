@@ -1,5 +1,6 @@
 """Tests for Telegram response formatters."""
 import pytest
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 from presentation.telegram.formatters import (
@@ -180,6 +181,96 @@ class TestExpenseResponseFormatter:
         result = ExpenseResult(success=True)
         msg = ExpenseResponseFormatter.format_error(result)
         assert 'exitosamente' in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Date display in format_success
+# ---------------------------------------------------------------------------
+
+class TestExpenseDateDisplay:
+
+    def test_today_date_does_not_show_date_line(self):
+        expense = Expense(
+            amount=Decimal('25000'), payee="McDonald's", memo='almuerzo',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA, confianza 85%',
+            date=datetime.now(),
+        )
+        result = ExpenseResult.success_result(expense, 'txn-1')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'Fecha:' not in msg
+
+    def test_past_date_shows_date_line(self):
+        past = datetime(2026, 3, 15)
+        expense = Expense(
+            amount=Decimal('25000'), payee="McDonald's", memo='almuerzo',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA, confianza 85%',
+            date=past,
+        )
+        result = ExpenseResult.success_result(expense, 'txn-1')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert '📅 *Fecha:* 15/03/2026' in msg
+
+    def test_future_date_shows_date_line(self):
+        future = datetime.now() + timedelta(days=1)
+        expense = Expense(
+            amount=Decimal('10000'), payee='Uber', memo='uber',
+            category_name='Transport', account_name='Nu Card',
+            confidence=0.9, category_explanation='sugerido por IA',
+            date=future,
+        )
+        result = ExpenseResult.success_result(expense, 'txn-2')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert '📅 *Fecha:*' in msg
+        assert future.strftime('%d/%m/%Y') in msg
+
+    def test_split_expense_shows_date_line(self):
+        past = datetime(2026, 3, 10)
+        expense = Expense(
+            amount=Decimal('50000'), payee="McDonald's", memo='almuerzo mitad',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA, confianza 85%',
+            is_split=True, split_person='Juan',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Compartidos',
+            date=past,
+        )
+        result = ExpenseResult.success_result(expense, 'txn-3')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert '📅 *Fecha:* 10/03/2026' in msg
+        assert 'Gasto compartido registrado' in msg
+
+    def test_other_paid_shows_date_line(self):
+        past = datetime(2026, 3, 12)
+        expense = Expense(
+            amount=Decimal('50000'), payee='Carulla', memo='Eli compro',
+            category_name='Groceries', account_name='Nu Savings',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos con Eli',
+            payer='other',
+            date=past,
+        )
+        result = ExpenseResult.success_result(expense, 'txn-4')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert '📅 *Fecha:* 12/03/2026' in msg
+        assert 'pagado por Eli' in msg
+
+    def test_split_today_does_not_show_date_line(self):
+        expense = Expense(
+            amount=Decimal('50000'), payee="McDonald's", memo='almuerzo',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA',
+            is_split=True, split_person='Juan',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Compartidos',
+            date=datetime.now(),
+        )
+        result = ExpenseResult.success_result(expense, 'txn-5')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'Fecha:' not in msg
 
 
 # ---------------------------------------------------------------------------

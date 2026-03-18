@@ -1,5 +1,6 @@
 """Tests for ExpenseService."""
 import pytest
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 
@@ -624,3 +625,92 @@ class TestParseProportion:
 
     def test_empty_string_falls_back(self):
         assert ExpenseService._parse_proportion('') == Decimal('0.5')
+
+
+# ---------------------------------------------------------------------------
+# Date propagation from parsed result to Expense
+# ---------------------------------------------------------------------------
+
+class TestDatePropagation:
+
+    def test_valid_date_string_sets_expense_date(self, service, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'ayer almuerzo',
+            'date': '2026-03-17',
+            'confidence': 0.85,
+        }
+        result = service.process_message(TELEGRAM_ID, 'ayer almuerzo 25 lucas')
+        assert result.expense_result.success is True
+        assert result.expense_result.expense.date == datetime(2026, 3, 17)
+
+    def test_null_date_uses_default_now(self, service, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo',
+            'date': None,
+            'confidence': 0.85,
+        }
+        result = service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
+        assert result.expense_result.success is True
+        # date should be approximately now (within 5 seconds)
+        delta = abs((result.expense_result.expense.date - datetime.now()).total_seconds())
+        assert delta < 5
+
+    def test_invalid_date_string_uses_default_now(self, service, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo',
+            'date': 'invalid-date',
+            'confidence': 0.85,
+        }
+        result = service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
+        assert result.expense_result.success is True
+        delta = abs((result.expense_result.expense.date - datetime.now()).total_seconds())
+        assert delta < 5
+
+    def test_date_propagated_for_shared_expense(self, service_with_split, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'ayer almuerzo con Juan',
+            'date': '2026-03-15',
+            'confidence': 0.85,
+            'person': 'Juan',
+            'proportion': '1/2',
+            'payer': 'user',
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'ayer almuerzo mitad con Juan')
+        assert result.expense_result.success is True
+        assert result.expense_result.expense.date == datetime(2026, 3, 15)
+
+    def test_missing_date_key_uses_default_now(self, service, mock_llm_parser):
+        """When the parsed result doesn't have a 'date' key at all."""
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo',
+            'confidence': 0.85,
+        }
+        result = service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
+        assert result.expense_result.success is True
+        delta = abs((result.expense_result.expense.date - datetime.now()).total_seconds())
+        assert delta < 5

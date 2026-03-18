@@ -1,5 +1,6 @@
 """Response formatters for Telegram messages"""
 
+from datetime import date
 from typing import List
 from decimal import Decimal
 
@@ -13,6 +14,13 @@ class ExpenseResponseFormatter:
     """Formatter for expense-related responses"""
     
     @staticmethod
+    def _format_date_line(expense) -> str:
+        """Returns the date line if the expense date differs from today, empty string otherwise."""
+        if expense.date and expense.date.date() != date.today():
+            return f"\n📅 *Fecha:* {expense.date.strftime('%d/%m/%Y')}"
+        return ""
+
+    @staticmethod
     def format_success(result: ExpenseResult) -> str:
         """Format successful expense processing"""
         if not result.success or not result.expense:
@@ -20,6 +28,7 @@ class ExpenseResponseFormatter:
 
         expense = result.expense
         confidence_emoji = "🔥" if expense.confidence > 0.8 else "✅" if expense.confidence > 0.5 else "⚠️"
+        date_line = ExpenseResponseFormatter._format_date_line(expense)
 
         if expense.is_split and expense.payer == 'other':
             user_pct = int(expense.split_proportion * 100)
@@ -31,7 +40,7 @@ class ExpenseResponseFormatter:
 🤝 *Pagado por:* {expense.split_person}
 📊 *Tu deuda ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
 💳 *Cuenta compartida:* {expense.account_name or 'Cuenta por defecto'}
-🏪 *Lugar:* {expense.payee}
+🏪 *Lugar:* {expense.payee}{date_line}
 
 📝 *Memo:* {expense.memo}
             """
@@ -47,7 +56,7 @@ class ExpenseResponseFormatter:
 🤝 *Compartido con:* {expense.split_person}
 📊 *Tu parte ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
 📊 *Splitwise ({split_pct}%):* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}
-🏪 *Lugar:* {expense.payee}
+🏪 *Lugar:* {expense.payee}{date_line}
 💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
 {confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
 
@@ -58,7 +67,7 @@ class ExpenseResponseFormatter:
 ✅ *Gasto registrado exitosamente*
 
 💰 *Monto:* ${expense.amount:,.0f}
-🏪 *Lugar:* {expense.payee}
+🏪 *Lugar:* {expense.payee}{date_line}
 📁 *Categoría:* {expense.category_name or 'Sin categoría'}
 💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
 {confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}

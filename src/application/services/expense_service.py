@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional
 
@@ -232,6 +233,13 @@ class ExpenseService:
                 confidence=result.get('confidence', 0.0),
                 parser_source=parser_source,
             )
+
+            date_str = result.get('date')
+            if date_str:
+                try:
+                    expense.date = datetime.strptime(date_str, "%Y-%m-%d")
+                except (ValueError, TypeError):
+                    pass  # Keep default datetime.now()
 
             if category_name:
                 expense.category_name = category_name

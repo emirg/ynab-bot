@@ -417,3 +417,146 @@ class TestParseReceiptImage:
         mock_openai_client.chat.completions.create.side_effect = Exception('Vision API error')
         result = parser.parse_receipt_image('base64')
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Date field passthrough
+# ---------------------------------------------------------------------------
+
+class TestDateFieldPassthrough:
+
+    def test_parse_message_expense_with_date(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'ayer almuerzo',
+            'date': '2026-03-17',
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('ayer almuerzo 25 lucas')
+        assert result['date'] == '2026-03-17'
+
+    def test_parse_message_expense_with_null_date(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo',
+            'date': None,
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('almuerzo 25 lucas')
+        assert result['date'] is None
+
+    def test_parse_message_shared_expense_with_date(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'ayer almuerzo con Juan',
+            'date': '2026-03-15',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': '1/2',
+            'payer': 'user',
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('ayer almuerzo mitad 50k con Juan')
+        assert result['date'] == '2026-03-15'
+
+    def test_parse_message_query_no_date_field(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'query',
+            'query_type': 'category_balance',
+            'query_target': 'Groceries',
+            'confidence': 0.9,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_message('cuanto me queda en groceries')
+        assert 'date' not in result
+
+    def test_parse_expense_with_date(self, parser, mock_openai_client):
+        response = json.dumps({
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'ayer almuerzo',
+            'date': '2026-03-17',
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_expense('ayer almuerzo 25 lucas')
+        assert result['date'] == '2026-03-17'
+
+    def test_parse_expense_with_null_date(self, parser, mock_openai_client):
+        response = json.dumps({
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo',
+            'date': None,
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_expense('almuerzo 25 lucas')
+        assert result['date'] is None
+
+    def test_parse_receipt_with_date(self, parser, mock_openai_client):
+        response = json.dumps({
+            'amount': 45000.0,
+            'category': 'Restaurants',
+            'payee': 'El Corral',
+            'account': None,
+            'memo': '[10/03] Almuerzo',
+            'date': '2026-03-10',
+            'confidence': 0.95,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_receipt_image('base64_data')
+        assert result['date'] == '2026-03-10'
+
+    def test_parse_receipt_with_null_date(self, parser, mock_openai_client):
+        response = json.dumps({
+            'amount': 45000.0,
+            'category': 'Restaurants',
+            'payee': 'El Corral',
+            'account': None,
+            'memo': 'Almuerzo',
+            'date': None,
+            'confidence': 0.95,
+        })
+        _mock_response(mock_openai_client, response)
+        result = parser.parse_receipt_image('base64_data')
+        assert result['date'] is None
+
+
+class TestDateContext:
+    """Verify that date context is injected into prompts."""
+
+    def test_system_prompt_contains_date_context(self, parser):
+        prompt = parser._generate_system_prompt()
+        assert 'FECHA ACTUAL DEL SISTEMA' in prompt
+        assert 'DETECCIÓN DE FECHAS' in prompt
+        assert '"date"' in prompt
+
+    def test_message_system_prompt_contains_date_context(self, parser):
+        prompt = parser._generate_message_system_prompt()
+        assert 'FECHA ACTUAL DEL SISTEMA' in prompt
+        assert 'DETECCIÓN DE FECHAS' in prompt
+        assert '"date"' in prompt
+
+    def test_receipt_system_prompt_contains_date_context(self, parser):
+        prompt = parser._generate_receipt_system_prompt()
+        assert 'FECHA ACTUAL DEL SISTEMA' in prompt
+        assert '"date"' in prompt
