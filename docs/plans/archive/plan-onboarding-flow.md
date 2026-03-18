@@ -1,7 +1,7 @@
 # Plan: Guided Onboarding Flow (Milestone 1.1)
 
 ## Objective & Context
-- **Status:** Complete
+- **Status:** Completed
 - **Goal:** Replace the current passive `/start` + `/help` with a guided onboarding flow that detects where the user is in the setup process (YNAB connected? budget selected? account configured?) and walks them through each step automatically. After OAuth callback, proactively send a Telegram message guiding the user to select their budget.
 - **Why:** New users who run `/start` today get a static welcome message and no guidance on what to do next. They must discover `/connect`, `/budgets`, `/accounts` on their own. This causes drop-off.
 

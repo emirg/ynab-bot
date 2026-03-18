@@ -8,57 +8,61 @@ A multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using O
 - 📸 **Receipt Scanning**: Send a photo of a receipt and the bot extracts amount, merchant, and category automatically
 - 🧠 **AI-Powered**: Uses OpenAI GPT-4o-mini to understand expenses and budget queries in natural Spanish language
 - 📊 **Budget Queries**: Ask about category balances, account balances, or get a budget summary in natural language
-- 📚 **Adaptive Learning**: Remembers your spending patterns and improves over time
+- 📅 **Date Parsing**: Supports relative ("ayer", "el lunes") and absolute ("24/07", "el 5 de marzo") dates for backdating expenses
+- 👥 **Shared Expenses**: Split expenses with other people — supports user-paid and third-party paid scenarios with automatic YNAB subtransactions
+- 📚 **Adaptive Learning**: Remembers your spending patterns, explains categorization decisions, and improves over time
 - 💳 **Account Detection**: Automatically identifies the bank account mentioned
-- 🏪 **Smart Categorization**: Assigns real YNAB categories based on merchant/location
-- 👥 **Multi-User**: Authentication system with admin approval
+- 🏪 **Smart Categorization**: Assigns real YNAB categories based on merchant/location with semantic matching
+- 👥 **Multi-User**: Authentication system with admin approval and guided onboarding
 - 🔐 **Per-User OAuth**: Each user connects their own YNAB account via OAuth2
 - ✏️ **Correction System**: Manually correct categories and teach the bot
-- 📊 **Statistics**: View learning progress and accuracy improvements
+- 📊 **Statistics**: View learning progress, top payees/categories, and accuracy improvements
 
 ## 📁 Project Structure
 
 ```
 ynab-bot/
 ├── main.py                          # Entry point
-├── setup.py                         # Initialization script
 ├── requirements.txt                 # Python dependencies
 ├── pytest.ini                       # Test configuration
 ├── railway.toml                     # Railway deployment config (test-gating)
 ├── src/
 │   ├── domain/                      # Models, interfaces, exceptions
-│   │   ├── models/                  # Expense, BudgetQueryResult, UserConfiguration, SplitGroup (with OAuth fields)
+│   │   ├── models/                  # Expense, BudgetQueryResult, UserConfiguration, SplitGroup, OnboardingStep
 │   │   ├── repositories/           # Abstract interfaces (ABC)
-│   │   ├── services/               # AuthorizationService
+│   │   ├── services/               # AuthorizationService, payee_normalizer
 │   │   └── exceptions.py           # Includes OAuthException, TokenExpiredException
 │   ├── application/services/        # Business logic orchestrators
-│   │   ├── expense_service.py       # Pipeline: parse→enhance→create→learn + query routing
+│   │   ├── expense_service.py       # Pipeline: parse→enhance→create→learn + query routing + shared expenses
 │   │   ├── budget_query_service.py  # Budget queries (category/account balance, summary)
 │   │   ├── user_config_service.py   # Per-user configuration
 │   │   ├── oauth_service.py         # YNAB OAuth2 lifecycle (auth, tokens, refresh)
-│   │   ├── learning_service.py
+│   │   ├── learning_service.py      # Dashboard, forget, stats
+│   │   ├── onboarding_service.py    # Guided onboarding state derivation
 │   │   └── split_config_service.py  # Split group/alias/shared account management
 │   ├── infrastructure/
 │   │   ├── config/app_config.py     # Loads config/.env
 │   │   ├── container.py             # Dependency injection (DIContainer)
 │   │   ├── health.py                # Health check + OAuth callback HTTP server
 │   │   ├── token_encryption.py      # Fernet encryption for tokens at rest
+│   │   ├── telegram_notifier.py     # Sync Telegram API wrapper (post-OAuth notifications)
 │   │   └── repositories/           # SQLite, YNAB API, YNABRepositoryFactory
 │   ├── presentation/telegram/
 │   │   ├── bot.py                   # Handler registration
-│   │   ├── formatters.py           # Message formatting
+│   │   ├── formatters.py           # Message formatting (expenses, queries, shared)
+│   │   ├── keyboards.py            # Inline keyboard builders (budgets, accounts, split config)
 │   │   ├── handlers/               # General, Config, Expense, Learning, SplitConfig, Admin
 │   │   └── middleware/             # @require_authentication, @require_admin
 │   ├── parsers/
-│   │   └── llm_expense_parser.py    # GPT-4o-mini parser
+│   │   └── llm_expense_parser.py    # GPT-4o-mini parser (intent classification, date parsing, shared expenses)
 │   └── integrations/
 │       └── speech_to_text.py        # Whisper transcription
 ├── config/
 │   ├── .env                         # Environment variables (private)
 │   └── .env.example                 # Configuration template
 ├── data/                            # Persistent data
-│   └── users.db                     # SQLite database (users + learning data)
-└── tests/                           # Test suite (~458 tests, ~88% coverage)
+│   └── users.db                     # SQLite database (users, learning, split config)
+└── tests/                           # Test suite (~520 tests)
 ```
 
 ## 🚀 Installation & Setup
@@ -99,9 +103,8 @@ Edit `config/.env` with your tokens:
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-### 4. Initialize and run
+### 4. Run
 ```bash
-python setup.py   # Creates directory structure and data files
 python main.py     # Starts the bot
 ```
 
@@ -152,9 +155,29 @@ The bot understands various natural language formats for logging expenses in Spa
 "25 lucas almuerzo McDonald's"
 "80k gasolina estación Terpel"
 "Almuerzo 25000 en Home Burguer"
+"Ayer gasté 30k en restaurante"
+"El lunes pagué 15000 en farmacia"
 ```
 
 Amount formats: `40000`, `40 mil`, `40 lucas`, `40k`, `$40000`, decimals with comma (`40000,50`).
+
+Date formats: `ayer`, `anteayer`, `el lunes`, `la semana pasada`, `24/07`, `el 5 de marzo`. If no date is mentioned, today is assumed.
+
+### Shared Expenses
+
+The bot supports shared expenses with automatic YNAB subtransactions:
+
+```
+"Almuerzo compartido con Juan 30k"           → 50/50 split, user paid
+"Cena con María 60k, ella pagó"              → 50/50 split, third-party paid
+"Juan pagó 100k de mercado por mí"           → 100% debt, third-party paid
+```
+
+**User-paid split**: Creates subtransactions splitting the amount between the real category and the Splitwise tracking category.
+
+**Third-party paid split**: Creates a zero-sum transaction — the real category outflow is balanced by an inflow from the Splitwise tracking category, so your budget reflects the debt without affecting your account balance.
+
+Configure split groups, person aliases, and tracking accounts via `/splitwise`.
 
 ### Budget Queries
 
@@ -231,7 +254,7 @@ Each user connects their own YNAB account. No shared tokens.
 ## 🧪 Tests
 
 ```bash
-# Full suite (~458 tests, ~88% coverage)
+# Full suite (~520 tests)
 pytest
 
 # Single test file
@@ -256,15 +279,20 @@ main.py → DIContainer (infrastructure/container.py) → YNABTelegramBot (prese
 ```
 User (text)
   → ExpenseService.process_message()
-    → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query")
+    → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query" | "shared_expense")
     → LLM semantically maps user terms to exact YNAB category/account names
-    → if expense: parse→enhance→create→learn pipeline
+    → if expense: parse→enhance→create→learn pipeline (with optional date backdating)
+    → if shared_expense: split logic (subtransactions or zero-sum) → create→learn
     → if query: BudgetQueryService (4-step fuzzy fallback) → category/account/summary data
   → Formatted Telegram response
 
 User (voice)
   → Whisper transcription
   → ExpenseService.process_expense_message() → expense pipeline
+
+User (photo)
+  → GPT-4o-mini vision (receipt extraction)
+  → ExpenseService.process_receipt_image() → expense pipeline
 ```
 
 ## 🚀 Deployment

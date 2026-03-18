@@ -1,7 +1,7 @@
 # Plan: Soporte de fechas en gastos (pasadas y futuras)
 
 ## Objective & Context
-- **Status:** Implemented (pending review)
+- **Status:** Completed
 - **Goal:** Permitir que el bot detecte fechas en mensajes de gasto (ej. "ayer gasté 20k en Carulla", "el 24/07 gasté 30k en Wok") y registre la transacción en YNAB con esa fecha en lugar de la fecha actual.
 - **Why:** Actualmente todos los gastos se registran con `datetime.now()`, ignorando cualquier referencia temporal en el mensaje del usuario.
 
@@ -64,9 +64,9 @@
 - Todos los strings UI deben estar en español.
 
 ## Verification
-- [ ] Enviar "ayer gasté 20k en Carulla" → la transacción se registra con fecha de ayer en YNAB, y la respuesta muestra `📅 *Fecha:* DD/MM/YYYY`.
-- [ ] Enviar "gasté 30k en Wok" (sin fecha) → comportamiento actual, sin línea de fecha en la respuesta.
-- [ ] Enviar "el 24/07 gasté 15k en cine" → se registra con fecha 24/07 del año más reciente en el pasado.
-- [ ] Enviar "mañana gasto 10k en uber" → se registra con fecha de mañana.
-- [ ] Enviar un audio diciendo "ayer almorcé por 25k" → funciona igual que texto.
-- [ ] Gasto compartido con fecha: "ayer compartimos 50k en restaurante con Juan" → fecha correcta en YNAB.
+- [x] Enviar "ayer gasté 20k en Carulla" → la transacción se registra con fecha de ayer en YNAB, y la respuesta muestra `📅 *Fecha:* DD/MM/YYYY`.
+- [x] Enviar "gasté 30k en Wok" (sin fecha) → comportamiento actual, sin línea de fecha en la respuesta.
+- [x] Enviar "el 24/07 gasté 15k en cine" → se registra con fecha 24/07 del año más reciente en el pasado.
+- [x] Enviar "mañana gasto 10k en uber" → se registra con fecha de mañana.
+- [x] Enviar un audio diciendo "ayer almorcé por 25k" → funciona igual que texto.
+- [x] Gasto compartido con fecha: "ayer compartimos 50k en restaurante con Juan" → fecha correcta en YNAB.

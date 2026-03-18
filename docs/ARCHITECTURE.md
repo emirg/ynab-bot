@@ -12,12 +12,12 @@ main.py → health server (port $PORT) → DIContainer (infrastructure/container
 
 - **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`, `BudgetQueryResult`, `MessageResult`, `OnboardingStep`, `SplitGroup`, `SharedAccountConfig`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, and custom exceptions. No external dependencies.
 - **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full parse→enhance→create→learn pipeline and routes between expenses and budget queries via `process_message()`. `BudgetQueryService` handles category balance, account balance, and budget summary queries. `UserConfigService` manages per-user YNAB budget/account configuration. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository and provides dashboard/forget/stats methods. `OnboardingService` derives the user's onboarding state from existing fields (no DB column). `SplitConfigService` manages split group configuration, person aliases, and shared account settings — validates against YNAB API before persisting.
-- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v4), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (HTTP health check + OAuth callback endpoint, fires `on_oauth_success` callback after token exchange), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together.
+- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v5), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (HTTP health check + OAuth callback endpoint, fires `on_oauth_success` callback after token exchange), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together.
 - **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers. Handlers: `GeneralHandler` (includes guided onboarding via `OnboardingService`), `ConfigHandler` (includes `/connect`, `/disconnect`), `ExpenseHandler`, `LearningHandler` (includes `/aprendizaje`, `/olvidar`), `SplitConfigHandler` (`/splitwise` — split group CRUD, alias management, shared account config via inline keyboards with pagination), `AdminHandler`. `keyboards.py` provides shared inline keyboard builders (budget/account selection, split config panels with pagination). Auth via `@require_authentication` and `@require_admin` decorators.
 
 ## Supporting Modules
 
-- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (expense vs query) in a single LLM call; the LLM performs semantic matching to map user terms (e.g., "comida") to exact YNAB category names (e.g., "🛒 Groceries") using up to 100 categories in the prompt. `parse_receipt_image()` handles vision-based receipt extraction using the same JSON output format. `parse_expense()` is retained for backward compatibility (voice handler).
+- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (`expense` | `query` | `shared_expense`) in a single LLM call; the LLM performs semantic matching to map user terms (e.g., "comida") to exact YNAB category names (e.g., "🛒 Groceries") using up to 100 categories in the prompt. Also extracts optional `date` field (relative or absolute, resolved to `YYYY-MM-DD`) and shared expense fields (`person`, `proportion`, `payer`). `parse_receipt_image()` handles vision-based receipt extraction using the same JSON output format. `parse_expense()` is retained for backward compatibility (voice handler).
 - **`src/integrations/speech_to_text.py`** — Whisper-based voice transcription, used by `ExpenseHandler` via DI.
 
 ## Data Flow
@@ -25,8 +25,13 @@ main.py → health server (port $PORT) → DIContainer (infrastructure/container
 ```
 User (text) → ExpenseHandler.handle_text_message()
   → ExpenseService.process_message()
-    → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query")
-    → if intent == "expense": existing expense pipeline (parse→enhance→create→learn)
+    → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query" | "shared_expense")
+    → if intent == "expense": expense pipeline (parse→enhance→create→learn), with optional date backdating
+    → if intent == "shared_expense":
+      → resolve split group & person alias
+      → if payer == "user": subtransactions (real category + split tracking category)
+      → if payer == "other": zero-sum transaction (outflow + inflow balance to $0)
+      → create→learn
     → if intent == "query": BudgetQueryService.execute_query()
       → category_balance | account_balance | budget_summary
   → BudgetQueryFormatter or ExpenseResponseFormatter → Telegram response
@@ -57,6 +62,15 @@ User → /connect → generate OAuth URL with HMAC-signed state
 - **Token lifecycle**: auto-refresh when expired (5-min buffer), Fernet-encrypted at rest in SQLite
 - **State security**: HMAC-SHA256 signed with `YNAB_CLIENT_SECRET` to prevent CSRF
 - **OAuth callback**: served by the health check HTTP server at `/oauth/callback`
+
+## Shared Expenses
+
+Split expenses use YNAB subtransactions to track debts via a dedicated Splitwise tracking category.
+
+- **User-paid split**: Transaction with two subtransactions — user's share goes to the real category, the other person's share goes to the split tracking category.
+- **Third-party paid split** (zero-sum): Transaction amount is `$0` with two subtransactions — outflow from real category balanced by inflow to split tracking category. Uses the shared tracking account configured via `/splitwise`.
+- **100% debt**: When `proportion=1` and `payer=other`, user owes the full amount (e.g., "Juan pagó el mercado por mí").
+- **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Data stored in `split_groups`, `split_person_aliases`, and `split_shared_account` SQLite tables (migration v5).
 
 ## User Authentication
 
@@ -93,7 +107,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - **Framework**: pytest with fixtures in `tests/conftest.py`, coverage via pytest-cov
 - **Config**: `pytest.ini` scopes coverage to `src/domain`, `src/application`, `src/infrastructure`, and `src/presentation/telegram/formatters.py`
 - **Conventions**: Shared fixtures for domain models, mock repositories (`mock_ynab_factory`, `mock_oauth_service`, `mock_user_repository`, `mock_learning_repository`, `mock_split_config_repository`, `mock_llm_parser`, `mock_budget_query_service`), and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock`. `conftest.py` adds `src/` to `sys.path`.
-- **Coverage**: ~88% on active architecture (~458 tests). Domain layer at 100%.
+- **Coverage**: ~520 tests. Domain layer at 100%.
 
 ## Key Conventions
 
