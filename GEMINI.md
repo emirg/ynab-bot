@@ -35,3 +35,13 @@ Do not output conversational text, ONLY output the Markdown block using this str
 - **Accomplished by Gemini:** [Specific details of what we just fixed, coded, and committed. Mention exact files].
 - **Active Plan Status:** [Which step of the `docs/plans/` was just completed].
 - **Next Action for Claude:** [The exact next step Claude must execute upon waking up].
+
+## Subagent Awareness
+ 
+This project uses Claude Code subagents (defined in `.claude/agents/`) for structured development workflows. As Gemini, you should be aware of:
+ 
+- **Do not modify** files in `.claude/agents/`. These are Claude Code subagent configurations maintained by the project lead.
+- **Do not modify** files in `.claude/agent-memory/`. These are persistent memory stores for individual agents.
+- If a plan in `docs/plans/` references agent delegation (e.g., "delegate to `dba-advisor`"), you can implement the step directly — you don't have the subagent system, but you should follow the same constraints the plan specifies.
+- When doing a handoff back to Claude, mention which plan steps you completed so the orchestrator agent (`ynab-lead-architect`) can pick up correctly.
+ 

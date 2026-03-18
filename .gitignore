@@ -270,7 +270,7 @@ docs/wip_state.md
 *.diff
 *.patch
 
-# 3. Claude Code internal memory and history
-# Ignore the cache folder, but allow tracking skills if you create them
+# 3. Claude Code
 .claude/
 !.claude/skills/
+!.claude/agents/

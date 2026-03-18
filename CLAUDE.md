@@ -19,6 +19,30 @@ Whenever you start a new session or the user asks to "resume", your VERY FIRST a
 - Save active plans to `docs/plans/` and reference them here.
 - Move finished plans to `docs/plans/archive/` and update references.
 
+## Subagents
+
+This project uses specialized subagents for structured development workflows. Agent definitions live in `.claude/agents/` (project-level, tracked in Git).
+
+| Agent | Role | Mode |
+|---|---|---|
+| `ynab-lead-architect` | Orchestrates: roadmap → plan → implement → review | Opus, R/W |
+| `dba-advisor` | Database schema, queries, migrations, performance | Sonnet, R/O |
+| `plan-step-implementer` | Executes individual plan steps | Sonnet, R/W |
+| `code-reviewer` | Post-implementation code review | Sonnet, R/O |
+| `test-writer` | Writes and fixes pytest tests | Sonnet, R/W |
+| `debugger` | Root cause analysis, minimal bug fixes | Sonnet, R/W |
+| `refactor-advisor` | Analyzes code smells, proposes refactoring plans | Sonnet, R/O |
+
+**When to use subagents (from the main session):**
+- For feature work spanning multiple files: invoke `ynab-lead-architect` to plan and orchestrate.
+- For quick code review: invoke `code-reviewer` on specific files.
+- For a failing test: invoke `debugger` with the error output.
+- For improving test coverage: invoke `test-writer` with the target files.
+- For DB questions: invoke `dba-advisor` with the query or schema.
+- For cleanup: invoke `refactor-advisor` on the target module.
+
+**Do not modify agent files** (`.claude/agents/*.md`) during implementation work. Agent configuration changes require explicit user approval.
+
 ## Commands
 All Python commands must be run using the `.venv` virtual environment.
 
