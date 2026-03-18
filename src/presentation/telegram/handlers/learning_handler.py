@@ -100,13 +100,13 @@ class LearningHandler(BaseHandler):
             user_id = self.get_user_id(update)
 
             # Attempt correction
-            success = self.expense_service.correct_recent_transaction(
+            result = self.expense_service.correct_recent_transaction(
                 user_id, transaction_index, new_category_id
             )
 
-            if success:
+            if result:
                 response = self.formatter.format_correction_success(
-                    "Transacción", "Categoría anterior", new_category_id
+                    result["payee"], result["old_category_name"], new_category_id
                 )
                 await self.send_message(update, response)
                 self.log_handler_success("LearningHandler.handle_correction_command", update)

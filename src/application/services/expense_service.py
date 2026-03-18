@@ -600,18 +600,21 @@ class ExpenseService:
         
         return f"confianza {conf_pct}%"
 
-    def correct_recent_transaction(self, telegram_user_id: int, transaction_index: int, new_category_id: str) -> bool:
-        """Correct a recent transaction category for learning purposes"""
+    def correct_recent_transaction(self, telegram_user_id: int, transaction_index: int, new_category_id: str) -> Optional[Dict[str, str]]:
+        """Correct a recent transaction category for learning purposes.
+
+        Returns a dict with 'payee' and 'old_category_name' on success, None on failure.
+        """
         try:
             user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
             if not user_config:
-                return False
+                return None
 
             recent_transactions = self.learning_repository.get_recent_transactions(telegram_user_id, 20)
 
             if transaction_index >= len(recent_transactions):
                 logger.error(f"Transaction index {transaction_index} out of range")
-                return False
+                return None
 
             transaction = recent_transactions[transaction_index]
             old_category_id = transaction.get('category_id')
@@ -619,14 +622,16 @@ class ExpenseService:
 
             if not old_category_id or not payee:
                 logger.error("Invalid transaction data for correction")
-                return False
+                return None
+
+            old_category_name = transaction.get('category_name') or old_category_id
 
             # Record the correction for learning
             self.learning_repository.record_user_correction(telegram_user_id, payee, old_category_id, new_category_id)
 
             logger.info(f"Recorded correction: {payee} {old_category_id} -> {new_category_id}")
-            return True
+            return {'payee': payee, 'old_category_name': old_category_name}
 
         except Exception as e:
             logger.error(f"Error correcting transaction: {e}")
-            return False
+            return None

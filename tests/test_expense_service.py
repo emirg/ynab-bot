@@ -406,22 +406,30 @@ class TestCorrectRecentTransaction:
     def test_success(self, service, mock_user_repository, mock_learning_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = [
-            {'payee': 'McDonalds', 'category_id': 'cat-old', 'amount': 25000},
+            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Comida rápida', 'amount': 25000},
         ]
         result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'cat-new')
-        assert result is True
+        assert result == {'payee': 'McDonalds', 'old_category_name': 'Comida rápida'}
         mock_learning_repository.record_user_correction.assert_called_once()
         # Verify telegram_id is passed
         call_args = mock_learning_repository.record_user_correction.call_args
         assert call_args[0][0] == TELEGRAM_ID
 
+    def test_success_falls_back_to_id_when_no_category_name(self, service, mock_user_repository, mock_learning_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = [
+            {'payee': 'McDonalds', 'category_id': 'cat-old', 'amount': 25000},
+        ]
+        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'cat-new')
+        assert result == {'payee': 'McDonalds', 'old_category_name': 'cat-old'}
+
     def test_user_not_found(self, service, mock_user_repository):
         mock_user_repository.find_by_telegram_id.return_value = None
-        assert not service.correct_recent_transaction(999, 0, 'cat-new')
+        assert service.correct_recent_transaction(999, 0, 'cat-new') is None
 
     def test_index_out_of_range(self, service, mock_learning_repository):
         mock_learning_repository.get_recent_transactions.return_value = []
-        assert not service.correct_recent_transaction(TELEGRAM_ID, 5, 'cat-new')
+        assert service.correct_recent_transaction(TELEGRAM_ID, 5, 'cat-new') is None
 
 
 # ---------------------------------------------------------------------------
