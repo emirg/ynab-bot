@@ -9,8 +9,10 @@ from presentation.telegram.handlers.base_handler import BaseHandler
 from presentation.telegram.formatters import ExpenseResponseFormatter, BudgetQueryFormatter
 from presentation.telegram.middleware.auth_middleware import require_authentication
 from application.services.expense_service import ExpenseService
+from application.services.user_config_service import UserConfigService
 from integrations.speech_to_text import SpeechToTextProcessor
 from domain.exceptions import SpeechProcessingException, ImageProcessingException
+from domain.time_utils import DEFAULT_TIMEZONE
 
 logger = logging.getLogger(__name__)
 
@@ -21,27 +23,37 @@ class ExpenseHandler(BaseHandler):
     def __init__(self, container):
         super().__init__(container)
         self.expense_service = container.get(ExpenseService)
+        self.user_config_service = container.get_user_config_service()
         self.speech_processor = container.get(SpeechToTextProcessor)
         self.formatter = ExpenseResponseFormatter()
         self.query_formatter = BudgetQueryFormatter()
     
+    def _get_user_timezone(self, user_id: int) -> str:
+        """Get the user's configured timezone, falling back to default."""
+        try:
+            status = self.user_config_service.get_user_status(user_id)
+            return status.get('timezone', DEFAULT_TIMEZONE)
+        except Exception:
+            return DEFAULT_TIMEZONE
+
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle text expense messages"""
         self.log_handler_start("ExpenseHandler.handle_text_message", update)
-        
+
         try:
             user_id = self.get_user_id(update)
             message = update.message.text
 
             result = self.expense_service.process_message(user_id, message)
+            user_tz = self._get_user_timezone(user_id)
 
             if result.intent == 'query':
                 response = self.query_formatter.format_response(result.query_result)
                 self.log_handler_success("ExpenseHandler.handle_text_message", update)
             elif result.intent in ('expense', 'shared_expense'):
                 if result.expense_result and result.expense_result.success:
-                    response = self.formatter.format_success(result.expense_result)
+                    response = self.formatter.format_success(result.expense_result, user_tz=user_tz)
                     self.log_handler_success("ExpenseHandler.handle_text_message", update)
                 else:
                     response = self.formatter.format_error(result.expense_result)
@@ -91,10 +103,11 @@ class ExpenseHandler(BaseHandler):
                 
                 # Process as text expense
                 result = self.expense_service.process_expense_message(user_id, transcribed_text)
-                
+                user_tz = self._get_user_timezone(user_id)
+
                 # Format response with transcription info
                 if result.success:
-                    response = f"🎤 *Transcripción:* {transcribed_text}\n\n{self.formatter.format_success(result)}"
+                    response = f"🎤 *Transcripción:* {transcribed_text}\n\n{self.formatter.format_success(result, user_tz=user_tz)}"
                     self.log_handler_success("ExpenseHandler.handle_voice_message", update)
                 else:
                     response = f"🎤 *Transcripción:* {transcribed_text}\n\n{self.formatter.format_error(result)}"
@@ -148,9 +161,10 @@ class ExpenseHandler(BaseHandler):
                 
                 # Process receipt image
                 result = self.expense_service.process_receipt_image(user_id, image_base64, caption)
-                
+                user_tz = self._get_user_timezone(user_id)
+
                 if result.success:
-                    response = f"📸 *Recibo analizado*\n\n{self.formatter.format_success(result)}"
+                    response = f"📸 *Recibo analizado*\n\n{self.formatter.format_success(result, user_tz=user_tz)}"
                     self.log_handler_success("ExpenseHandler.handle_photo_message", update)
                 else:
                     response = self.formatter.format_error(result)

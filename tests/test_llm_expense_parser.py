@@ -1,7 +1,9 @@
 """Tests for LLMExpenseParser.parse_message() intent classification."""
 import json
 import pytest
+from datetime import datetime
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 
 @pytest.fixture
@@ -560,3 +562,19 @@ class TestDateContext:
         prompt = parser._generate_receipt_system_prompt()
         assert 'FECHA ACTUAL DEL SISTEMA' in prompt
         assert '"date"' in prompt
+
+    def test_get_date_context_uses_timezone(self, parser):
+        """When timezone is specified, _get_date_context uses user_now with that timezone."""
+        fixed_dt = datetime(2026, 6, 15, 10, 0, 0, tzinfo=ZoneInfo("America/Bogota"))
+        with patch('parsers.llm_expense_parser.user_now', return_value=fixed_dt):
+            context = parser._get_date_context("America/Bogota")
+            assert '2026-06-15' in context
+            assert 'lunes' in context
+
+    def test_get_date_context_default_timezone(self, parser):
+        """Without specifying timezone, uses DEFAULT_TIMEZONE."""
+        from domain.time_utils import DEFAULT_TIMEZONE
+        fixed_dt = datetime(2026, 3, 18, 22, 0, 0, tzinfo=ZoneInfo(DEFAULT_TIMEZONE))
+        with patch('parsers.llm_expense_parser.user_now', return_value=fixed_dt):
+            context = parser._get_date_context()
+            assert '2026-03-18' in context

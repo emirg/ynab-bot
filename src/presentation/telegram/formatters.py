@@ -8,27 +8,28 @@ from domain.models.expense import ExpenseResult
 from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
 from domain.models.onboarding import OnboardingStep
+from domain.time_utils import user_today, DEFAULT_TIMEZONE
 
 
 class ExpenseResponseFormatter:
     """Formatter for expense-related responses"""
-    
+
     @staticmethod
-    def _format_date_line(expense) -> str:
+    def _format_date_line(expense, user_tz: str = DEFAULT_TIMEZONE) -> str:
         """Returns the date line if the expense date differs from today, empty string otherwise."""
-        if expense.date and expense.date.date() != date.today():
+        if expense.date and expense.date.date() != user_today(user_tz):
             return f"\n📅 *Fecha:* {expense.date.strftime('%d/%m/%Y')}"
         return ""
 
     @staticmethod
-    def format_success(result: ExpenseResult) -> str:
+    def format_success(result: ExpenseResult, user_tz: str = DEFAULT_TIMEZONE) -> str:
         """Format successful expense processing"""
         if not result.success or not result.expense:
             return "❌ Error procesando respuesta"
 
         expense = result.expense
         confidence_emoji = "🔥" if expense.confidence > 0.8 else "✅" if expense.confidence > 0.5 else "⚠️"
-        date_line = ExpenseResponseFormatter._format_date_line(expense)
+        date_line = ExpenseResponseFormatter._format_date_line(expense, user_tz)
 
         if expense.is_split and expense.payer == 'other':
             user_pct = int(expense.split_proportion * 100)
@@ -470,6 +471,7 @@ Envía un mensaje como:
 • `/budgets` - Ver presupuestos
 • `/accounts` - Ver cuentas
 • `/disconnect` - Cerrar sesión
+• `/zona` - Cambiar zona horaria
 
 💰 *Registro de Gastos*
 • Texto, fotos de recibos o mensajes de voz

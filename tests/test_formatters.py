@@ -2,6 +2,7 @@
 import pytest
 from datetime import datetime, date, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from presentation.telegram.formatters import (
     ExpenseResponseFormatter,
@@ -15,6 +16,7 @@ from domain.models.expense import Expense, ExpenseResult
 from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
 from domain.models.onboarding import OnboardingStep
+from domain.time_utils import DEFAULT_TIMEZONE
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +274,42 @@ class TestExpenseDateDisplay:
         msg = ExpenseResponseFormatter.format_success(result)
         assert 'Fecha:' not in msg
 
+    def test_format_date_line_uses_user_timezone(self):
+        """With a mocked timezone, verify correct 'today' comparison."""
+        # Use a fixed date that is 'today' in a specific timezone
+        fixed_date = date(2026, 3, 18)
+        expense = Expense(
+            amount=Decimal('25000'), payee='Test', memo='test',
+            category_name='Cat', confidence=0.9, date=datetime(2026, 3, 18, 12, 0),
+        )
+        result = ExpenseResult.success_result(expense, 'txn-tz')
+        with patch('presentation.telegram.formatters.user_today', return_value=fixed_date):
+            msg = ExpenseResponseFormatter.format_success(result, user_tz='America/Bogota')
+            # Date matches "today" so no date line
+            assert 'Fecha:' not in msg
+
+    def test_format_success_passes_timezone(self):
+        """Verify the timezone flows through to date comparison."""
+        # Expense date is 2026-03-19, but 'today' in the user's timezone is 2026-03-18
+        expense = Expense(
+            amount=Decimal('25000'), payee='Test', memo='test',
+            category_name='Cat', confidence=0.9, date=datetime(2026, 3, 19, 12, 0),
+        )
+        result = ExpenseResult.success_result(expense, 'txn-tz2')
+        with patch('presentation.telegram.formatters.user_today', return_value=date(2026, 3, 18)):
+            msg = ExpenseResponseFormatter.format_success(result, user_tz='America/Bogota')
+            assert '📅 *Fecha:* 19/03/2026' in msg
+
+    def test_none_date_does_not_show_date_line(self):
+        """When date is None, no date line should be shown."""
+        expense = Expense(
+            amount=Decimal('25000'), payee='Test', memo='test',
+            category_name='Cat', confidence=0.9,
+        )
+        result = ExpenseResult.success_result(expense, 'txn-none')
+        msg = ExpenseResponseFormatter.format_success(result)
+        assert 'Fecha:' not in msg
+
 
 # ---------------------------------------------------------------------------
 # ConfigResponseFormatter
@@ -424,6 +462,11 @@ class TestGeneralResponseFormatter:
         msg = GeneralResponseFormatter.format_onboarding_complete()
         assert 'Configuración completada' in msg
         assert 'comida 35000' in msg
+
+    def test_command_list_includes_zona(self):
+        msg = GeneralResponseFormatter.format_command_list()
+        assert '/zona' in msg
+        assert 'zona horaria' in msg.lower()
 
 
 # ---------------------------------------------------------------------------

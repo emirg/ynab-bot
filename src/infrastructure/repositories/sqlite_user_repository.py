@@ -7,6 +7,7 @@ from typing import Optional, List
 
 from domain.repositories.user_repository import UserRepository
 from domain.models.user import UserConfiguration, UserStatus
+from domain.time_utils import DEFAULT_TIMEZONE
 from domain.exceptions import YNABBotException
 from infrastructure.repositories.database_manager import DatabaseManager
 from infrastructure.token_encryption import TokenEncryptor
@@ -38,6 +39,7 @@ class SQLiteUserRepository(UserRepository):
             username=row['username'],
             first_name=row['first_name'],
             last_name=row['last_name'],
+            timezone=row['timezone'] if row['timezone'] else DEFAULT_TIMEZONE,
             created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else datetime.now(),
             updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else datetime.now(),
             approved_at=datetime.fromisoformat(row['approved_at']) if row['approved_at'] else None,
@@ -77,9 +79,9 @@ class SQLiteUserRepository(UserRepository):
                 """
                 INSERT INTO user_configurations
                     (telegram_id, status, budget_id, default_account_id, default_account_name,
-                     username, first_name, last_name, created_at, updated_at, approved_at, approved_by,
+                     username, first_name, last_name, timezone, created_at, updated_at, approved_at, approved_by,
                      ynab_access_token, ynab_refresh_token, ynab_token_expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(telegram_id) DO UPDATE SET
                     status = excluded.status,
                     budget_id = excluded.budget_id,
@@ -88,6 +90,7 @@ class SQLiteUserRepository(UserRepository):
                     username = excluded.username,
                     first_name = excluded.first_name,
                     last_name = excluded.last_name,
+                    timezone = excluded.timezone,
                     updated_at = excluded.updated_at,
                     approved_at = excluded.approved_at,
                     approved_by = excluded.approved_by,
@@ -104,6 +107,7 @@ class SQLiteUserRepository(UserRepository):
                     user_config.username,
                     user_config.first_name,
                     user_config.last_name,
+                    user_config.timezone,
                     user_config.created_at.isoformat(),
                     user_config.updated_at.isoformat(),
                     user_config.approved_at.isoformat() if user_config.approved_at else None,

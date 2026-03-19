@@ -186,6 +186,41 @@ Selecciona una opción para configurar tu bot:
             self.log_handler_error("ConfigHandler.handle_status_command", update, e)
             await self.send_error_message(update, "Ocurrió un error obteniendo el estado.")
     
+    @require_authentication(lambda self: self.container.get_auth_service())
+    async def zona_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /zona command - view or update user timezone"""
+        self.log_handler_start("ConfigHandler.zona_command", update)
+
+        try:
+            user_id = self.get_user_id(update)
+            args = context.args
+
+            if not args:
+                # Show current timezone
+                status = self.user_config_service.get_user_status(user_id)
+                tz = status.get('timezone', 'No configurada')
+                await self.send_message(
+                    update,
+                    f"🕐 *Zona horaria actual:* `{tz}`\n\n"
+                    "Para cambiarla, usa:\n`/zona America/Bogota`"
+                )
+            else:
+                timezone_str = args[0]
+                try:
+                    self.user_config_service.update_timezone(user_id, timezone_str)
+                    await self.send_message(
+                        update,
+                        f"✅ Zona horaria actualizada a `{timezone_str}`"
+                    )
+                except ValueError as e:
+                    await self.send_error_message(update, str(e))
+
+            self.log_handler_success("ConfigHandler.zona_command", update)
+
+        except Exception as e:
+            self.log_handler_error("ConfigHandler.zona_command", update, e)
+            await self.send_error_message(update, "Ocurrio un error con la zona horaria.")
+
     async def handle_budgets_callback(self, query):
         """Handle budgets callback from inline keyboard"""
         try:

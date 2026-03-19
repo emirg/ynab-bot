@@ -139,6 +139,14 @@ _MIGRATIONS = [
         ALTER TABLE recent_transactions ADD COLUMN ynab_transaction_id TEXT;
         """,
     ),
+    # Version 7: Add timezone column to user_configurations
+    (
+        7,
+        "Add timezone column to user_configurations",
+        """
+        ALTER TABLE user_configurations ADD COLUMN timezone TEXT DEFAULT 'America/Argentina/Buenos_Aires';
+        """,
+    ),
 ]
 
 

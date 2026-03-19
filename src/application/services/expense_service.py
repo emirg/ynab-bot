@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.budget_query import BudgetQueryResult, MessageResult
 from domain.models.user import UserConfiguration, YNABCategory, YNABPayee
+from domain.time_utils import user_now, DEFAULT_TIMEZONE
 from domain.repositories.user_repository import UserRepository
 from domain.repositories.learning_repository import LearningRepository
 from domain.exceptions import (
@@ -77,7 +78,9 @@ class ExpenseService:
             payees = ynab_repository.get_payees(user_config.budget_id)
             self._update_llm_parser_data(categories, accounts, payees)
 
-            parsed = self.llm_parser.parse_message(message)
+            user_tz = user_config.timezone
+
+            parsed = self.llm_parser.parse_message(message, timezone_str=user_tz)
             if not parsed:
                 raise ExpenseParsingException(message, 0.0)
 
@@ -92,13 +95,13 @@ class ExpenseService:
 
             if parsed.get('intent') == 'shared_expense':
                 expense_result = self._process_shared_expense(
-                    parsed, message, categories, user_config, ynab_repository, telegram_user_id,
+                    parsed, message, categories, user_config, ynab_repository, telegram_user_id, user_tz,
                 )
                 return MessageResult(intent='shared_expense', expense_result=expense_result)
 
             # Intent is "expense" — delegate to existing pipeline
             expense_result = self._process_parsed_expense(
-                parsed, message, categories, user_config, ynab_repository, telegram_user_id,
+                parsed, message, categories, user_config, ynab_repository, telegram_user_id, user_tz,
             )
             return MessageResult(intent='expense', expense_result=expense_result)
 
@@ -112,9 +115,9 @@ class ExpenseService:
                 expense_result=ExpenseResult.error_result("Error interno procesando el mensaje. Intenta de nuevo."),
             )
 
-    def _process_parsed_expense(self, parsed, message, categories, user_config, ynab_repository, telegram_user_id) -> ExpenseResult:
+    def _process_parsed_expense(self, parsed, message, categories, user_config, ynab_repository, telegram_user_id, user_tz: str = DEFAULT_TIMEZONE) -> ExpenseResult:
         """Process an already-parsed expense dict through the existing pipeline."""
-        expense = self._build_expense_from_parsed(parsed, message, categories)
+        expense = self._build_expense_from_parsed(parsed, message, categories, user_tz=user_tz)
         if not expense:
             raise ExpenseParsingException(message, 0.0)
 
@@ -137,7 +140,7 @@ class ExpenseService:
         logger.info(f"Successfully processed expense: {expense.payee} ${expense.amount}")
         return ExpenseResult.success_result(expense, transaction_id)
 
-    def _process_shared_expense(self, parsed, message, categories, user_config, ynab_repository, telegram_user_id) -> ExpenseResult:
+    def _process_shared_expense(self, parsed, message, categories, user_config, ynab_repository, telegram_user_id, user_tz: str = DEFAULT_TIMEZONE) -> ExpenseResult:
         """Process a shared_expense intent through the split pipeline."""
         if self.split_config_repository is None:
             return ExpenseResult.error_result(
@@ -154,7 +157,7 @@ class ExpenseService:
         proportion = self._parse_proportion(parsed.get('proportion'))
         payer = parsed.get('payer', 'user')
 
-        expense = self._build_expense_from_parsed(parsed, message, categories)
+        expense = self._build_expense_from_parsed(parsed, message, categories, user_tz=user_tz)
         if not expense:
             raise ExpenseParsingException(message, 0.0)
 
@@ -208,7 +211,7 @@ class ExpenseService:
         except Exception:
             return Decimal('0.5')
 
-    def _build_expense_from_parsed(self, result: dict, message: str, categories, parser_source: str = 'llm') -> Optional[Expense]:
+    def _build_expense_from_parsed(self, result: dict, message: str, categories, parser_source: str = 'llm', user_tz: str = DEFAULT_TIMEZONE) -> Optional[Expense]:
         """Build an Expense domain object from a parsed LLM result dict."""
         try:
             if result.get('confidence', 0) < 0.3:
@@ -253,7 +256,9 @@ class ExpenseService:
                 try:
                     expense.date = datetime.strptime(date_str, "%Y-%m-%d")
                 except (ValueError, TypeError):
-                    pass  # Keep default datetime.now()
+                    expense.date = user_now(user_tz)
+            else:
+                expense.date = user_now(user_tz)
 
             if category_name:
                 expense.category_name = category_name
@@ -282,11 +287,13 @@ class ExpenseService:
             payees = ynab_repository.get_payees(user_config.budget_id)
             self._update_llm_parser_data(categories, accounts, payees)
 
-            parsed = self.llm_parser.parse_receipt_image(image_base64, caption)
+            user_tz = user_config.timezone
+
+            parsed = self.llm_parser.parse_receipt_image(image_base64, caption, timezone_str=user_tz)
             if not parsed:
                 return ExpenseResult.error_result("No se pudo analizar el recibo. Asegúrate de que la imagen sea legible.")
 
-            expense = self._build_expense_from_parsed(parsed, caption or "Recibo", categories, parser_source='receipt')
+            expense = self._build_expense_from_parsed(parsed, caption or "Recibo", categories, parser_source='receipt', user_tz=user_tz)
             if not expense:
                 return ExpenseResult.error_result("No se pudo extraer información válida del recibo.")
 
@@ -342,8 +349,10 @@ class ExpenseService:
             # 4. Update LLM parser with current YNAB data
             self._update_llm_parser_data(categories, accounts, payees)
 
+            user_tz = user_config.timezone
+
             # 5. Parse expense message
-            expense = self._parse_expense_message(message, categories)
+            expense = self._parse_expense_message(message, categories, user_tz=user_tz)
             if not expense:
                 raise ExpenseParsingException(message, 0.0)
 
@@ -453,13 +462,13 @@ class ExpenseService:
         except Exception as e:
             logger.error(f"Failed to update LLM parser data: {e}")
 
-    def _parse_expense_message(self, message: str, categories: List[YNABCategory]) -> Optional[Expense]:
+    def _parse_expense_message(self, message: str, categories: List[YNABCategory], user_tz: str = DEFAULT_TIMEZONE) -> Optional[Expense]:
         """Parse expense message using LLM parser"""
         try:
-            result = self.llm_parser.parse_expense(message)
+            result = self.llm_parser.parse_expense(message, timezone_str=user_tz)
             if not result:
                 return None
-            return self._build_expense_from_parsed(result, message, categories, parser_source='llm')
+            return self._build_expense_from_parsed(result, message, categories, parser_source='llm', user_tz=user_tz)
         except Exception as e:
             logger.error(f"Error parsing expense message: {e}")
             return None

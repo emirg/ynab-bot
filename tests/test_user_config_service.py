@@ -4,6 +4,7 @@ import pytest
 from application.services.user_config_service import UserConfigService
 from domain.models.user import UserConfiguration, UserStatus, YNABBudget, YNABAccount
 from domain.exceptions import YNABApiException
+from domain.time_utils import DEFAULT_TIMEZONE
 
 
 @pytest.fixture
@@ -201,3 +202,38 @@ class TestResetUserConfig:
     def test_error_returns_false(self, service, mock_user_repository):
         mock_user_repository.find_by_telegram_id.side_effect = Exception('db error')
         assert service.reset_user_config(42) is False
+
+
+# ---------------------------------------------------------------------------
+# update_timezone
+# ---------------------------------------------------------------------------
+
+class TestUpdateTimezone:
+
+    def test_update_timezone_valid(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_user_repository.save.return_value = authorized_user
+        result = service.update_timezone(authorized_user.telegram_id, 'America/Bogota')
+        assert result.timezone == 'America/Bogota'
+        mock_user_repository.save.assert_called_once()
+
+    def test_update_timezone_invalid(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        with pytest.raises(ValueError, match='invalida'):
+            service.update_timezone(authorized_user.telegram_id, 'Invalid/Zone')
+
+    def test_update_timezone_user_not_found(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        with pytest.raises(YNABApiException):
+            service.update_timezone(999, 'America/Bogota')
+
+    def test_get_user_status_includes_timezone(self, service, mock_user_repository, authorized_user):
+        authorized_user.timezone = 'America/Bogota'
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        status = service.get_user_status(authorized_user.telegram_id)
+        assert status['timezone'] == 'America/Bogota'
+
+    def test_get_user_status_default_timezone(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        status = service.get_user_status(authorized_user.telegram_id)
+        assert status['timezone'] == DEFAULT_TIMEZONE

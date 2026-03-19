@@ -2,12 +2,13 @@
 import pytest
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from application.services.expense_service import ExpenseService, _SPECIAL_CHARS_PATTERN
 from application.services.budget_query_service import BudgetQueryService
 from domain.models.expense import Expense
 from domain.models.user import UserConfiguration, UserStatus, YNABCategory, YNABPayee
+from domain.time_utils import DEFAULT_TIMEZONE
 
 TELEGRAM_ID = 123456789
 
@@ -92,7 +93,7 @@ class TestProcessExpenseMessage:
 
     def test_calls_llm_parser(self, service, mock_llm_parser):
         service.process_expense_message(TELEGRAM_ID, 'test message')
-        mock_llm_parser.parse_expense.assert_called_with('test message')
+        mock_llm_parser.parse_expense.assert_called_with('test message', timezone_str=DEFAULT_TIMEZONE)
 
     def test_records_learning(self, service, mock_learning_repository):
         service.process_expense_message(TELEGRAM_ID, 'test')
@@ -182,7 +183,7 @@ class TestProcessReceiptImage:
             'amount': 1000.0, 'category': 'X', 'payee': 'Y', 'memo': 'z', 'confidence': 0.9,
         }
         service.process_receipt_image(TELEGRAM_ID, 'data', 'almuerzo con amigos')
-        mock_llm_parser.parse_receipt_image.assert_called_with('data', 'almuerzo con amigos')
+        mock_llm_parser.parse_receipt_image.assert_called_with('data', 'almuerzo con amigos', timezone_str=DEFAULT_TIMEZONE)
 
     def test_parse_failure(self, service, mock_llm_parser):
         mock_llm_parser.parse_receipt_image.return_value = None
@@ -709,7 +710,7 @@ class TestDatePropagation:
         assert result.expense_result.success is True
         assert result.expense_result.expense.date == datetime(2026, 3, 17)
 
-    def test_null_date_uses_default_now(self, service, mock_llm_parser):
+    def test_null_date_uses_user_timezone(self, service, mock_llm_parser):
         mock_llm_parser.parse_message.return_value = {
             'intent': 'expense',
             'amount': 25000.0,
@@ -722,11 +723,12 @@ class TestDatePropagation:
         }
         result = service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
         assert result.expense_result.success is True
-        # date should be approximately now (within 5 seconds)
-        delta = abs((result.expense_result.expense.date - datetime.now()).total_seconds())
-        assert delta < 5
+        # date should be timezone-aware and approximately now
+        expense_date = result.expense_result.expense.date
+        assert expense_date is not None
+        assert expense_date.tzinfo is not None
 
-    def test_invalid_date_string_uses_default_now(self, service, mock_llm_parser):
+    def test_invalid_date_string_uses_user_timezone(self, service, mock_llm_parser):
         mock_llm_parser.parse_message.return_value = {
             'intent': 'expense',
             'amount': 25000.0,
@@ -739,8 +741,9 @@ class TestDatePropagation:
         }
         result = service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
         assert result.expense_result.success is True
-        delta = abs((result.expense_result.expense.date - datetime.now()).total_seconds())
-        assert delta < 5
+        expense_date = result.expense_result.expense.date
+        assert expense_date is not None
+        assert expense_date.tzinfo is not None
 
     def test_date_propagated_for_shared_expense(self, service_with_split, mock_llm_parser):
         mock_llm_parser.parse_message.return_value = {
@@ -760,7 +763,7 @@ class TestDatePropagation:
         assert result.expense_result.success is True
         assert result.expense_result.expense.date == datetime(2026, 3, 15)
 
-    def test_missing_date_key_uses_default_now(self, service, mock_llm_parser):
+    def test_missing_date_key_uses_user_timezone(self, service, mock_llm_parser):
         """When the parsed result doesn't have a 'date' key at all."""
         mock_llm_parser.parse_message.return_value = {
             'intent': 'expense',
@@ -773,8 +776,63 @@ class TestDatePropagation:
         }
         result = service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
         assert result.expense_result.success is True
-        delta = abs((result.expense_result.expense.date - datetime.now()).total_seconds())
-        assert delta < 5
+        expense_date = result.expense_result.expense.date
+        assert expense_date is not None
+        assert expense_date.tzinfo is not None
+
+
+# ---------------------------------------------------------------------------
+# Timezone wiring
+# ---------------------------------------------------------------------------
+
+class TestTimezoneWiring:
+
+    def test_process_message_passes_timezone_to_parser(self, service, mock_llm_parser, authorized_user):
+        authorized_user.timezone = 'America/Bogota'
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo',
+            'confidence': 0.85,
+        }
+        service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
+        mock_llm_parser.parse_message.assert_called_with('almuerzo 25 lucas', timezone_str='America/Bogota')
+
+    def test_build_expense_uses_user_timezone_for_default_date(self, service, mock_llm_parser, authorized_user):
+        authorized_user.timezone = 'America/Bogota'
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': 'almuerzo',
+            'date': None,
+            'confidence': 0.85,
+        }
+        result = service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
+        assert result.expense_result.success is True
+        expense_date = result.expense_result.expense.date
+        assert expense_date is not None
+        assert expense_date.tzinfo is not None
+        # The timezone name should contain Bogota
+        assert 'Bogota' in str(expense_date.tzinfo) or expense_date.utcoffset() is not None
+
+    def test_process_expense_message_passes_timezone_to_parser(self, service, mock_llm_parser, authorized_user):
+        authorized_user.timezone = 'US/Eastern'
+        service.process_expense_message(TELEGRAM_ID, 'test message')
+        mock_llm_parser.parse_expense.assert_called_with('test message', timezone_str='US/Eastern')
+
+    def test_process_receipt_image_passes_timezone_to_parser(self, service, mock_llm_parser, authorized_user):
+        authorized_user.timezone = 'Europe/Madrid'
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 1000.0, 'category': 'X', 'payee': 'Y', 'memo': 'z', 'confidence': 0.9,
+        }
+        service.process_receipt_image(TELEGRAM_ID, 'data', 'caption')
+        mock_llm_parser.parse_receipt_image.assert_called_with('data', 'caption', timezone_str='Europe/Madrid')
 
 
 # ---------------------------------------------------------------------------

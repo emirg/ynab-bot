@@ -48,7 +48,8 @@ class YNABTelegramBot:
         self.application.add_handler(CommandHandler("budgets", self.config_handler.handle_budgets_command))
         self.application.add_handler(CommandHandler("accounts", self.config_handler.handle_accounts_command))
         self.application.add_handler(CommandHandler("status", self.config_handler.handle_status_command))
-        
+        self.application.add_handler(CommandHandler("zona", self.config_handler.zona_command))
+
         # Split configuration commands
         self.application.add_handler(CommandHandler("splitwise", self.split_config_handler.handle_splitwise_command))
         

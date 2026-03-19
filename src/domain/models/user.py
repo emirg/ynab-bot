@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from enum import Enum
 
+from domain.time_utils import DEFAULT_TIMEZONE
+
 _TOKEN_EXPIRY_BUFFER = timedelta(minutes=5)
 
 
@@ -24,6 +26,7 @@ class UserConfiguration:
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    timezone: str = DEFAULT_TIMEZONE
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     approved_at: Optional[datetime] = None
@@ -90,6 +93,11 @@ class UserConfiguration:
             self.first_name = first_name
         if last_name is not None:
             self.last_name = last_name
+        self.updated_at = datetime.now()
+
+    def update_timezone(self, timezone: str):
+        """Update user timezone (IANA timezone string)"""
+        self.timezone = timezone
         self.updated_at = datetime.now()
 
     def has_ynab_token(self) -> bool:

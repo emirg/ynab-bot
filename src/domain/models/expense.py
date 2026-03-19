@@ -5,6 +5,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
+from domain.time_utils import user_now
+
 
 _UUID_PATTERN = re.compile(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
@@ -27,7 +29,7 @@ class Expense:
     confidence: float = 0.0
     parser_source: str = 'unknown'
     category_explanation: Optional[str] = None
-    date: datetime = field(default_factory=datetime.now)
+    date: Optional[datetime] = None
     is_split: bool = False
     split_person: Optional[str] = None
     split_proportion: Decimal = field(default_factory=lambda: Decimal('0.5'))
@@ -41,12 +43,13 @@ class Expense:
         # YNAB uses miliunits (multiply by 1000) and negative for expenses
         amount_milliunits = int(self.amount * -1000)
 
+        effective_date = self.date or user_now()
         transaction_data = {
             "account_id": self.account_id or default_account_id,
             "payee_name": self.payee,
             "amount": amount_milliunits,
             "memo": self.memo,
-            "date": self.date.strftime("%Y-%m-%d"),
+            "date": effective_date.strftime("%Y-%m-%d"),
             "cleared": "uncleared"
         }
 

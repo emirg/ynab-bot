@@ -10,6 +10,7 @@ from domain.models.user import (
     YNABBudget, YNABAccount, YNABCategory, YNABPayee,
 )
 from domain.models.onboarding import OnboardingStep
+from domain.time_utils import DEFAULT_TIMEZONE
 
 
 # ---------------------------------------------------------------------------
@@ -101,9 +102,10 @@ class TestExpense:
         e = Expense(amount=Decimal('1'), payee='T', memo='m')
         assert e.payee_id is None
 
-    def test_default_date_is_set(self):
+    def test_default_date_is_none(self):
+        """Date defaults to None — callers set it with user timezone."""
         e = Expense(amount=Decimal('1'), payee='T', memo='m')
-        assert isinstance(e.date, datetime)
+        assert e.date is None
 
     def test_default_confidence_is_zero(self):
         e = Expense(amount=Decimal('1'), payee='T', memo='m')
@@ -212,6 +214,18 @@ class TestExpense:
         txn = result['transaction']
         assert 'subtransactions' not in txn
         assert txn['category_id'] == '550e8400-e29b-41d4-a716-446655440000'
+
+    def test_expense_default_date_is_none(self):
+        e = Expense(amount=Decimal('1000'), payee='T', memo='m')
+        assert e.date is None
+
+    def test_expense_to_ynab_format_with_none_date_uses_today(self):
+        """Defensive fallback: when date is None, to_ynab_format uses user_now()."""
+        e = Expense(amount=Decimal('1000'), payee='T', memo='m')
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        # Should not raise and should have a valid date string
+        assert 'date' in result['transaction']
+        assert len(result['transaction']['date']) == 10  # YYYY-MM-DD
 
     def test_default_payer_is_user(self):
         e = Expense(amount=Decimal('1000'), payee='T', memo='m')
@@ -450,6 +464,18 @@ class TestUserConfiguration:
         assert u.ynab_access_token is None
         assert u.ynab_refresh_token is None
         assert u.ynab_token_expires_at is None
+
+    def test_user_configuration_default_timezone(self):
+        u = UserConfiguration(telegram_id=1)
+        assert u.timezone == DEFAULT_TIMEZONE
+
+    def test_user_configuration_update_timezone(self):
+        u = UserConfiguration(telegram_id=1)
+        old_updated = u.updated_at
+        import time; time.sleep(0.01)  # ensure updated_at changes
+        u.update_timezone("America/Bogota")
+        assert u.timezone == "America/Bogota"
+        assert u.updated_at > old_updated
 
 
 # ---------------------------------------------------------------------------

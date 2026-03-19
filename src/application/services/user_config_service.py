@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from domain.models.user import UserConfiguration, YNABBudget, YNABAccount
 from domain.repositories.user_repository import UserRepository
@@ -137,6 +138,7 @@ class UserConfigService:
             "default_account_id": user_config.default_account_id,
             "default_account_name": user_config.default_account_name,
             "ynab_connected": user_config.has_ynab_token(),
+            "timezone": user_config.timezone,
             "created_at": user_config.created_at.isoformat(),
             "updated_at": user_config.updated_at.isoformat()
         }
@@ -162,6 +164,22 @@ class UserConfigService:
             status["message"] = "Falta configurar presupuesto y cuenta"
 
         return status
+
+    def update_timezone(self, telegram_user_id: int, timezone_str: str) -> UserConfiguration:
+        """Update user's timezone. Validates IANA timezone string."""
+        try:
+            ZoneInfo(timezone_str)
+        except (KeyError, Exception):
+            raise ValueError(f"Zona horaria invalida: '{timezone_str}'. Usa un nombre IANA valido (ej: America/Bogota).")
+
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config:
+            raise YNABApiException("Usuario no encontrado")
+
+        user_config.update_timezone(timezone_str)
+        user_config = self.user_repository.save(user_config)
+        logger.info(f"Updated timezone for user {telegram_user_id} to {timezone_str}")
+        return user_config
 
     def reset_user_config(self, telegram_user_id: int) -> bool:
         """Reset user configuration"""

@@ -5,6 +5,7 @@ from datetime import datetime
 from infrastructure.repositories.database_manager import DatabaseManager
 from infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from domain.models.user import UserConfiguration, UserStatus
+from domain.time_utils import DEFAULT_TIMEZONE
 from domain.exceptions import YNABBotException
 
 
@@ -147,3 +148,30 @@ class TestFindAll:
 
     def test_find_all_empty(self, repo):
         assert repo.find_all() == []
+
+
+# ---------------------------------------------------------------------------
+# Timezone persistence
+# ---------------------------------------------------------------------------
+
+class TestTimezonePersistence:
+
+    def test_save_and_load_timezone(self, repo):
+        user = UserConfiguration(telegram_id=42, timezone="America/Bogota")
+        repo.save(user)
+        found = repo.find_by_telegram_id(42)
+        assert found.timezone == "America/Bogota"
+
+    def test_default_timezone_on_load(self, repo):
+        user = UserConfiguration(telegram_id=43)
+        repo.save(user)
+        found = repo.find_by_telegram_id(43)
+        assert found.timezone == DEFAULT_TIMEZONE
+
+    def test_update_timezone_persists(self, repo):
+        user = UserConfiguration(telegram_id=44)
+        repo.save(user)
+        user.update_timezone("Europe/Madrid")
+        repo.save(user)
+        found = repo.find_by_telegram_id(44)
+        assert found.timezone == "Europe/Madrid"

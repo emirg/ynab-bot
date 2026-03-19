@@ -6,6 +6,8 @@ from typing import Dict, Optional, List
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from domain.time_utils import user_now, DEFAULT_TIMEZONE
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -100,10 +102,9 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         self.ynab_accounts = accounts
         logger.info(f"Actualizadas {len(accounts)} cuentas YNAB para LLM")
     
-    @staticmethod
-    def _get_date_context() -> str:
+    def _get_date_context(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
         """Genera el contexto de fecha actual para inyectar en los prompts del LLM."""
-        now = datetime.now()
+        now = user_now(timezone_str)
         dias_semana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         dia_semana = dias_semana[now.weekday()]
         fecha_actual = now.strftime("%Y-%m-%d")
@@ -119,7 +120,7 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
             "- Si no hay mención de fecha, devuelve date: null."
         )
 
-    def _generate_system_prompt(self) -> str:
+    def _generate_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
         """Genera el prompt del sistema con las categorías y cuentas actuales"""
         # Sección de categorías
         if self.ynab_categories:
@@ -159,10 +160,10 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         return self.base_system_prompt.format(
             categories_section=categories_text,
             accounts_section=accounts_text,
-            date_context=self._get_date_context(),
+            date_context=self._get_date_context(timezone_str),
         )
 
-    def _generate_receipt_system_prompt(self) -> str:
+    def _generate_receipt_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
         """Genera el prompt del sistema específico para analizar imágenes de recibos"""
         # Reutilizar lógica de categorías
         if self.ynab_categories:
@@ -200,7 +201,7 @@ CONTEXTO COLOMBIANO:
 - Moneda: Pesos Colombianos (COP). Los montos suelen ser números grandes (ej: 45000, 120000).
 - Impuestos: IVA (19%) e Impoconsumo (8%) suelen estar incluidos en el total.
 
-{self._get_date_context()}
+{self._get_date_context(timezone_str)}
 
 RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
 {{
@@ -218,8 +219,8 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
 - Si faltan datos críticos (monto o lugar), devuelve confidence: 0.0.
 - No inventes datos. Si algo no es claro, usa lo más probable o baja el confidence.
 """
-    
-    def _generate_message_system_prompt(self) -> str:
+
+    def _generate_message_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
         """Genera el prompt del sistema para clasificar intent y parsear mensajes"""
         categories_text = "No hay categorías disponibles."
         if self.ynab_categories:
@@ -250,7 +251,7 @@ GASTOS: mensajes que reportan un gasto realizado. Contienen un monto y un lugar/
 
 {accounts_text}
 
-{self._get_date_context()}
+{self._get_date_context(timezone_str)}
 
 RESPONDE EN JSON con UNA de estas tres estructuras:
 
@@ -310,7 +311,7 @@ REGLAS CRÍTICAS:
                 content = "\n".join([line for line in lines if not line.strip().startswith("```")])
         return content.strip()
 
-    def parse_message(self, message: str) -> Optional[Dict]:
+    def parse_message(self, message: str, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
         """
         Clasifica el intent del mensaje y retorna la estructura correspondiente.
 
@@ -318,7 +319,7 @@ REGLAS CRÍTICAS:
             Dict con intent "expense" o "query", o None si falla
         """
         try:
-            system_prompt = self._generate_message_system_prompt()
+            system_prompt = self._generate_message_system_prompt(timezone_str)
 
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -394,19 +395,20 @@ REGLAS CRÍTICAS:
             logger.error(f"Error llamando a OpenAI API: {e}")
             return None
 
-    def parse_expense(self, message: str) -> Optional[Dict]:
+    def parse_expense(self, message: str, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
         """
         Parsea un mensaje usando OpenAI GPT
-        
+
         Args:
             message: Mensaje del usuario sobre un gasto
-            
+            timezone_str: IANA timezone string for date context
+
         Returns:
             Dict con información del gasto o None si falla
         """
         try:
             # Generar prompt dinámico con categorías actuales
-            system_prompt = self._generate_system_prompt()
+            system_prompt = self._generate_system_prompt(timezone_str)
             
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -456,7 +458,7 @@ REGLAS CRÍTICAS:
             logger.error(f"Error llamando a OpenAI API: {e}")
             return None
 
-    def parse_receipt_image(self, image_base64: str, caption: str = None) -> Optional[Dict]:
+    def parse_receipt_image(self, image_base64: str, caption: str = None, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
         """
         Analiza una imagen de un recibo en base64 usando OpenAI GPT-4o-mini Vision.
 
@@ -468,7 +470,7 @@ REGLAS CRÍTICAS:
             Dict con información del gasto o None si falla.
         """
         try:
-            system_prompt = self._generate_receipt_system_prompt()
+            system_prompt = self._generate_receipt_system_prompt(timezone_str)
 
             user_content = [
                 {
