@@ -121,7 +121,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - YNAB services use `YNABRepositoryFactory` (not a singleton repo) — always resolve per-user via `factory.get_repository(user_config)`
 - SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v5)
 
-## Development Workflow — Subagent Pipeline
+## Development Workflow — Agent Pipeline
  
 Feature development follows a structured multi-agent pipeline orchestrated by `ynab-lead-architect` (Opus). Each agent has a specific role, isolated context, and constrained tool access.
  
@@ -138,7 +138,7 @@ Agent definitions are in `.claude/agents/` (project-level, tracked in Git). Key 
 - **Orchestrator uses Opus**, workers use Sonnet — balances quality with cost.
 - **Read-only agents** (`dba-advisor`, `code-reviewer`, `refactor-advisor`) cannot modify code, only advise.
 - **Failures route to `debugger`** before halting the pipeline — reduces human intervention.
-- **Each agent has its own context window** — verbose exploration in a subagent doesn't pollute the main conversation.
+- **Each agent has its own context window** — verbose exploration in a agent doesn't pollute the main conversation.
 - **Plan-driven implementation** — `plan-step-implementer` executes exactly one step at a time from plans in `docs/plans/`, ensuring atomic, verifiable progress.
  
 For the full agent reference (roles, tools, delegation protocols), see the individual `.md` files in `.claude/agents/`.
