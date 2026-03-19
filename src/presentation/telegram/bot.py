@@ -3,6 +3,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
 from infrastructure.container import DIContainer
+from infrastructure.scheduler import weekly_summary_tick
 from presentation.telegram.handlers.general_handler import GeneralHandler
 from presentation.telegram.handlers.config_handler import ConfigHandler
 from presentation.telegram.handlers.learning_handler import LearningHandler
@@ -31,8 +32,22 @@ class YNABTelegramBot:
         # Initialize Telegram application
         self.application = Application.builder().token(self.config.telegram_token).build()
         self._register_handlers()
-        
+        self._register_jobs()
+
         logger.info("YNAB Telegram Bot initialized with layered architecture")
+
+    def _register_jobs(self):
+        """Register periodic job queue tasks."""
+        # Store container in bot_data so tick jobs can access DI.
+        self.application.bot_data["container"] = self.container
+
+        self.application.job_queue.run_repeating(
+            weekly_summary_tick,
+            interval=900,
+            first=10,
+            name="weekly_summary_tick",
+        )
+        logger.info("Registered job: weekly_summary_tick (interval=900s, first=10s)")
     
     def _register_handlers(self):
         """Register all command and message handlers"""

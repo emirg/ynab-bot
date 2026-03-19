@@ -172,6 +172,23 @@ class YNABApiRepository(YNABRepository):
             logger.error(f"Unexpected error creating transaction: {e}")
             raise YNABApiException(f"Unexpected error: {e}")
 
+    def get_transactions(self, budget_id: str, since_date: str) -> List[dict]:
+        """Get transactions since a given date. Returns raw dicts, deleted transactions excluded."""
+        try:
+            response = requests.get(
+                f"{self.base_url}/budgets/{budget_id}/transactions",
+                headers=self.headers,
+                params={"since_date": since_date},
+            )
+            response.raise_for_status()
+
+            transactions = response.json()["data"]["transactions"]
+            return [txn for txn in transactions if not txn.get("deleted", False)]
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get transactions for budget {budget_id}: {e}")
+            raise YNABApiException(f"Failed to get transactions: {e}")
+
     def update_transaction_category(self, budget_id: str, transaction_id: str, category_id: str) -> bool:
         """Update the category of an existing transaction. Returns True on success."""
         try:

@@ -1,7 +1,7 @@
 # Plan: Timezone-Aware Date Handling
 
 ## Objective & Context
-- **Status:** In Progress
+- **Status:** Completed
 - **Goal:** Fix the timezone bug where transactions get tomorrow's date when users interact with the bot after 21:00 local time (Argentina, UTC-3) because the Railway server runs in UTC.
 - **Why:** `datetime.now()` is called without timezone info in 3 locations that affect user-facing date logic. After 21:00 ART (00:00+ UTC), the bot assigns the next day's date to transactions and misreports "today" in date comparisons. Internal bookkeeping timestamps (user.py `created_at`/`updated_at`) are fine as UTC and should NOT be touched.
 

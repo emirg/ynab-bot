@@ -1,6 +1,6 @@
 """Tests for SQLiteUserRepository."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from infrastructure.repositories.database_manager import DatabaseManager
 from infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
@@ -175,3 +175,33 @@ class TestTimezonePersistence:
         repo.save(user)
         found = repo.find_by_telegram_id(44)
         assert found.timezone == "Europe/Madrid"
+
+
+# ---------------------------------------------------------------------------
+# last_weekly_summary_sent persistence
+# ---------------------------------------------------------------------------
+
+class TestWeeklySummarySentPersistence:
+
+    def test_null_by_default(self, repo):
+        user = UserConfiguration(telegram_id=50)
+        repo.save(user)
+        found = repo.find_by_telegram_id(50)
+        assert found.last_weekly_summary_sent is None
+
+    def test_round_trip_with_value(self, repo):
+        sent_at = datetime(2026, 3, 17, 8, 0, 0, tzinfo=timezone.utc)
+        user = UserConfiguration(telegram_id=51, last_weekly_summary_sent=sent_at)
+        repo.save(user)
+        found = repo.find_by_telegram_id(51)
+        assert found.last_weekly_summary_sent is not None
+        # Compare without tzinfo since fromisoformat preserves the offset
+        assert found.last_weekly_summary_sent.replace(tzinfo=None) == sent_at.replace(tzinfo=None)
+
+    def test_update_last_weekly_summary_sent(self, repo):
+        user = UserConfiguration(telegram_id=52)
+        repo.save(user)
+        user.mark_weekly_summary_sent()
+        repo.save(user)
+        found = repo.find_by_telegram_id(52)
+        assert found.last_weekly_summary_sent is not None

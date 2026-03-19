@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from enum import Enum
 
@@ -34,6 +34,7 @@ class UserConfiguration:
     ynab_access_token: Optional[str] = None
     ynab_refresh_token: Optional[str] = None
     ynab_token_expires_at: Optional[datetime] = None
+    last_weekly_summary_sent: Optional[datetime] = None
 
     def is_configured(self) -> bool:
         """Check if user has minimum required configuration"""
@@ -118,6 +119,11 @@ class UserConfiguration:
         self.ynab_access_token = None
         self.ynab_refresh_token = None
         self.ynab_token_expires_at = None
+        self.updated_at = datetime.now()
+
+    def mark_weekly_summary_sent(self):
+        """Record that the weekly summary was sent now (UTC)."""
+        self.last_weekly_summary_sent = datetime.now(timezone.utc)
         self.updated_at = datetime.now()
 
 

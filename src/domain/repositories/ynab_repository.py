@@ -36,3 +36,9 @@ class YNABRepository(ABC):
     def update_transaction_category(self, budget_id: str, transaction_id: str, category_id: str) -> bool:
         """Update the category of an existing transaction. Returns True on success."""
         pass
+
+    @abstractmethod
+    def get_transactions(self, budget_id: str, since_date: str) -> List[dict]:
+        """Get transactions since a given date (YYYY-MM-DD). Returns raw dicts with at least
+        amount, category_name, date, deleted, and payee_name fields."""
+        pass

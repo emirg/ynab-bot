@@ -284,6 +284,71 @@ class TestCreateTransaction:
 
 
 # ---------------------------------------------------------------------------
+# get_transactions
+# ---------------------------------------------------------------------------
+
+class TestGetTransactions:
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_returns_non_deleted_transactions(self, mock_get, repo):
+        mock_get.return_value = _mock_response({
+            'data': {'transactions': [
+                {'id': 't1', 'amount': -50000, 'category_name': 'Groceries', 'date': '2026-03-10', 'deleted': False, 'payee_name': 'Carulla'},
+                {'id': 't2', 'amount': -20000, 'category_name': 'Transport', 'date': '2026-03-11', 'deleted': True, 'payee_name': 'Uber'},
+                {'id': 't3', 'amount': -30000, 'category_name': 'Dining', 'date': '2026-03-12', 'deleted': False, 'payee_name': 'Subway'},
+            ]}
+        })
+        result = repo.get_transactions('budget-1', '2026-03-10')
+        assert len(result) == 2
+        ids = {t['id'] for t in result}
+        assert 't1' in ids
+        assert 't3' in ids
+        assert 't2' not in ids
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_passes_since_date_as_query_param(self, mock_get, repo):
+        mock_get.return_value = _mock_response({'data': {'transactions': []}})
+        repo.get_transactions('budget-1', '2026-03-03')
+        call_kwargs = mock_get.call_args[1]
+        assert call_kwargs['params'] == {'since_date': '2026-03-03'}
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_uses_correct_endpoint(self, mock_get, repo):
+        mock_get.return_value = _mock_response({'data': {'transactions': []}})
+        repo.get_transactions('my-budget-id', '2026-03-03')
+        called_url = mock_get.call_args[0][0]
+        assert 'my-budget-id' in called_url
+        assert 'transactions' in called_url
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_returns_empty_list_when_no_transactions(self, mock_get, repo):
+        mock_get.return_value = _mock_response({'data': {'transactions': []}})
+        result = repo.get_transactions('budget-1', '2026-03-03')
+        assert result == []
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_raises_on_network_error(self, mock_get, repo):
+        import requests as req
+        mock_get.side_effect = req.exceptions.ConnectionError('timeout')
+        with pytest.raises(YNABApiException):
+            repo.get_transactions('budget-1', '2026-03-03')
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_no_caching_second_call_hits_api(self, mock_get, repo):
+        mock_get.return_value = _mock_response({'data': {'transactions': []}})
+        repo.get_transactions('budget-1', '2026-03-03')
+        repo.get_transactions('budget-1', '2026-03-03')
+        assert mock_get.call_count == 2
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.get')
+    def test_returns_full_transaction_dicts(self, mock_get, repo):
+        txn = {'id': 't1', 'amount': -50000, 'category_name': 'Groceries', 'date': '2026-03-10', 'deleted': False, 'payee_name': 'Carulla'}
+        mock_get.return_value = _mock_response({'data': {'transactions': [txn]}})
+        result = repo.get_transactions('budget-1', '2026-03-10')
+        assert result[0] == txn
+
+
+# ---------------------------------------------------------------------------
 # update_transaction_category
 # ---------------------------------------------------------------------------
 

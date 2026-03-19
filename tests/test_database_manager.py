@@ -7,13 +7,13 @@ from src.infrastructure.repositories.database_manager import DatabaseManager
 def test_database_initialization(tmp_path):
     db_file = tmp_path / "test.db"
     db_manager = DatabaseManager(str(db_file))
-    
+
     # Check that schema_version table exists and has the latest version
     conn = db_manager.get_connection()
     cursor = conn.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
-    
-    assert version == 7
+
+    assert version == 8
     db_manager.close()
 
 
@@ -30,7 +30,7 @@ def test_database_idempotency(tmp_path):
     cursor = conn.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
 
-    assert version == 7
+    assert version == 8
     db_manager.close()
 
 
@@ -67,4 +67,52 @@ def test_timezone_column_exists(tmp_path):
     columns = {row[1]: row[4] for row in cursor.fetchall()}  # name -> default
     assert "timezone" in columns
     assert columns["timezone"] == "'America/Argentina/Buenos_Aires'"
+    db_manager.close()
+
+
+def test_migration_v8_fresh_db(tmp_path):
+    """Migration v8 applies cleanly on a fresh DB (v1 through v8)."""
+    db_file = tmp_path / "test_v8_fresh.db"
+    db_manager = DatabaseManager(str(db_file))
+    conn = db_manager.get_connection()
+
+    cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+    assert cursor.fetchone()[0] == 8
+
+    cursor = conn.execute("PRAGMA table_info(user_configurations)")
+    columns = [row[1] for row in cursor.fetchall()]
+    assert "last_weekly_summary_sent" in columns
+
+    db_manager.close()
+
+
+def test_migration_v8_on_existing_v7_db(tmp_path):
+    """Migration v8 applies cleanly on a DB that was already at v7."""
+    db_file = tmp_path / "test_v7_to_v8.db"
+
+    # Bootstrap the DB up to v7 by temporarily patching _MIGRATIONS
+    import src.infrastructure.repositories.database_manager as dm_module
+
+    original_migrations = dm_module._MIGRATIONS
+    dm_module._MIGRATIONS = [m for m in original_migrations if m[0] <= 7]
+    try:
+        db_manager = DatabaseManager(str(db_file))
+        conn = db_manager.get_connection()
+        cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+        assert cursor.fetchone()[0] == 7
+        db_manager.close()
+    finally:
+        dm_module._MIGRATIONS = original_migrations
+
+    # Now open again with full migrations — v8 should be applied
+    db_manager = DatabaseManager(str(db_file))
+    conn = db_manager.get_connection()
+
+    cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+    assert cursor.fetchone()[0] == 8
+
+    cursor = conn.execute("PRAGMA table_info(user_configurations)")
+    columns = [row[1] for row in cursor.fetchall()]
+    assert "last_weekly_summary_sent" in columns
+
     db_manager.close()

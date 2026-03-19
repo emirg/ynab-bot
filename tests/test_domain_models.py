@@ -477,6 +477,30 @@ class TestUserConfiguration:
         assert u.timezone == "America/Bogota"
         assert u.updated_at > old_updated
 
+    def test_last_weekly_summary_sent_default_is_none(self):
+        u = UserConfiguration(telegram_id=1)
+        assert u.last_weekly_summary_sent is None
+
+    def test_mark_weekly_summary_sent_sets_field(self):
+        import time
+        from datetime import timezone as tz
+        u = UserConfiguration(telegram_id=1)
+        before = datetime.now()
+        time.sleep(0.01)
+        u.mark_weekly_summary_sent()
+        assert u.last_weekly_summary_sent is not None
+        # Value is UTC-aware
+        assert u.last_weekly_summary_sent.tzinfo is not None
+        assert u.last_weekly_summary_sent.tzinfo == tz.utc
+
+    def test_mark_weekly_summary_sent_updates_updated_at(self):
+        import time
+        u = UserConfiguration(telegram_id=1)
+        old_updated = u.updated_at
+        time.sleep(0.01)
+        u.mark_weekly_summary_sent()
+        assert u.updated_at > old_updated
+
 
 # ---------------------------------------------------------------------------
 # YNAB domain models

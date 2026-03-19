@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 
 from domain.repositories.user_repository import UserRepository
@@ -47,6 +47,7 @@ class SQLiteUserRepository(UserRepository):
             ynab_access_token=access_token,
             ynab_refresh_token=refresh_token,
             ynab_token_expires_at=datetime.fromisoformat(row['ynab_token_expires_at']) if row['ynab_token_expires_at'] else None,
+            last_weekly_summary_sent=datetime.fromisoformat(row['last_weekly_summary_sent']) if row['last_weekly_summary_sent'] else None,
         )
 
     def find_by_telegram_id(self, telegram_id: int) -> Optional[UserConfiguration]:
@@ -80,8 +81,9 @@ class SQLiteUserRepository(UserRepository):
                 INSERT INTO user_configurations
                     (telegram_id, status, budget_id, default_account_id, default_account_name,
                      username, first_name, last_name, timezone, created_at, updated_at, approved_at, approved_by,
-                     ynab_access_token, ynab_refresh_token, ynab_token_expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ynab_access_token, ynab_refresh_token, ynab_token_expires_at,
+                     last_weekly_summary_sent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(telegram_id) DO UPDATE SET
                     status = excluded.status,
                     budget_id = excluded.budget_id,
@@ -96,7 +98,8 @@ class SQLiteUserRepository(UserRepository):
                     approved_by = excluded.approved_by,
                     ynab_access_token = excluded.ynab_access_token,
                     ynab_refresh_token = excluded.ynab_refresh_token,
-                    ynab_token_expires_at = excluded.ynab_token_expires_at
+                    ynab_token_expires_at = excluded.ynab_token_expires_at,
+                    last_weekly_summary_sent = excluded.last_weekly_summary_sent
                 """,
                 (
                     user_config.telegram_id,
@@ -115,6 +118,7 @@ class SQLiteUserRepository(UserRepository):
                     access_token,
                     refresh_token,
                     user_config.ynab_token_expires_at.isoformat() if user_config.ynab_token_expires_at else None,
+                    user_config.last_weekly_summary_sent.isoformat() if user_config.last_weekly_summary_sent else None,
                 ),
             )
             conn.commit()

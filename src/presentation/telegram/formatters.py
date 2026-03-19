@@ -8,6 +8,7 @@ from domain.models.expense import ExpenseResult
 from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
 from domain.models.onboarding import OnboardingStep
+from domain.models.weekly_summary import WeeklySummary
 from domain.time_utils import user_today, DEFAULT_TIMEZONE
 
 
@@ -539,3 +540,42 @@ Ya puedes empezar a registrar gastos enviando mensajes de texto, voz o fotos de 
 
 💰 *Ejemplo:* "comida 35000"
         """.strip()
+
+
+class WeeklySummaryFormatter:
+    """Formatter for weekly spending summary messages"""
+
+    @staticmethod
+    def format_summary(summary: WeeklySummary) -> str:
+        """Format a WeeklySummary as a Telegram Markdown message."""
+        start_str = summary.week_start.strftime("%d/%m")
+        end_str = summary.week_end.strftime("%d/%m")
+
+        if not summary.has_transactions:
+            return (
+                f"No hubo movimientos la semana pasada "
+                f"(lun {start_str} - dom {end_str}). "
+                f"¡A seguir ahorrando!"
+            )
+
+        total_display = summary.total_spent / 1000
+
+        lines = [
+            f"📊 *Resumen semanal* (lun {start_str} - dom {end_str})",
+            "",
+            f"💰 *Total gastado:* ${total_display:,.0f}",
+            "",
+            "📋 *Top categorías:*",
+        ]
+
+        for i, cat in enumerate(summary.top_categories, 1):
+            amount_display = cat.amount / 1000
+            lines.append(f"{i}. {cat.category_name} — ${amount_display:,.0f}")
+
+        if summary.percentage_change is not None:
+            pct = abs(summary.percentage_change)
+            direction = "más" if summary.percentage_change > 0 else "menos"
+            lines.append("")
+            lines.append(f"📈 Gastaste {pct:.0f}% {direction} que la semana pasada.")
+
+        return "\n".join(lines)
