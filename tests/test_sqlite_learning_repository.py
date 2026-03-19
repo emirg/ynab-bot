@@ -220,6 +220,25 @@ class TestRecordCorrection:
         stats = repo.get_learning_statistics(TELEGRAM_ID)
         assert stats['total_corrections'] == 1
 
+    def test_correction_saves_category_name(self, repo, expense_mcdonalds):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        repo.record_user_correction(
+            TELEGRAM_ID, "McDonald's", 'cat-restaurants', 'cat-fast-food',
+            new_category_name='Fast Food',
+        )
+        associations = repo.get_payee_associations(TELEGRAM_ID)
+        fast_food = [a for a in associations if a['category_id'] == 'cat-fast-food']
+        assert len(fast_food) == 1
+        assert fast_food[0]['category_name'] == 'Fast Food'
+
+    def test_correction_without_category_name_defaults_empty(self, repo, expense_mcdonalds):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        repo.record_user_correction(TELEGRAM_ID, "McDonald's", 'cat-restaurants', 'cat-fast-food')
+        associations = repo.get_payee_associations(TELEGRAM_ID)
+        fast_food = [a for a in associations if a['category_id'] == 'cat-fast-food']
+        assert len(fast_food) == 1
+        assert fast_food[0]['category_name'] == ''
+
 
 # ---------------------------------------------------------------------------
 # Recent transactions
@@ -252,6 +271,18 @@ class TestRecentTransactions:
 
     def test_empty_by_default(self, repo):
         assert repo.get_recent_transactions(TELEGRAM_ID, 10) == []
+
+    def test_stores_ynab_transaction_id(self, repo, expense_mcdonalds):
+        repo.add_recent_transaction(TELEGRAM_ID, expense_mcdonalds, ynab_transaction_id='txn-abc-123')
+        recent = repo.get_recent_transactions(TELEGRAM_ID, 10)
+        assert len(recent) == 1
+        assert recent[0]['ynab_transaction_id'] == 'txn-abc-123'
+
+    def test_ynab_transaction_id_defaults_to_none(self, repo, expense_mcdonalds):
+        repo.add_recent_transaction(TELEGRAM_ID, expense_mcdonalds)
+        recent = repo.get_recent_transactions(TELEGRAM_ID, 10)
+        assert len(recent) == 1
+        assert recent[0]['ynab_transaction_id'] is None
 
     def test_per_user_isolation(self, repo, db_manager, expense_mcdonalds):
         other_user_id = 999999999

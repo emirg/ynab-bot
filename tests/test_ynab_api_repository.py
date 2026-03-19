@@ -281,3 +281,36 @@ class TestCreateTransaction:
         )
         with pytest.raises(YNABApiException):
             repo.create_transaction(expense, 'budget-1', 'acc-1')
+
+
+# ---------------------------------------------------------------------------
+# update_transaction_category
+# ---------------------------------------------------------------------------
+
+class TestUpdateTransactionCategory:
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.put')
+    def test_success(self, mock_put, repo):
+        mock_put.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1', 'category_id': 'cat-new'}}},
+            status_code=200,
+        )
+        result = repo.update_transaction_category('budget-1', 'txn-1', 'cat-new')
+        assert result is True
+        mock_put.assert_called_once()
+        call_args = mock_put.call_args
+        assert 'txn-1' in call_args[0][0]
+        assert call_args[1]['json'] == {'transaction': {'category_id': 'cat-new'}}
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.put')
+    def test_http_error_returns_false(self, mock_put, repo):
+        mock_put.return_value = _mock_response({'error': 'bad'}, status_code=400)
+        result = repo.update_transaction_category('budget-1', 'txn-1', 'cat-new')
+        assert result is False
+
+    @patch('infrastructure.repositories.ynab_api_repository.requests.put')
+    def test_network_error_returns_false(self, mock_put, repo):
+        import requests as req
+        mock_put.side_effect = req.exceptions.ConnectionError('timeout')
+        result = repo.update_transaction_category('budget-1', 'txn-1', 'cat-new')
+        assert result is False

@@ -91,6 +91,70 @@ async def test_handle_forget_command_with_args(handler, update, context):
     assert "He olvidado McDonald's" in args[0]
 
 @pytest.mark.anyio
+async def test_handle_correction_command_no_args(handler, update, context):
+    context.args = []
+    await handler.handle_correction_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert "Uso del comando /corregir" in args[0]
+
+@pytest.mark.anyio
+async def test_handle_correction_command_invalid_number(handler, update, context):
+    context.args = ['abc', 'Groceries']
+    await handler.handle_correction_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert "invalido" in args[0].lower() or "inválido" in args[0].lower()
+
+@pytest.mark.anyio
+async def test_handle_correction_command_success(handler, update, context):
+    context.args = ['1', 'Groceries']
+    handler.expense_service.correct_recent_transaction.return_value = {
+        'payee': 'McDonalds',
+        'old_category_name': 'Comida rapida',
+        'new_category_name': 'Groceries',
+        'ynab_updated': False,
+    }
+    await handler.handle_correction_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'Groceries' in args[0]
+
+@pytest.mark.anyio
+async def test_handle_correction_command_success_with_ynab_update(handler, update, context):
+    context.args = ['1', 'Groceries']
+    handler.expense_service.correct_recent_transaction.return_value = {
+        'payee': 'McDonalds',
+        'old_category_name': 'Comida rapida',
+        'new_category_name': 'Groceries',
+        'ynab_updated': True,
+    }
+    await handler.handle_correction_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'YNAB' in args[0]
+
+@pytest.mark.anyio
+async def test_handle_correction_command_category_not_found(handler, update, context):
+    context.args = ['1', 'NonExistent']
+    handler.expense_service.correct_recent_transaction.return_value = {
+        'error': "No encontre una categoria que coincida con 'NonExistent'. Verifica el nombre e intenta de nuevo."
+    }
+    await handler.handle_correction_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'NonExistent' in args[0]
+
+@pytest.mark.anyio
+async def test_handle_correction_command_failure(handler, update, context):
+    context.args = ['1', 'Groceries']
+    handler.expense_service.correct_recent_transaction.return_value = None
+    await handler.handle_correction_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert "No se pudo" in args[0]
+
+@pytest.mark.anyio
 async def test_handle_routing_aprendizaje(handler, update, context):
     # Setup
     update.message.text = "/aprendizaje"

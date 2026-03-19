@@ -18,7 +18,7 @@ class LearningRepository(ABC):
         pass
 
     @abstractmethod
-    def record_user_correction(self, telegram_id: int, payee: str, old_category_id: str, new_category_id: str) -> None:
+    def record_user_correction(self, telegram_id: int, payee: str, old_category_id: str, new_category_id: str, new_category_name: str = "") -> None:
         """Record a user correction for learning improvement"""
         pass
 
@@ -28,7 +28,7 @@ class LearningRepository(ABC):
         pass
 
     @abstractmethod
-    def add_recent_transaction(self, telegram_id: int, expense: Expense) -> None:
+    def add_recent_transaction(self, telegram_id: int, expense: Expense, ynab_transaction_id: str = None) -> None:
         """Add transaction to recent transactions for correction purposes"""
         pass
 

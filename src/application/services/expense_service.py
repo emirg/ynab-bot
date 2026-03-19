@@ -132,7 +132,7 @@ class ExpenseService:
             raise YNABApiException("Failed to create transaction")
 
         self.learning_repository.record_successful_transaction(telegram_user_id, expense)
-        self.learning_repository.add_recent_transaction(telegram_user_id, expense)
+        self.learning_repository.add_recent_transaction(telegram_user_id, expense, transaction_id)
 
         logger.info(f"Successfully processed expense: {expense.payee} ${expense.amount}")
         return ExpenseResult.success_result(expense, transaction_id)
@@ -189,7 +189,7 @@ class ExpenseService:
             raise YNABApiException("Failed to create transaction")
 
         self.learning_repository.record_successful_transaction(telegram_user_id, expense)
-        self.learning_repository.add_recent_transaction(telegram_user_id, expense)
+        self.learning_repository.add_recent_transaction(telegram_user_id, expense, transaction_id)
 
         logger.info(f"Successfully processed shared expense: {expense.payee} ${expense.amount} with {person} (payer={payer})")
         return ExpenseResult.success_result(expense, transaction_id)
@@ -304,7 +304,7 @@ class ExpenseService:
                 raise YNABApiException("Failed to create transaction")
 
             self.learning_repository.record_successful_transaction(telegram_user_id, expense)
-            self.learning_repository.add_recent_transaction(telegram_user_id, expense)
+            self.learning_repository.add_recent_transaction(telegram_user_id, expense, transaction_id)
 
             logger.info(f"Successfully processed receipt: {expense.payee} ${expense.amount}")
             return ExpenseResult.success_result(expense, transaction_id)
@@ -366,7 +366,7 @@ class ExpenseService:
 
             # 8. Learn from successful transaction
             self.learning_repository.record_successful_transaction(telegram_user_id, expense)
-            self.learning_repository.add_recent_transaction(telegram_user_id, expense)
+            self.learning_repository.add_recent_transaction(telegram_user_id, expense, transaction_id)
 
             logger.info(f"Successfully processed expense: {expense.payee} ${expense.amount}")
             return ExpenseResult.success_result(expense, transaction_id)
@@ -600,16 +600,37 @@ class ExpenseService:
         
         return f"confianza {conf_pct}%"
 
-    def correct_recent_transaction(self, telegram_user_id: int, transaction_index: int, new_category_id: str) -> Optional[Dict[str, str]]:
-        """Correct a recent transaction category for learning purposes.
+    def correct_recent_transaction(self, telegram_user_id: int, transaction_index: int, new_category_input: str) -> Optional[Dict]:
+        """Correct a recent transaction category: resolve via fuzzy match, update YNAB, and save learning.
 
-        Returns a dict with 'payee' and 'old_category_name' on success, None on failure.
+        Returns a dict with correction details on success, a dict with 'error' key on
+        validation failure, or None on unexpected failure.
         """
         try:
             user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
-            if not user_config:
+            if not user_config or not user_config.is_configured():
                 return None
 
+            # Load categories and build lookup maps for fuzzy matching
+            ynab_repository = self.ynab_factory.get_repository(user_config)
+            categories = ynab_repository.get_categories(user_config.budget_id)
+            self._update_llm_parser_data(categories, [], [])
+
+            # Resolve user input to a real YNAB category via fuzzy matching
+            resolved_category_id = self._find_category_id_by_name(new_category_input, categories)
+            if not resolved_category_id:
+                return {
+                    "error": f"No encontre una categoria que coincida con '{new_category_input}'. Verifica el nombre e intenta de nuevo."
+                }
+
+            # Look up the resolved category name
+            resolved_category_name = new_category_input
+            for cat in categories:
+                if cat.id == resolved_category_id:
+                    resolved_category_name = cat.name
+                    break
+
+            # Get and validate recent transactions
             recent_transactions = self.learning_repository.get_recent_transactions(telegram_user_id, 20)
 
             if transaction_index >= len(recent_transactions):
@@ -626,11 +647,28 @@ class ExpenseService:
 
             old_category_name = transaction.get('category_name') or old_category_id
 
-            # Record the correction for learning
-            self.learning_repository.record_user_correction(telegram_user_id, payee, old_category_id, new_category_id)
+            # Update the YNAB transaction if we have its ID
+            ynab_updated = False
+            ynab_transaction_id = transaction.get('ynab_transaction_id')
+            if ynab_transaction_id:
+                ynab_updated = ynab_repository.update_transaction_category(
+                    user_config.budget_id, ynab_transaction_id, resolved_category_id
+                )
+                if not ynab_updated:
+                    logger.warning(f"YNAB update failed for transaction {ynab_transaction_id}, saving learning anyway")
 
-            logger.info(f"Recorded correction: {payee} {old_category_id} -> {new_category_id}")
-            return {'payee': payee, 'old_category_name': old_category_name}
+            # Record the correction for learning (always, even if YNAB update failed)
+            self.learning_repository.record_user_correction(
+                telegram_user_id, payee, old_category_id, resolved_category_id, resolved_category_name
+            )
+
+            logger.info(f"Recorded correction: {payee} {old_category_id} -> {resolved_category_id} ({resolved_category_name})")
+            return {
+                'payee': payee,
+                'old_category_name': old_category_name,
+                'new_category_name': resolved_category_name,
+                'ynab_updated': ynab_updated,
+            }
 
         except Exception as e:
             logger.error(f"Error correcting transaction: {e}")

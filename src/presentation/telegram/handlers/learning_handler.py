@@ -104,10 +104,17 @@ class LearningHandler(BaseHandler):
                 user_id, transaction_index, new_category_id
             )
 
+            if result and 'error' in result:
+                await self.send_error_message(update, result['error'])
+                return
+
             if result:
+                new_category_name = result.get('new_category_name', new_category_id)
                 response = self.formatter.format_correction_success(
-                    result["payee"], result["old_category_name"], new_category_id
+                    result["payee"], result["old_category_name"], new_category_name
                 )
+                if result.get('ynab_updated'):
+                    response += "\n\nLa transaccion en YNAB tambien fue actualizada."
                 await self.send_message(update, response)
                 self.log_handler_success("LearningHandler.handle_correction_command", update)
             else:

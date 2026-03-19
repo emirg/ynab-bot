@@ -172,6 +172,28 @@ class YNABApiRepository(YNABRepository):
             logger.error(f"Unexpected error creating transaction: {e}")
             raise YNABApiException(f"Unexpected error: {e}")
 
+    def update_transaction_category(self, budget_id: str, transaction_id: str, category_id: str) -> bool:
+        """Update the category of an existing transaction. Returns True on success."""
+        try:
+            response = requests.put(
+                f"{self.base_url}/budgets/{budget_id}/transactions/{transaction_id}",
+                headers=self.headers,
+                json={"transaction": {"category_id": category_id}},
+            )
+
+            if response.status_code in [200, 201]:
+                logger.info(f"Transaction {transaction_id} category updated to {category_id}")
+                return True
+            else:
+                logger.error(
+                    f"Failed to update transaction category: HTTP {response.status_code}: {response.text}"
+                )
+                return False
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to update transaction category: {e}")
+            return False
+
 
 class YNABRepositoryFactory:
     """Creates per-user YNABApiRepository instances using OAuth tokens."""

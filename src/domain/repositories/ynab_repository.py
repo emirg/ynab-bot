@@ -31,3 +31,8 @@ class YNABRepository(ABC):
     def create_transaction(self, expense: Expense, budget_id: str, account_id: str) -> Optional[str]:
         """Create transaction and return transaction ID if successful"""
         pass
+
+    @abstractmethod
+    def update_transaction_category(self, budget_id: str, transaction_id: str, category_id: str) -> bool:
+        """Update the category of an existing transaction. Returns True on success."""
+        pass

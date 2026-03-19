@@ -120,7 +120,8 @@ class SQLiteLearningRepository(LearningRepository):
         return best_category_id, confidence, best['count']
 
     def record_user_correction(
-        self, telegram_id: int, payee: str, old_category_id: str, new_category_id: str
+        self, telegram_id: int, payee: str, old_category_id: str, new_category_id: str,
+        new_category_name: str = "",
     ) -> None:
         normalized = normalize_payee(payee)
         conn = self._db.get_connection()
@@ -156,13 +157,14 @@ class SQLiteLearningRepository(LearningRepository):
         conn.execute(
             """
             INSERT INTO payee_category_mappings
-                (telegram_id, normalized_payee, category_id, count, last_updated)
-            VALUES (?, ?, ?, 1, ?)
+                (telegram_id, normalized_payee, category_id, category_name, count, last_updated)
+            VALUES (?, ?, ?, ?, 1, ?)
             ON CONFLICT(telegram_id, normalized_payee, category_id) DO UPDATE SET
                 count = count + 1,
-                last_updated = excluded.last_updated
+                last_updated = excluded.last_updated,
+                category_name = excluded.category_name
             """,
-            (telegram_id, normalized, new_category_id, datetime.now().isoformat()),
+            (telegram_id, normalized, new_category_id, new_category_name, datetime.now().isoformat()),
         )
         conn.commit()
         logger.info(f"Correction: {normalized} {old_category_id} -> {new_category_id} (user {telegram_id})")
@@ -193,13 +195,13 @@ class SQLiteLearningRepository(LearningRepository):
             "total_corrections": total_corrections,
         }
 
-    def add_recent_transaction(self, telegram_id: int, expense: Expense) -> None:
+    def add_recent_transaction(self, telegram_id: int, expense: Expense, ynab_transaction_id: str = None) -> None:
         conn = self._db.get_connection()
         conn.execute(
             """
             INSERT INTO recent_transactions
-                (telegram_id, payee, amount, category_id, category_name, confidence, parser_source)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (telegram_id, payee, amount, category_id, category_name, confidence, parser_source, ynab_transaction_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 telegram_id,
@@ -209,6 +211,7 @@ class SQLiteLearningRepository(LearningRepository):
                 expense.category_name,
                 expense.confidence,
                 expense.parser_source,
+                ynab_transaction_id,
             ),
         )
 
@@ -231,7 +234,7 @@ class SQLiteLearningRepository(LearningRepository):
         conn = self._db.get_connection()
         cursor = conn.execute(
             """
-            SELECT payee, amount, category_id, category_name, confidence, parser_source, created_at
+            SELECT payee, amount, category_id, category_name, confidence, parser_source, created_at, ynab_transaction_id
             FROM recent_transactions
             WHERE telegram_id = ?
             ORDER BY id DESC
@@ -248,6 +251,7 @@ class SQLiteLearningRepository(LearningRepository):
                 "confidence": row['confidence'],
                 "parser_source": row['parser_source'],
                 "timestamp": row['created_at'],
+                "ynab_transaction_id": row['ynab_transaction_id'],
             }
             for row in cursor.fetchall()
         ]

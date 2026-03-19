@@ -131,6 +131,14 @@ _MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_split_aliases_group ON split_person_aliases(split_group_id);
         """,
     ),
+    # Version 6: Add ynab_transaction_id to recent_transactions
+    (
+        6,
+        "Add ynab_transaction_id to recent_transactions",
+        """
+        ALTER TABLE recent_transactions ADD COLUMN ynab_transaction_id TEXT;
+        """,
+    ),
 ]
 
 

@@ -13,7 +13,7 @@ def test_database_initialization(tmp_path):
     cursor = conn.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
     
-    assert version == 5
+    assert version == 6
     db_manager.close()
 
 
@@ -30,7 +30,7 @@ def test_database_idempotency(tmp_path):
     cursor = conn.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
     
-    assert version == 5
+    assert version == 6
     db_manager.close()
 
 
@@ -43,5 +43,16 @@ def test_split_tables_exist(tmp_path):
     for table in tables:
         cursor = conn.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
         assert cursor.fetchone() is not None
-        
+
+    db_manager.close()
+
+
+def test_ynab_transaction_id_column_exists(tmp_path):
+    db_file = tmp_path / "test.db"
+    db_manager = DatabaseManager(str(db_file))
+    conn = db_manager.get_connection()
+
+    cursor = conn.execute("PRAGMA table_info(recent_transactions)")
+    columns = [row[1] for row in cursor.fetchall()]
+    assert "ynab_transaction_id" in columns
     db_manager.close()

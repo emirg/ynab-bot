@@ -103,6 +103,8 @@ class TestProcessExpenseMessage:
         mock_learning_repository.add_recent_transaction.assert_called_once()
         call_args = mock_learning_repository.add_recent_transaction.call_args
         assert call_args[0][0] == TELEGRAM_ID
+        # Verify transaction_id is passed as third argument
+        assert call_args[0][2] == 'txn-id-123'
 
     def test_creates_transaction(self, service, mock_ynab_repository):
         service.process_expense_message(TELEGRAM_ID, 'test')
@@ -403,33 +405,70 @@ class TestBuildCategoryExplanation:
 
 class TestCorrectRecentTransaction:
 
-    def test_success(self, service, mock_user_repository, mock_learning_repository, authorized_user):
+    def test_success_resolves_category_via_fuzzy_match(self, service, mock_user_repository, mock_learning_repository, mock_ynab_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = [
-            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Comida rápida', 'amount': 25000},
+            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Comida rapida', 'amount': 25000, 'ynab_transaction_id': None},
         ]
-        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'cat-new')
-        assert result == {'payee': 'McDonalds', 'old_category_name': 'Comida rápida'}
+        # 'Groceries' matches sample_categories cat-1
+        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Groceries')
+        assert result is not None
+        assert 'error' not in result
+        assert result['payee'] == 'McDonalds'
+        assert result['old_category_name'] == 'Comida rapida'
+        assert result['new_category_name'] == 'Groceries'
+        assert result['ynab_updated'] is False  # no ynab_transaction_id
         mock_learning_repository.record_user_correction.assert_called_once()
-        # Verify telegram_id is passed
         call_args = mock_learning_repository.record_user_correction.call_args
         assert call_args[0][0] == TELEGRAM_ID
+        assert call_args[0][3] == 'cat-1'  # resolved category UUID
+        assert call_args[0][4] == 'Groceries'  # category name passed
+
+    def test_category_not_found_returns_error(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'NonExistentCategory')
+        assert result is not None
+        assert 'error' in result
+        assert 'NonExistentCategory' in result['error']
+
+    def test_ynab_transaction_updated_when_id_present(self, service, mock_user_repository, mock_learning_repository, mock_ynab_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction_category.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [
+            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Old', 'amount': 25000, 'ynab_transaction_id': 'txn-abc'},
+        ]
+        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Restaurants')
+        assert result['ynab_updated'] is True
+        mock_ynab_repository.update_transaction_category.assert_called_once_with(
+            authorized_user.budget_id, 'txn-abc', 'cat-2',
+        )
+
+    def test_ynab_update_failure_still_saves_learning(self, service, mock_user_repository, mock_learning_repository, mock_ynab_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction_category.return_value = False
+        mock_learning_repository.get_recent_transactions.return_value = [
+            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Old', 'amount': 25000, 'ynab_transaction_id': 'txn-abc'},
+        ]
+        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Restaurants')
+        assert result['ynab_updated'] is False
+        # Learning correction still saved
+        mock_learning_repository.record_user_correction.assert_called_once()
 
     def test_success_falls_back_to_id_when_no_category_name(self, service, mock_user_repository, mock_learning_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = [
-            {'payee': 'McDonalds', 'category_id': 'cat-old', 'amount': 25000},
+            {'payee': 'McDonalds', 'category_id': 'cat-old', 'amount': 25000, 'ynab_transaction_id': None},
         ]
-        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'cat-new')
-        assert result == {'payee': 'McDonalds', 'old_category_name': 'cat-old'}
+        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Groceries')
+        assert result['old_category_name'] == 'cat-old'
 
     def test_user_not_found(self, service, mock_user_repository):
         mock_user_repository.find_by_telegram_id.return_value = None
-        assert service.correct_recent_transaction(999, 0, 'cat-new') is None
+        assert service.correct_recent_transaction(999, 0, 'Groceries') is None
 
     def test_index_out_of_range(self, service, mock_learning_repository):
         mock_learning_repository.get_recent_transactions.return_value = []
-        assert service.correct_recent_transaction(TELEGRAM_ID, 5, 'cat-new') is None
+        assert service.correct_recent_transaction(TELEGRAM_ID, 5, 'Groceries') is None
 
 
 # ---------------------------------------------------------------------------
