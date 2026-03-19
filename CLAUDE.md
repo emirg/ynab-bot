@@ -19,13 +19,19 @@ Whenever you start a new session or the user asks to "resume", your VERY FIRST a
 - Save active plans to `docs/plans/` and reference them here.
 - Move finished plans to `docs/plans/archive/` and update references.
 
+## Orchestration
+
+The main session (you) is the orchestrator. Subagents cannot call other subagents — only you can delegate via the Agent tool.
+
+When the user triggers pipeline work ("implement", "build this", "plan next milestone", or approves a plan), READ `docs/ORCHESTRATION.md` for the full pipeline protocol, delegation templates, and execution rules.
+
 ## Subagents
 
-This project uses specialized subagents for structured development workflows. Agent definitions live in `.claude/agents/` (project-level, tracked in Git).
+Agent definitions live in `.claude/agents/` (project-level, tracked in Git). **Do not modify agent files** during implementation work — changes require explicit user approval.
 
 | Agent | Role | Mode |
 |---|---|---|
-| `ynab-lead-architect` | Orchestrates: roadmap → plan → implement → review | Opus, R/W |
+| `ynab-lead-architect` | Planning, architectural review, design decisions | Opus, R/O (docs only) |
 | `dba-advisor` | Database schema, queries, migrations, performance | Sonnet, R/O |
 | `plan-step-implementer` | Executes individual plan steps | Sonnet, R/W |
 | `code-reviewer` | Post-implementation code review | Sonnet, R/O |
@@ -33,15 +39,18 @@ This project uses specialized subagents for structured development workflows. Ag
 | `debugger` | Root cause analysis, minimal bug fixes | Sonnet, R/W |
 | `refactor-advisor` | Analyzes code smells, proposes refactoring plans | Sonnet, R/O |
 
-**When to use subagents (from the main session):**
-- For feature work spanning multiple files: invoke `ynab-lead-architect` to plan and orchestrate.
-- For quick code review: invoke `code-reviewer` on specific files.
-- For a failing test: invoke `debugger` with the error output.
-- For improving test coverage: invoke `test-writer` with the target files.
-- For DB questions: invoke `dba-advisor` with the query or schema.
-- For cleanup: invoke `refactor-advisor` on the target module.
+**Quick routing** (for full delegation templates, see `docs/ORCHESTRATION.md`):
 
-**Do not modify agent files** (`.claude/agents/*.md`) during implementation work. Agent configuration changes require explicit user approval.
+| Situation | Agent |
+|---|---|
+| Need a feature plan from the roadmap | `ynab-lead-architect` |
+| Architectural review of a completed feature | `ynab-lead-architect` |
+| Plan involves DB changes (pre-implementation) | `dba-advisor` |
+| Implementing a plan step | `plan-step-implementer` |
+| All groups complete, need code review | `code-reviewer` |
+| Coverage dropped or tests missing | `test-writer` |
+| A test fails during implementation | `debugger` |
+| User asks to clean up / refactor | `refactor-advisor` → then convert proposal to plan |
 
 ## Commands
 All Python commands must be run using the `.venv` virtual environment.
