@@ -192,6 +192,7 @@ class TestExpenseResponseFormatter:
 class TestExpenseDateDisplay:
 
     def test_today_date_does_not_show_date_line(self):
+        today = date.today()
         expense = Expense(
             amount=Decimal('25000'), payee="McDonald's", memo='almuerzo',
             category_name='Restaurants', account_name='Nu Card',
@@ -199,7 +200,8 @@ class TestExpenseDateDisplay:
             date=datetime.now(),
         )
         result = ExpenseResult.success_result(expense, 'txn-1')
-        msg = ExpenseResponseFormatter.format_success(result)
+        with patch('presentation.telegram.formatters.user_today', return_value=today):
+            msg = ExpenseResponseFormatter.format_success(result)
         assert 'Fecha:' not in msg
 
     def test_past_date_shows_date_line(self):
@@ -261,6 +263,7 @@ class TestExpenseDateDisplay:
         assert 'pagado por Eli' in msg
 
     def test_split_today_does_not_show_date_line(self):
+        today = date.today()
         expense = Expense(
             amount=Decimal('50000'), payee="McDonald's", memo='almuerzo',
             category_name='Restaurants', account_name='Nu Card',
@@ -271,7 +274,8 @@ class TestExpenseDateDisplay:
             date=datetime.now(),
         )
         result = ExpenseResult.success_result(expense, 'txn-5')
-        msg = ExpenseResponseFormatter.format_success(result)
+        with patch('presentation.telegram.formatters.user_today', return_value=today):
+            msg = ExpenseResponseFormatter.format_success(result)
         assert 'Fecha:' not in msg
 
     def test_format_date_line_uses_user_timezone(self):
