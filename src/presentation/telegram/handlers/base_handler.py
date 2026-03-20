@@ -4,6 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from infrastructure.container import DIContainer
+from infrastructure.logging_config import log_with_context
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +61,12 @@ class BaseHandler(ABC):
             except Exception as e2:
                 logger.error(f"Failed to send fallback callback message: {e2}")
     
-    async def send_error_message(self, update: Update, error_message: str):
+    async def send_error_message(self, update: Update, error_message: str, exception: Exception = None):
         """Send error message to user"""
-        message = f"❌ *Error:* {error_message}"
+        display_message = error_message
+        if exception is not None and hasattr(exception, 'user_message'):
+            display_message = exception.user_message
+        message = f"❌ *Error:* {display_message}"
         await self.send_message(update, message)
     
     async def send_callback_error(self, query, error_message: str):
@@ -74,14 +78,33 @@ class BaseHandler(ABC):
         """Log handler execution start"""
         user_id = self.get_user_id(update)
         user_name = self.get_user_name(update)
-        logger.info(f"{handler_name} started for user {user_id} ({user_name})")
-    
+        log_with_context(
+            logger,
+            logging.INFO,
+            f"{handler_name} started for user {user_id} ({user_name})",
+            user_id=user_id,
+            operation=handler_name,
+        )
+
     def log_handler_error(self, handler_name: str, update: Update, error: Exception):
         """Log handler execution error"""
         user_id = self.get_user_id(update)
-        logger.error(f"{handler_name} failed for user {user_id}: {error}")
-    
+        log_with_context(
+            logger,
+            logging.ERROR,
+            f"{handler_name} failed for user {user_id}: {error}",
+            user_id=user_id,
+            operation=handler_name,
+            error_type=type(error).__name__,
+        )
+
     def log_handler_success(self, handler_name: str, update: Update):
         """Log handler execution success"""
         user_id = self.get_user_id(update)
-        logger.info(f"{handler_name} completed successfully for user {user_id}")
+        log_with_context(
+            logger,
+            logging.INFO,
+            f"{handler_name} completed successfully for user {user_id}",
+            user_id=user_id,
+            operation=handler_name,
+        )

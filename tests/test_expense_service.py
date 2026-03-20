@@ -133,7 +133,7 @@ class TestProcessExpenseErrors:
         mock_user_repository.find_by_telegram_id.return_value = None
         result = service.process_expense_message(999, 'test')
         assert not result.success
-        assert 'not configured' in result.error_message.lower() or 'not configured' in result.error_message
+        assert 'configurado' in result.error_message.lower()
 
     def test_user_not_configured(self, service, mock_user_repository):
         user = UserConfiguration(telegram_id=999, status=UserStatus.AUTHORIZED)
@@ -195,7 +195,7 @@ class TestProcessReceiptImage:
         mock_user_repository.find_by_telegram_id.return_value = None
         result = service.process_receipt_image(999, 'data')
         assert not result.success
-        assert 'not configured' in result.error_message.lower() or 'not configured' in result.error_message
+        assert 'configurado' in result.error_message.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -1060,3 +1060,107 @@ class TestUpdateLlmParserDataWithPayees:
         service._update_llm_parser_data(sample_categories, sample_accounts, sample_payees)
         entry = service._payee_by_name['Carulla']
         assert entry == (_PAYEE_UUID_1, 'Carulla')
+
+
+# ---------------------------------------------------------------------------
+# Error results use user_message (Spanish), not raw str(e)
+# ---------------------------------------------------------------------------
+
+class TestErrorResultsUseUserMessage:
+    """Verify all three methods return user_message (Spanish) in error results."""
+
+    def test_process_message_ynab_exception_returns_spanish_user_message(
+        self, service, mock_user_repository, authorized_user, mock_llm_parser
+    ):
+        from domain.exceptions import YNABApiException
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.side_effect = YNABApiException(
+            "Internal server error", status_code=500
+        )
+        result = service.process_message(TELEGRAM_ID, 'test')
+        assert result.expense_result.success is False
+        assert 'YNAB API error' not in result.expense_result.error_message
+        assert 'YNAB' in result.expense_result.error_message or 'problema' in result.expense_result.error_message
+
+    def test_process_message_user_not_configured_returns_spanish_user_message(
+        self, service, mock_user_repository
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.process_message(TELEGRAM_ID, 'test')
+        assert result.expense_result.success is False
+        assert 'not configured' not in result.expense_result.error_message
+        assert 'configurado' in result.expense_result.error_message.lower()
+
+    def test_process_message_oauth_exception_returns_spanish_user_message(
+        self, service, mock_user_repository, authorized_user, mock_llm_parser
+    ):
+        from domain.exceptions import OAuthException
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.side_effect = OAuthException("token invalid")
+        result = service.process_message(TELEGRAM_ID, 'test')
+        assert result.expense_result.success is False
+        assert 'autenticación' in result.expense_result.error_message.lower() or 'connect' in result.expense_result.error_message.lower()
+
+    def test_process_expense_message_ynab_exception_returns_spanish_user_message(
+        self, service, mock_ynab_repository
+    ):
+        mock_ynab_repository.create_transaction.return_value = None
+        result = service.process_expense_message(TELEGRAM_ID, 'test')
+        assert result.success is False
+        assert 'Failed to create transaction' not in result.error_message
+        assert 'YNAB' in result.error_message or 'problema' in result.error_message
+
+    def test_process_expense_message_user_not_configured_returns_spanish_user_message(
+        self, service, mock_user_repository
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.process_expense_message(999, 'test')
+        assert result.success is False
+        assert 'not configured' not in result.error_message
+        assert 'configurado' in result.error_message.lower()
+
+    def test_process_receipt_image_ynab_exception_returns_spanish_user_message(
+        self, service, mock_ynab_repository, mock_llm_parser
+    ):
+        mock_ynab_repository.create_transaction.return_value = None
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 45000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'account': None,
+            'memo': 'test', 'confidence': 0.95,
+        }
+        result = service.process_receipt_image(TELEGRAM_ID, 'base64_data')
+        assert result.success is False
+        assert 'Failed to create transaction' not in result.error_message
+        assert 'YNAB' in result.error_message or 'problema' in result.error_message
+
+    def test_process_receipt_image_user_not_configured_returns_spanish_user_message(
+        self, service, mock_user_repository
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.process_receipt_image(999, 'data')
+        assert result.success is False
+        assert 'not configured' not in result.error_message
+        assert 'configurado' in result.error_message.lower()
+
+    def test_logger_still_logs_technical_message(self, service, mock_user_repository):
+        """logger.error must contain the technical str(e), not just the user_message."""
+        import logging
+
+        class _Capture(logging.Handler):
+            def __init__(self):
+                super().__init__()
+                self.records = []
+
+            def emit(self, record):
+                self.records.append(record)
+
+        capture = _Capture()
+        target_logger = logging.getLogger('application.services.expense_service')
+        target_logger.addHandler(capture)
+        try:
+            mock_user_repository.find_by_telegram_id.return_value = None
+            service.process_expense_message(999, 'test')
+        finally:
+            target_logger.removeHandler(capture)
+
+        assert any('not configured' in r.getMessage().lower() for r in capture.records)

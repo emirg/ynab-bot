@@ -75,7 +75,7 @@ Soportar gastos compartidos que hizo otra persona en nombre del usuario:
 - Activable/desactivable via `/confirmacion on/off`
 - Por defecto desactivado para no agregar fricción
 
-### 3.3 — Mejor Manejo de Errores
+### 3.3 — Mejor Manejo de Errores [COMPLETADO]
 
 - Mensajes de error más claros y accionables en español
 - Reintentos automáticos para errores transitorios de la API de YNAB (429, 500)

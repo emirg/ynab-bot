@@ -6,20 +6,18 @@ Bot inteligente para registrar gastos en YNAB usando IA y speech-to-text
 
 import sys
 import os
-import logging
 
-# Configurar logging antes de importar módulos
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO,
-    stream=sys.stdout
-)
-logger = logging.getLogger(__name__)
-
-# Agregar el directorio src al path para importaciones
+# Agregar el directorio src al path para importaciones (antes de imports locales)
 src_path = os.path.join(os.path.dirname(__file__), 'src')
 if src_path not in sys.path:
     sys.path.insert(0, src_path)
+
+# Configurar logging estructurado (JSON en Railway, texto en local)
+from infrastructure.logging_config import setup_logging
+setup_logging()
+
+import logging
+logger = logging.getLogger(__name__)
 
 # Importar la nueva arquitectura
 from infrastructure.container import create_container

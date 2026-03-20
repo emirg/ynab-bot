@@ -64,7 +64,7 @@ class ExpenseHandler(BaseHandler):
 
         except Exception as e:
             self.log_handler_error("ExpenseHandler.handle_text_message", update, e)
-            await self.send_error_message(update, "Ocurrió un error procesando tu mensaje. Intenta de nuevo.")
+            await self.send_error_message(update, "Ocurrió un error procesando tu mensaje. Intenta de nuevo.", exception=e)
     
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_voice_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -123,10 +123,10 @@ class ExpenseHandler(BaseHandler):
             
         except SpeechProcessingException as e:
             self.log_handler_error("ExpenseHandler.handle_voice_message", update, e)
-            await self.send_error_message(update, f"Error procesando voz: {str(e)}")
+            await self.send_error_message(update, str(e), exception=e)
         except Exception as e:
             self.log_handler_error("ExpenseHandler.handle_voice_message", update, e)
-            await self.send_error_message(update, "Ocurrió un error procesando el mensaje de voz. Intenta de nuevo.")
+            await self.send_error_message(update, "Ocurrió un error procesando el mensaje de voz. Intenta de nuevo.", exception=e)
 
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_photo_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -180,10 +180,10 @@ class ExpenseHandler(BaseHandler):
             
         except ImageProcessingException as e:
             self.log_handler_error("ExpenseHandler.handle_photo_message", update, e)
-            await self.send_error_message(update, f"Error procesando imagen: {str(e)}")
+            await self.send_error_message(update, str(e), exception=e)
         except Exception as e:
             self.log_handler_error("ExpenseHandler.handle_photo_message", update, e)
-            await self.send_error_message(update, "Ocurrió un error procesando la imagen. Intenta de nuevo.")
+            await self.send_error_message(update, "Ocurrió un error procesando la imagen. Intenta de nuevo.", exception=e)
     
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Main handler entry point"""

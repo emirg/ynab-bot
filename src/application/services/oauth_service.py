@@ -4,23 +4,34 @@ import logging
 from typing import Optional
 from urllib.parse import urlencode
 
-import requests
-
-from domain.exceptions import OAuthException, TokenExpiredException
+from domain.exceptions import OAuthException, TokenExpiredException, YNABApiException
 from domain.models.user import UserConfiguration
 from domain.repositories.user_repository import UserRepository
 from infrastructure.config.app_config import AppConfig
+from infrastructure.http_client import ResilientHTTPClient
 
 logger = logging.getLogger(__name__)
 
 _AUTHORIZE_URL = "https://app.ynab.com/oauth/authorize"
 _TOKEN_URL = "https://app.ynab.com/oauth/token"
+_OAUTH_BASE_URL = "https://app.ynab.com"
+_TOKEN_PATH = "/oauth/token"
 
 
 class YNABOAuthService:
-    def __init__(self, config: AppConfig, user_repository: UserRepository):
+    def __init__(
+        self,
+        config: AppConfig,
+        user_repository: UserRepository,
+        http_client: Optional[ResilientHTTPClient] = None,
+    ):
         self.config = config
         self.user_repository = user_repository
+        self._http_client = http_client or ResilientHTTPClient(
+            base_url=_OAUTH_BASE_URL,
+            max_retries=2,
+            timeout=30,
+        )
 
     def generate_auth_url(self, telegram_user_id: int) -> str:
         state = self._sign_state(telegram_user_id)
@@ -103,11 +114,11 @@ class YNABOAuthService:
 
     def _request_token(self, data: dict) -> dict:
         try:
-            resp = requests.post(_TOKEN_URL, data=data, timeout=30)
+            resp = self._http_client.post(_TOKEN_PATH, data=data)
             resp.raise_for_status()
             return resp.json()
-        except requests.RequestException as e:
-            logger.error(f"OAuth token request failed: {e}")
+        except YNABApiException as e:
+            logger.error(f"OAuth token request failed after retries: {e}")
             raise OAuthException(f"Error en la solicitud OAuth: {e}")
 
     def _sign_state(self, telegram_user_id: int) -> str:

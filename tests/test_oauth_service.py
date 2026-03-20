@@ -5,8 +5,9 @@ from unittest.mock import MagicMock, patch
 
 from application.services.oauth_service import YNABOAuthService
 from domain.models.user import UserConfiguration, UserStatus
-from domain.exceptions import OAuthException, TokenExpiredException
+from domain.exceptions import OAuthException, TokenExpiredException, YNABApiException
 from infrastructure.config.app_config import AppConfig
+from infrastructure.http_client import ResilientHTTPClient
 
 
 @pytest.fixture
@@ -23,8 +24,17 @@ def config():
 
 
 @pytest.fixture
-def service(config, mock_user_repository):
-    return YNABOAuthService(config=config, user_repository=mock_user_repository)
+def mock_http_client():
+    return MagicMock(spec=ResilientHTTPClient)
+
+
+@pytest.fixture
+def service(config, mock_user_repository, mock_http_client):
+    return YNABOAuthService(
+        config=config,
+        user_repository=mock_user_repository,
+        http_client=mock_http_client,
+    )
 
 
 @pytest.fixture
@@ -47,6 +57,19 @@ def user_with_expired_token():
         ynab_refresh_token='refresh-tok',
         ynab_token_expires_at=datetime.now() - timedelta(hours=1),
     )
+
+
+def _mock_token_response(mock_http_client, access_token='new-access', refresh_token='new-refresh', expires_in=7200):
+    """Helper to configure the mock HTTP client to return a successful token response."""
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'expires_in': expires_in,
+    }
+    mock_resp.raise_for_status.return_value = None
+    mock_http_client.post.return_value = mock_resp
+    return mock_resp
 
 
 class TestGenerateAuthUrl:
@@ -92,19 +115,10 @@ class TestStateSigningVerification:
 
 
 class TestExchangeCodeForTokens:
-    @patch('application.services.oauth_service.requests.post')
-    def test_success(self, mock_post, service, mock_user_repository):
+    def test_success(self, service, mock_http_client, mock_user_repository):
         user = UserConfiguration(telegram_id=123, status=UserStatus.AUTHORIZED)
         mock_user_repository.find_by_telegram_id.return_value = user
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            'access_token': 'new-access',
-            'refresh_token': 'new-refresh',
-            'expires_in': 7200,
-        }
-        mock_resp.raise_for_status.return_value = None
-        mock_post.return_value = mock_resp
+        _mock_token_response(mock_http_client)
 
         state = service._sign_state(123)
         result = service.exchange_code_for_tokens('auth-code', state)
@@ -112,21 +126,56 @@ class TestExchangeCodeForTokens:
         assert result.ynab_access_token == 'new-access'
         assert result.ynab_refresh_token == 'new-refresh'
         mock_user_repository.save.assert_called_once()
+        mock_http_client.post.assert_called_once_with(
+            '/oauth/token',
+            data={
+                'client_id': 'test-client-id',
+                'client_secret': 'test-secret',
+                'redirect_uri': 'https://example.com/oauth/callback',
+                'grant_type': 'authorization_code',
+                'code': 'auth-code',
+            },
+        )
 
-    @patch('application.services.oauth_service.requests.post')
-    def test_user_not_found(self, mock_post, service, mock_user_repository):
+    def test_user_not_found(self, service, mock_http_client, mock_user_repository):
         mock_user_repository.find_by_telegram_id.return_value = None
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            'access_token': 'a', 'refresh_token': 'r', 'expires_in': 3600,
-        }
-        mock_resp.raise_for_status.return_value = None
-        mock_post.return_value = mock_resp
+        _mock_token_response(mock_http_client, access_token='a', refresh_token='r', expires_in=3600)
 
         state = service._sign_state(123)
         with pytest.raises(OAuthException, match="no encontrado"):
             service.exchange_code_for_tokens('code', state)
+
+    def test_all_retries_fail_raises_oauth_exception(self, service, mock_http_client, mock_user_repository):
+        """When the HTTP client exhausts retries and raises YNABApiException, OAuthException is raised."""
+        mock_http_client.post.side_effect = YNABApiException(
+            "HTTP 500 after 2 retries", status_code=500, response_body="error"
+        )
+
+        state = service._sign_state(123)
+        with pytest.raises(OAuthException, match="Error en la solicitud OAuth"):
+            service.exchange_code_for_tokens('auth-code', state)
+
+    def test_transient_failure_then_success(self, service, mock_http_client, mock_user_repository):
+        """Simulates the HTTP client handling a transient failure internally and returning success."""
+        user = UserConfiguration(telegram_id=123, status=UserStatus.AUTHORIZED)
+        mock_user_repository.find_by_telegram_id.return_value = user
+
+        # The ResilientHTTPClient handles retries internally — when it succeeds, it returns a response.
+        # Here we simulate that behavior: the client's post() returns successfully after internal retries.
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'access_token': 'retried-access',
+            'refresh_token': 'retried-refresh',
+            'expires_in': 7200,
+        }
+        mock_resp.raise_for_status.return_value = None
+        mock_http_client.post.return_value = mock_resp
+
+        state = service._sign_state(123)
+        result = service.exchange_code_for_tokens('auth-code', state)
+
+        assert result.ynab_access_token == 'retried-access'
+        mock_http_client.post.assert_called_once()
 
 
 class TestRefreshTokenIfNeeded:
@@ -148,22 +197,23 @@ class TestRefreshTokenIfNeeded:
         with pytest.raises(TokenExpiredException):
             service.refresh_token_if_needed(user)
 
-    @patch('application.services.oauth_service.requests.post')
-    def test_expired_refreshes(self, mock_post, service, mock_user_repository, user_with_expired_token):
+    def test_expired_refreshes(self, service, mock_http_client, mock_user_repository, user_with_expired_token):
         mock_user_repository.find_by_telegram_id.return_value = user_with_expired_token
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            'access_token': 'refreshed-access',
-            'refresh_token': 'refreshed-refresh',
-            'expires_in': 7200,
-        }
-        mock_resp.raise_for_status.return_value = None
-        mock_post.return_value = mock_resp
+        _mock_token_response(mock_http_client, access_token='refreshed-access', refresh_token='refreshed-refresh')
 
         result = service.refresh_token_if_needed(user_with_expired_token)
         assert result.ynab_access_token == 'refreshed-access'
         mock_user_repository.save.assert_called_once()
+
+    def test_refresh_all_retries_fail_raises_oauth_exception(
+        self, service, mock_http_client, user_with_expired_token
+    ):
+        """YNABApiException from exhausted retries becomes OAuthException."""
+        mock_http_client.post.side_effect = YNABApiException(
+            "Network error after 2 retries", status_code=None, response_body=None
+        )
+        with pytest.raises(OAuthException, match="Error en la solicitud OAuth"):
+            service.refresh_token_if_needed(user_with_expired_token)
 
 
 class TestGetValidAccessToken:
@@ -185,3 +235,10 @@ class TestDisconnectUser:
         mock_user_repository.find_by_telegram_id.return_value = None
         result = service.disconnect_user(999)
         assert result is False
+
+
+class TestDefaultHttpClientCreation:
+    def test_default_client_created_when_not_injected(self, config, mock_user_repository):
+        """When no http_client is passed, a default ResilientHTTPClient is created."""
+        svc = YNABOAuthService(config=config, user_repository=mock_user_repository)
+        assert isinstance(svc._http_client, ResilientHTTPClient)

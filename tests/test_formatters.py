@@ -17,6 +17,13 @@ from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
 from domain.models.onboarding import OnboardingStep
 from domain.time_utils import DEFAULT_TIMEZONE
+from domain.exceptions import (
+    UserNotConfiguredException,
+    ExpenseParsingException,
+    TokenExpiredException,
+    YNABApiException,
+    YNABBotException,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +190,60 @@ class TestExpenseResponseFormatter:
         result = ExpenseResult(success=True)
         msg = ExpenseResponseFormatter.format_error(result)
         assert 'exitosamente' in msg.lower()
+
+    # --- Exception-type-based routing ---
+
+    def test_format_error_user_not_configured_exception(self):
+        exc = UserNotConfiguredException(user_id=42)
+        result = ExpenseResult.error_result(exc.user_message)
+        msg = ExpenseResponseFormatter.format_error(result, exception=exc)
+        assert '/config' in msg
+        assert 'no configurado' in msg.lower()
+
+    def test_format_error_expense_parsing_exception(self):
+        exc = ExpenseParsingException("blah blah")
+        result = ExpenseResult.error_result(exc.user_message)
+        msg = ExpenseResponseFormatter.format_error(result, exception=exc)
+        assert 'formato del gasto' in msg.lower()
+        # Should include usage examples
+        assert '$25000' in msg or 'almuerzo' in msg.lower()
+
+    def test_format_error_token_expired_exception(self):
+        exc = TokenExpiredException()
+        result = ExpenseResult.error_result(exc.user_message)
+        msg = ExpenseResponseFormatter.format_error(result, exception=exc)
+        assert '/connect' in msg
+        assert 'expirada' in msg.lower() or 'expiró' in msg.lower()
+
+    def test_format_error_ynab_api_retryable_429(self):
+        exc = YNABApiException("rate limited", status_code=429)
+        result = ExpenseResult.error_result(exc.user_message)
+        msg = ExpenseResponseFormatter.format_error(result, exception=exc)
+        assert 'temporalmente ocupado' in msg.lower()
+
+    def test_format_error_ynab_api_non_retryable_401(self):
+        exc = YNABApiException("unauthorized", status_code=401)
+        result = ExpenseResult.error_result(exc.user_message)
+        msg = ExpenseResponseFormatter.format_error(result, exception=exc)
+        # Should use user_message, not the "temporalmente ocupado" message
+        assert 'temporalmente ocupado' not in msg.lower()
+        assert exc.user_message in msg
+
+    # --- Fallback (backward compat) ---
+
+    def test_format_error_fallback_not_configured_string(self):
+        """No exception provided — keyword-based routing still works."""
+        result = ExpenseResult.error_result('User not configured: missing budget')
+        msg = ExpenseResponseFormatter.format_error(result)
+        assert '/config' in msg
+        assert 'no configurado' in msg.lower()
+
+    def test_format_error_fallback_generic(self):
+        """No exception, unknown error string → generic fallback message."""
+        result = ExpenseResult.error_result('Something totally unexpected')
+        msg = ExpenseResponseFormatter.format_error(result)
+        assert 'Something totally unexpected' in msg
+        assert '❌' in msg
 
 
 # ---------------------------------------------------------------------------

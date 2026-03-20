@@ -1,7 +1,7 @@
 """Response formatters for Telegram messages"""
 
 from datetime import date
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
 
 from domain.models.expense import ExpenseResult
@@ -11,6 +11,13 @@ from domain.models.onboarding import OnboardingStep
 from domain.models.weekly_summary import WeeklySummary
 from domain.models.on_demand_summary import OnDemandSummary, CategoryBudgetComparison
 from domain.time_utils import user_today, DEFAULT_TIMEZONE
+from domain.exceptions import (
+    YNABBotException,
+    UserNotConfiguredException,
+    ExpenseParsingException,
+    TokenExpiredException,
+    YNABApiException,
+)
 
 
 class ExpenseResponseFormatter:
@@ -81,14 +88,70 @@ class ExpenseResponseFormatter:
         return message.strip()
     
     @staticmethod
-    def format_error(result: ExpenseResult) -> str:
-        """Format error response"""
+    def format_error(result: ExpenseResult, exception: Optional[Exception] = None) -> str:
+        """Format error response.
+
+        When ``exception`` is provided and is a ``YNABBotException``, routing is
+        performed by exception type and ``exception.user_message`` is used as the
+        primary user-facing message.  When ``exception`` is ``None``, the method
+        falls back to keyword-based routing on ``result.error_message`` for
+        backward compatibility.
+        """
         if result.success:
             return "✅ Procesado exitosamente"
-        
+
+        # --- Exception-type-based routing (preferred path) ---
+        if exception is not None and isinstance(exception, YNABBotException):
+            if isinstance(exception, UserNotConfiguredException):
+                return f"""
+❌ *Usuario no configurado*
+
+{exception.user_message}
+
+Para usar el bot, primero configura tu presupuesto:
+• Usa `/config` para ver opciones de configuración
+• Selecciona tu presupuesto YNAB
+• Configura tu cuenta por defecto
+
+💡 *Tip:* Usa `/help` para ver ejemplos de uso
+                """.strip()
+
+            if isinstance(exception, TokenExpiredException):
+                return f"""
+❌ *Sesión expirada*
+
+{exception.user_message}
+
+• Usa `/connect` para reconectar tu cuenta YNAB
+                """.strip()
+
+            if isinstance(exception, ExpenseParsingException):
+                return f"""
+❌ *No pude entender el formato del gasto*
+
+{exception.user_message}
+
+📝 *Ejemplos válidos:*
+• "Gasté $40000 en comida en Éxito"
+• "$25000 transporte Uber"
+• "30 lucas almuerzo McDonald's"
+• "Compré ropa por 80k en Falabella"
+
+💡 *Tip:* Incluye monto, lugar y opcionalmente categoría
+                """.strip()
+
+            if isinstance(exception, YNABApiException):
+                if exception.is_retryable:
+                    return "❌ *YNAB está temporalmente ocupado.* Intenta en unos segundos."
+                # Non-retryable API error (e.g. 401 Unauthorized)
+                return f"❌ *Error de YNAB:* {exception.user_message}"
+
+            # Other YNABBotException subclasses
+            return f"❌ *Error:* {exception.user_message}"
+
+        # --- Keyword-based fallback (backward compat when no exception provided) ---
         error_message = result.error_message or "Error desconocido"
-        
-        # Customize error messages
+
         if "not configured" in error_message.lower():
             return """
 ❌ *Usuario no configurado*
@@ -100,7 +163,7 @@ Para usar el bot, primero configura tu presupuesto:
 
 💡 *Tip:* Usa `/help` para ver ejemplos de uso
             """.strip()
-        
+
         elif "parse" in error_message.lower():
             return """
 ❌ *No pude entender el formato del gasto*
@@ -113,7 +176,7 @@ Para usar el bot, primero configura tu presupuesto:
 
 💡 *Tip:* Incluye monto, lugar y opcionalmente categoría
             """.strip()
-        
+
         elif "ynab" in error_message.lower():
             return f"""
 ❌ *Error conectando con YNAB*
@@ -125,7 +188,7 @@ Para usar el bot, primero configura tu presupuesto:
 • Revisa que tu token YNAB sea válido
 • Intenta de nuevo en unos segundos
             """.strip()
-        
+
         return f"❌ *Error:* {error_message}"
 
 

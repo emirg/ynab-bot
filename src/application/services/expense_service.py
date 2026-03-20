@@ -107,7 +107,8 @@ class ExpenseService:
 
         except (UserNotConfiguredException, ExpenseParsingException, YNABApiException, OAuthException) as e:
             logger.error(f"Expected error processing message: {e}")
-            return MessageResult(intent='expense', expense_result=ExpenseResult.error_result(str(e)))
+            error_msg = getattr(e, 'user_message', str(e))
+            return MessageResult(intent='expense', expense_result=ExpenseResult.error_result(error_msg))
         except Exception as e:
             logger.error(f"Unexpected error processing message: {e}")
             return MessageResult(
@@ -318,7 +319,8 @@ class ExpenseService:
 
         except (UserNotConfiguredException, ExpenseParsingException, YNABApiException, OAuthException, ImageProcessingException) as e:
             logger.error(f"Expected error processing receipt: {e}")
-            return ExpenseResult.error_result(str(e))
+            error_msg = getattr(e, 'user_message', str(e))
+            return ExpenseResult.error_result(error_msg)
         except Exception as e:
             logger.error(f"Unexpected error processing receipt: {e}")
             return ExpenseResult.error_result("Error interno procesando el recibo. Intenta de nuevo.")
@@ -382,7 +384,8 @@ class ExpenseService:
 
         except (UserNotConfiguredException, ExpenseParsingException, YNABApiException, OAuthException) as e:
             logger.error(f"Expected error processing expense: {e}")
-            return ExpenseResult.error_result(str(e))
+            error_msg = getattr(e, 'user_message', str(e))
+            return ExpenseResult.error_result(error_msg)
         except Exception as e:
             logger.error(f"Unexpected error processing expense: {e}")
             return ExpenseResult.error_result("Error interno procesando el gasto. Intenta de nuevo.")
