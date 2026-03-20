@@ -2,6 +2,10 @@
 name: plan-step-implementer
 description: "Implements the next incomplete step from an active plan in docs/plans/. Use when the user wants to continue, start, or advance plan-driven implementation work."
 model: sonnet
+skills:
+  - pytest-testing
+  - python-design-patterns
+  - security
 color: blue
 memory: project
 ---

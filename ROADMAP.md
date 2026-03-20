@@ -1,8 +1,8 @@
 # Roadmap — YNAB Telegram Bot
 
-Short-term roadmap (Q2 2026). Three milestones ordered by impact: fix what frustrates today, add the most requested feature, then polish the overall experience.
+Short-term roadmap (Q2 2026). Three milestones ordered by impact: fix what frustrates today, add the most requested feature, then polish the overall experience. Features implemented outside of the original roadmap are tracked in the "Extras" section.
 
-## Milestone 1: Onboarding & Learning Transparente
+## Milestone 1: Onboarding & Learning Transparente [COMPLETADO]
 
 ### 1.1 — Guided Onboarding Flow [COMPLETADO]
 
@@ -30,7 +30,7 @@ Cuando el bot registra un gasto, incluir en la respuesta por qué eligió esa ca
 - "Categoría: Groceries (sugerido por IA, confianza 85%)"
 - Una línea extra en la respuesta, breve y no invasiva
 
-## Milestone 2: Gastos Compartidos (Split)
+## Milestone 2: Gastos Compartidos (Split) [COMPLETADO]
 
 ### 2.1 — Configuración de Split [COMPLETADO]
 
@@ -61,10 +61,11 @@ Soportar gastos compartidos que hizo otra persona en nombre del usuario:
 
 ## Milestone 3: Robustez & Calidad de Vida
 
-### 3.1 — Editar/Eliminar Último Gasto
+### 3.1 — Editar/Eliminar Último Gasto [PARCIAL]
 
-- `/deshacer` — elimina la última transacción creada en YNAB
-- `/editar` — corregir monto, categoría o payee del último gasto
+- `/corregir` — permite corregir la categoría del último gasto registrado, actualizando la transacción en YNAB y guardando la asociación payee → categoría para futuras predicciones [COMPLETADO]
+- `/deshacer` — elimina la última transacción creada en YNAB [PENDIENTE]
+- `/editar` — corregir monto o payee del último gasto [PENDIENTE]
 - Ventana de tiempo razonable (últimos 5 minutos o última transacción del día)
 
 ### 3.2 — Confirmación Opcional Pre-Registro
@@ -80,12 +81,61 @@ Soportar gastos compartidos que hizo otra persona en nombre del usuario:
 - Reintentos automáticos para errores transitorios de la API de YNAB (429, 500)
 - Logging estructurado para diagnóstico
 
-### 3.4 — Resumen Periódico
+### 3.4 — Resumen Semanal Automático [COMPLETADO]
+
+Cada lunes a las 8am (en la zona horaria del usuario), el bot envía automáticamente un resumen de la semana anterior:
+
+- Total gastado en la semana
+- Top 3 categorías con montos
+- Comparación porcentual vs semana anterior
+- Mensaje amigable si no hubo transacciones
+- Job robusto con aislamiento per-user y deduplicación via `last_weekly_summary_sent`
+- Tick cada 15 minutos, verifica zona horaria de cada usuario
+
+### 3.5 — Resumen On-Demand
 
 - Comando `/resumen` — resumen de gastos del día/semana/mes actual
 - Desglose por categoría con totales
 - Comparación contra lo presupuestado si está disponible via YNAB API
 
-### 3.5 — Alertas
+### 3.6 — Alertas
 
 - TODO
+
+## Extras (features implementadas fuera del roadmap original)
+
+### E.1 — Análisis de Imágenes de Recibos [COMPLETADO]
+
+Enviar una foto de un recibo al bot para registrar el gasto automáticamente:
+
+- Procesamiento de imagen via LLM para extraer monto, payee y categoría
+- Soporte para fotos directas y archivos de imagen
+- Mismo flujo de registro que un gasto por texto
+
+### E.2 — Fuzzy Payee Matching [COMPLETADO]
+
+Al registrar un gasto, el bot busca payees existentes en YNAB y reutiliza el más parecido:
+
+- Matching difuso contra payees existentes del usuario en YNAB
+- Evita duplicación de payees con variaciones menores de nombre
+
+### E.3 — Soporte de Fechas Específicas [COMPLETADO]
+
+Registrar gastos con fechas pasadas o futuras en lenguaje natural:
+
+- "almuerzo 25000 ayer", "nafta 40000 el viernes"
+- Parsing de fechas relativas y absolutas via LLM
+
+### E.4 — Configuración de Zona Horaria [COMPLETADO]
+
+Cada usuario puede configurar su zona horaria para que las fechas y el resumen semanal se calculen correctamente:
+
+- Comando `/timezone` para configurar zona horaria
+- Se usa para determinar "hoy" al registrar gastos y para el resumen semanal
+
+### E.5 — Consultas de Presupuesto en Lenguaje Natural [COMPLETADO]
+
+Consultar información del presupuesto YNAB con preguntas en lenguaje natural:
+
+- Saldo de categorías, cuentas y resumen general del presupuesto
+- Intent detection via LLM para distinguir entre registro de gastos y consultas

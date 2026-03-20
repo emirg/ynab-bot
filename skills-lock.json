@@ -21,11 +21,6 @@
       "sourceType": "github",
       "computedHash": "2a11c79dcd94b5424261b44247ab03a8365cbe62f05f9b52500211db8fda98f9"
     },
-    "test-coverage-improver": {
-      "source": "openai/openai-agents-python",
-      "sourceType": "github",
-      "computedHash": "bf71409f3af2773a0466da65f55288711c2484c435bdaa0134654497f428fde6"
-    },
     "use-railway": {
       "source": "railwayapp/railway-skills",
       "sourceType": "github",

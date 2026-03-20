@@ -6,6 +6,9 @@ description: >
   needs extraction, naming is inconsistent, or the user asks to clean up / simplify
   a specific area. Advisory only — produces plans, not implementation.
 tools: Read, Grep, Glob
+skills:
+  - python-design-patterns
+  - python-performance-optimization
 model: sonnet
 color: yellow
 memory: project

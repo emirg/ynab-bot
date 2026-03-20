@@ -6,6 +6,8 @@ description: >
   failing tests, improving test quality, or when test coverage needs to increase.
   NOT for writing implementation code — only tests.
 tools: Read, Write, Edit, Bash, Glob, Grep
+skills:
+  - pytest-testing
 model: sonnet
 color: cyan
 memory: project

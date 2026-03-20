@@ -6,6 +6,8 @@ description: >
   unexpected results, or behavior doesn't match expectations. Specializes in
   root cause analysis with minimal, targeted fixes.
 tools: Read, Edit, Bash, Grep, Glob
+skills:
+  - pytest-testing
 model: sonnet
 color: red
 memory: project

@@ -6,6 +6,9 @@ description: >
   a file, PR, diff, or recent changes. Checks: layered architecture compliance,
   milliunit handling, DI patterns, SQL injection, Spanish UI strings, test coverage.
 tools: Read, Grep, Glob
+skills:
+  - python-design-patterns
+  - python-performance-optimization
 model: sonnet
 color: orange
 memory: project
