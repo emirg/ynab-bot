@@ -9,6 +9,7 @@ from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABBudget, YNABAccount
 from domain.models.onboarding import OnboardingStep
 from domain.models.weekly_summary import WeeklySummary
+from domain.models.on_demand_summary import OnDemandSummary, CategoryBudgetComparison
 from domain.time_utils import user_today, DEFAULT_TIMEZONE
 
 
@@ -481,6 +482,7 @@ Envía un mensaje como:
 • `/splitwise` - Configurar grupos y cuenta
 
 📊 *Consultas*
+• `/resumen` - Resumen de gastos (dia/semana/mes)
 • Saldo de cuentas o categorías en lenguaje natural
 
 🧠 *Aprendizaje*
@@ -577,5 +579,53 @@ class WeeklySummaryFormatter:
             direction = "más" if summary.percentage_change > 0 else "menos"
             lines.append("")
             lines.append(f"📈 Gastaste {pct:.0f}% {direction} que la semana pasada.")
+
+        return "\n".join(lines)
+
+
+class OnDemandSummaryFormatter:
+    """Formatter for on-demand spending summary messages (dia/semana/mes)."""
+
+    @staticmethod
+    def format_summary(summary: OnDemandSummary) -> str:
+        """Format an OnDemandSummary as a Telegram Markdown message."""
+        if not summary.has_transactions:
+            return f"No hubo gastos en {summary.period_label}."
+
+        total_display = summary.total_spent / 1000
+
+        lines = [
+            f"📊 *Resumen — {summary.period_label}*",
+            "",
+            f"💰 *Total gastado:* ${total_display:,.0f}",
+            "",
+            "📋 *Desglose por categoría:*",
+        ]
+
+        for i, cat in enumerate(summary.category_breakdown, 1):
+            amount_display = cat.amount / 1000
+            lines.append(f"{i}. {cat.category_name} — ${amount_display:,.0f}")
+
+        if summary.budget_comparison:
+            lines.append("")
+            lines.append("📈 *Presupuesto vs. Gasto:*")
+            for comp in summary.budget_comparison:
+                budgeted_display = comp.budgeted / 1000
+                spent_display = comp.spent / 1000
+                remaining_display = comp.remaining / 1000
+                status_emoji = "✅" if comp.remaining >= 0 else "🔴"
+                remaining_sign = "-" if comp.remaining < 0 else ""
+                lines.append(
+                    f"{status_emoji} *{comp.category_name}:* "
+                    f"${budgeted_display:,.0f} presup. / "
+                    f"${spent_display:,.0f} gastado / "
+                    f"{remaining_sign}${abs(remaining_display):,.0f} restante"
+                )
+
+        if summary.period_type != "mes":
+            lines.append("")
+            lines.append(
+                "💡 _La comparación con presupuesto está disponible con_ `/resumen mes`"
+            )
 
         return "\n".join(lines)

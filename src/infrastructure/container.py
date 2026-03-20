@@ -16,6 +16,7 @@ from application.services.onboarding_service import OnboardingService
 from application.services.split_config_service import SplitConfigService
 from application.services.oauth_service import YNABOAuthService
 from application.services.weekly_summary_service import WeeklySummaryService
+from application.services.on_demand_summary_service import OnDemandSummaryService
 from domain.services.auth_service import AuthorizationService
 from parsers.llm_expense_parser import LLMExpenseParser
 from integrations.speech_to_text import SpeechToTextProcessor
@@ -154,6 +155,13 @@ class DIContainer:
             )
         )
 
+        self.register_transient(
+            OnDemandSummaryService,
+            lambda: OnDemandSummaryService(
+                ynab_factory=self.get(YNABRepositoryFactory),
+            )
+        )
+
         # Register authentication service as singleton
         self.register_singleton(
             AuthorizationService,
@@ -258,6 +266,9 @@ class DIContainer:
 
     def get_weekly_summary_service(self):
         return self.get(WeeklySummaryService)
+
+    def get_on_demand_summary_service(self):
+        return self.get(OnDemandSummaryService)
 
 
 def create_container(config_path: str = 'config/.env') -> DIContainer:

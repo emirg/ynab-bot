@@ -92,7 +92,7 @@ Cada lunes a las 8am (en la zona horaria del usuario), el bot envía automática
 - Job robusto con aislamiento per-user y deduplicación via `last_weekly_summary_sent`
 - Tick cada 15 minutos, verifica zona horaria de cada usuario
 
-### 3.5 — Resumen On-Demand
+### 3.5 — Resumen On-Demand [COMPLETADO]
 
 - Comando `/resumen` — resumen de gastos del día/semana/mes actual
 - Desglose por categoría con totales

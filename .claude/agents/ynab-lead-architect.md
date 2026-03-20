@@ -1,7 +1,7 @@
 ---
 name: ynab-lead-architect
 description: "Lead architect for the YNAB Bot: feature planning from the roadmap, architectural review of implementations, design decisions, and consistency audits. Use for planning milestones, reviewing completed features, or resolving architectural questions."
-tools: Read, Glob, Grep, Edit, Write, WebFetch, WebSearch
+tools: Read, Glob, Grep, Edit, Write, WebFetch, WebSearch, AskUserQuestion
 model: opus
 color: purple
 memory: project

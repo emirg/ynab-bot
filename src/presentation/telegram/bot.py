@@ -10,6 +10,7 @@ from presentation.telegram.handlers.learning_handler import LearningHandler
 from presentation.telegram.handlers.expense_handler import ExpenseHandler
 from presentation.telegram.handlers.split_config_handler import SplitConfigHandler
 from presentation.telegram.handlers.admin_handler import AdminHandler
+from presentation.telegram.handlers.summary_handler import SummaryHandler
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,8 @@ class YNABTelegramBot:
         self.expense_handler = ExpenseHandler(container)
         self.split_config_handler = SplitConfigHandler(container)
         self.admin_handler = AdminHandler(container)
-        
+        self.summary_handler = SummaryHandler(container)
+
         # Initialize Telegram application
         self.application = Application.builder().token(self.config.telegram_token).build()
         self._register_handlers()
@@ -55,6 +57,7 @@ class YNABTelegramBot:
         # General commands
         self.application.add_handler(CommandHandler("start", self.general_handler.handle_start_command))
         self.application.add_handler(CommandHandler("help", self.general_handler.handle_help_command))
+        self.application.add_handler(CommandHandler("resumen", self.summary_handler.handle_resumen_command))
         
         # Configuration commands
         self.application.add_handler(CommandHandler("connect", self.config_handler.handle_connect_command))
