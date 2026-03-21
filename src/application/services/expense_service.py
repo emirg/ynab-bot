@@ -836,9 +836,9 @@ class ExpenseService:
         if prediction:
             predicted_category_id, learning_confidence, mapping_count = prediction
 
-            # Use learning prediction if it's more confident
-            if learning_confidence > expense.confidence:
-                logger.info(f"Using learning prediction for {expense.payee}: {predicted_category_id} (confidence: {learning_confidence:.2f}, count: {mapping_count})")
+            # Always use learning prediction when it disagrees — user corrections are authoritative
+            if predicted_category_id != expense.category_id:
+                logger.info(f"Using learning prediction for {expense.payee}: {predicted_category_id} (learning confidence: {learning_confidence:.2f}, count: {mapping_count})")
                 expense.category_id = predicted_category_id
                 expense.confidence = learning_confidence
                 expense.category_explanation = f"aprendido de tus ultimas {mapping_count} compras en {expense.payee}"

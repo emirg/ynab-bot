@@ -356,11 +356,37 @@ class TestEnhanceWithLearning:
         assert result.confidence == 0.8
         assert "aprendido de tus ultimas 3 compras" in result.category_explanation
 
-    def test_learning_prediction_lower_confidence_not_used(self, service, mock_learning_repository, sample_categories):
+    def test_learning_always_wins_when_category_differs(self, service, mock_learning_repository, sample_categories):
+        # Even if learning confidence is lower than LLM, it wins when the category differs
         mock_learning_repository.predict_category.return_value = ('cat-2', 0.2, 1)
         expense = Expense(
             amount=Decimal('1000'), payee='Test', memo='x',
             category_id='cat-1', confidence=0.5,
+        )
+        result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
+        assert result.category_id == 'cat-2'
+        assert "aprendido de tus ultimas 1 compras" in result.category_explanation
+
+    def test_equal_confidence_learning_wins_regression(self, service, mock_learning_repository, sample_categories):
+        # Regression: when LLM returns confidence 1.0 and learning also has 1.0 but a different
+        # category, the old `learning_confidence > expense.confidence` condition (1.0 > 1.0 == False)
+        # silently ignored the user correction. Learning must now win.
+        mock_learning_repository.predict_category.return_value = ('cat-2', 1.0, 4)
+        expense = Expense(
+            amount=Decimal('1000'), payee='Mercadona', memo='x',
+            category_id='cat-1', confidence=1.0,
+        )
+        result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
+        assert result.category_id == 'cat-2'
+        assert result.confidence == 1.0
+        assert "aprendido de tus ultimas 4 compras" in result.category_explanation
+
+    def test_learning_no_op_when_same_category(self, service, mock_learning_repository, sample_categories):
+        # When learning agrees with LLM, nothing changes
+        mock_learning_repository.predict_category.return_value = ('cat-1', 0.9, 3)
+        expense = Expense(
+            amount=Decimal('1000'), payee='Test', memo='x',
+            category_id='cat-1', confidence=0.8,
         )
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
         assert result.category_id == 'cat-1'
