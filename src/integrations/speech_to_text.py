@@ -42,7 +42,7 @@ class SpeechToTextProcessor:
             Texto transcrito o None si hay error
         """
         try:
-            logger.info(f"🎤 Transcribiendo audio: {audio_file_path}")
+            logger.debug(f"Transcribiendo audio: {audio_file_path}")
             
             # Verificar tamaño del archivo
             file_size = os.path.getsize(audio_file_path)
@@ -68,7 +68,7 @@ class SpeechToTextProcessor:
             transcribed_text = transcript.strip()
             
             if transcribed_text:
-                logger.info(f"✅ Transcripción exitosa: '{transcribed_text}'")
+                logger.debug(f"Transcripción exitosa: '{transcribed_text}'")
                 return transcribed_text
             else:
                 logger.warning("⚠️ Transcripción vacía")
@@ -105,7 +105,7 @@ class SpeechToTextProcessor:
         # Limpiar y optimizar el texto para procesamiento de gastos
         cleaned_text = self._clean_transcription(transcribed_text)
         
-        logger.info(f"🧹 Texto limpio: '{cleaned_text}'")
+        logger.debug(f"Texto limpio: '{cleaned_text}'")
         return cleaned_text
     
     def _clean_transcription(self, text: str) -> str:

@@ -260,3 +260,17 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 yarn.lock
+config/.env.railway.template
+
+# Handoff (Claude/Gemini)
+# 1. Session state
+docs/wip_state.md
+
+# 2. Temporary context dump files or patches
+*.diff
+*.patch
+
+# 3. Claude Code
+.claude/
+!.claude/skills/
+!.claude/agents/

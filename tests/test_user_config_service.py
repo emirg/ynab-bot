@@ -1,0 +1,281 @@
+"""Tests for UserConfigService."""
+import pytest
+
+from application.services.user_config_service import UserConfigService
+from domain.models.user import UserConfiguration, UserStatus, YNABBudget, YNABAccount
+from domain.exceptions import YNABApiException
+from domain.time_utils import DEFAULT_TIMEZONE
+
+
+@pytest.fixture
+def service(mock_user_repository, mock_ynab_factory):
+    return UserConfigService(
+        user_repository=mock_user_repository,
+        ynab_factory=mock_ynab_factory,
+    )
+
+
+@pytest.fixture
+def oauth_authorized_user(authorized_user):
+    authorized_user.ynab_access_token = 'test-token'
+    return authorized_user
+
+
+# ---------------------------------------------------------------------------
+# get_or_create_user_config
+# ---------------------------------------------------------------------------
+
+class TestGetOrCreateUserConfig:
+
+    def test_returns_existing(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.get_or_create_user_config(authorized_user.telegram_id)
+        assert result == authorized_user
+
+    def test_creates_new(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.get_or_create_user_config(42)
+        assert result.telegram_id == 42
+        mock_user_repository.save.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# get_available_budgets
+# ---------------------------------------------------------------------------
+
+class TestGetAvailableBudgets:
+
+    def test_returns_budgets(self, service, mock_user_repository, oauth_authorized_user, sample_budgets):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        result = service.get_available_budgets(oauth_authorized_user.telegram_id)
+        assert len(result) == 2
+
+    def test_raises_on_error(self, service, mock_user_repository, mock_ynab_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        mock_ynab_repository.get_budgets.side_effect = Exception('connection error')
+        with pytest.raises(YNABApiException):
+            service.get_available_budgets(oauth_authorized_user.telegram_id)
+
+
+# ---------------------------------------------------------------------------
+# set_user_budget
+# ---------------------------------------------------------------------------
+
+class TestSetUserBudget:
+
+    def test_sets_budget(self, service, mock_user_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        result = service.set_user_budget(oauth_authorized_user.telegram_id, 'budget-1')
+        assert result.budget_id == 'budget-1'
+
+    def test_invalid_budget_raises(self, service, mock_user_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        with pytest.raises(YNABApiException):
+            service.set_user_budget(oauth_authorized_user.telegram_id, 'nonexistent-budget')
+
+
+# ---------------------------------------------------------------------------
+# get_user_accounts
+# ---------------------------------------------------------------------------
+
+class TestGetUserAccounts:
+
+    def test_returns_accounts(self, service, mock_user_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        accounts, error = service.get_user_accounts(oauth_authorized_user.telegram_id)
+        assert len(accounts) > 0
+        assert error is None
+
+    def test_no_budget_configured(self, service, mock_user_repository):
+        user = UserConfiguration(telegram_id=42, ynab_access_token='tok')
+        mock_user_repository.find_by_telegram_id.return_value = user
+        accounts, error = service.get_user_accounts(42)
+        assert accounts == []
+        assert error is not None
+
+    def test_user_not_found(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        accounts, error = service.get_user_accounts(999)
+        assert accounts == []
+        assert error is not None
+
+    def test_api_error(self, service, mock_user_repository, mock_ynab_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        mock_ynab_repository.get_accounts.side_effect = Exception('timeout')
+        accounts, error = service.get_user_accounts(oauth_authorized_user.telegram_id)
+        assert accounts == []
+        assert error is not None
+
+
+# ---------------------------------------------------------------------------
+# set_default_account
+# ---------------------------------------------------------------------------
+
+class TestSetDefaultAccount:
+
+    def test_sets_account(self, service, mock_user_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        result = service.set_default_account(oauth_authorized_user.telegram_id, 'acc-1')
+        assert result.default_account_id == 'acc-1'
+        assert result.default_account_name == 'Nu Card'
+
+    def test_no_budget_raises(self, service, mock_user_repository):
+        user = UserConfiguration(telegram_id=42, ynab_access_token='tok')
+        mock_user_repository.find_by_telegram_id.return_value = user
+        with pytest.raises(YNABApiException):
+            service.set_default_account(42, 'acc-1')
+
+    def test_user_not_found_raises(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        with pytest.raises(YNABApiException):
+            service.set_default_account(999, 'acc-1')
+
+    def test_invalid_account_raises(self, service, mock_user_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        with pytest.raises(YNABApiException):
+            service.set_default_account(oauth_authorized_user.telegram_id, 'nonexistent')
+
+
+# ---------------------------------------------------------------------------
+# get_user_status
+# ---------------------------------------------------------------------------
+
+class TestGetUserStatus:
+
+    def test_configured_user(self, service, mock_user_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        status = service.get_user_status(oauth_authorized_user.telegram_id)
+        assert status['configured'] is True
+        assert status['budget_id'] == oauth_authorized_user.budget_id
+        assert status['ynab_connected'] is True
+        assert 'completamente' in status['message'].lower()
+
+    def test_unconfigured_user(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        status = service.get_user_status(999)
+        assert status['configured'] is False
+        assert status['budget_id'] is None
+        assert status['ynab_connected'] is False
+
+    def test_no_ynab_token(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        status = service.get_user_status(authorized_user.telegram_id)
+        assert status['ynab_connected'] is False
+        assert '/connect' in status['message']
+
+    def test_partially_configured(self, service, mock_user_repository):
+        user = UserConfiguration(telegram_id=42, budget_id='b1', ynab_access_token='tok')
+        mock_user_repository.find_by_telegram_id.return_value = user
+        status = service.get_user_status(42)
+        assert not status['configured']
+        assert 'cuenta' in status['message'].lower()
+
+    def test_budget_name_resolved(self, service, mock_user_repository, oauth_authorized_user, sample_budgets):
+        oauth_authorized_user.budget_id = 'budget-1'
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        status = service.get_user_status(oauth_authorized_user.telegram_id)
+        assert status['budget_name'] == 'My Budget'
+
+    def test_budget_name_api_error(self, service, mock_user_repository, mock_ynab_repository, oauth_authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = oauth_authorized_user
+        mock_ynab_repository.get_budgets.side_effect = Exception('api error')
+        status = service.get_user_status(oauth_authorized_user.telegram_id)
+        assert status['budget_name'] is None  # fails gracefully
+
+
+# ---------------------------------------------------------------------------
+# reset_user_config
+# ---------------------------------------------------------------------------
+
+class TestResetUserConfig:
+
+    def test_resets_config(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        assert service.reset_user_config(authorized_user.telegram_id) is True
+        assert authorized_user.budget_id is None
+        assert authorized_user.default_account_id is None
+
+    def test_user_not_found_returns_true(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        assert service.reset_user_config(999) is True
+
+    def test_error_returns_false(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.side_effect = Exception('db error')
+        assert service.reset_user_config(42) is False
+
+
+# ---------------------------------------------------------------------------
+# update_timezone
+# ---------------------------------------------------------------------------
+
+class TestUpdateTimezone:
+
+    def test_update_timezone_valid(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_user_repository.save.return_value = authorized_user
+        result = service.update_timezone(authorized_user.telegram_id, 'America/Bogota')
+        assert result.timezone == 'America/Bogota'
+        mock_user_repository.save.assert_called_once()
+
+    def test_update_timezone_invalid(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        with pytest.raises(ValueError, match='invalida'):
+            service.update_timezone(authorized_user.telegram_id, 'Invalid/Zone')
+
+    def test_update_timezone_user_not_found(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        with pytest.raises(YNABApiException):
+            service.update_timezone(999, 'America/Bogota')
+
+    def test_get_user_status_includes_timezone(self, service, mock_user_repository, authorized_user):
+        authorized_user.timezone = 'America/Bogota'
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        status = service.get_user_status(authorized_user.telegram_id)
+        assert status['timezone'] == 'America/Bogota'
+
+    def test_get_user_status_default_timezone(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        status = service.get_user_status(authorized_user.telegram_id)
+        assert status['timezone'] == DEFAULT_TIMEZONE
+
+
+# ---------------------------------------------------------------------------
+# set_confirmation_mode / get_confirmation_mode
+# ---------------------------------------------------------------------------
+
+class TestConfirmationMode:
+
+    def test_default_is_false_for_new_user(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.get_confirmation_mode(999)
+        assert result is False
+
+    def test_default_is_false_on_existing_user(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.get_confirmation_mode(authorized_user.telegram_id)
+        assert result is False
+
+    def test_set_confirmation_mode_on(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_user_repository.save.return_value = authorized_user
+        result = service.set_confirmation_mode(authorized_user.telegram_id, True)
+        assert result.confirm_before_create is True
+        mock_user_repository.save.assert_called_once()
+
+    def test_set_confirmation_mode_off(self, service, mock_user_repository, authorized_user):
+        authorized_user.confirm_before_create = True
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_user_repository.save.return_value = authorized_user
+        result = service.set_confirmation_mode(authorized_user.telegram_id, False)
+        assert result.confirm_before_create is False
+        mock_user_repository.save.assert_called_once()
+
+    def test_set_confirmation_mode_user_not_found_raises(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        with pytest.raises(YNABApiException):
+            service.set_confirmation_mode(999, True)
+
+    def test_get_confirmation_mode_reflects_enabled(self, service, mock_user_repository, authorized_user):
+        authorized_user.confirm_before_create = True
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        assert service.get_confirmation_mode(authorized_user.telegram_id) is True

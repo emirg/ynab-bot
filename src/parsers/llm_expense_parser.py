@@ -1,9 +1,12 @@
 import os
 import json
 import logging
+from datetime import datetime
 from typing import Dict, Optional, List
 from openai import OpenAI
 from dotenv import load_dotenv
+
+from domain.time_utils import user_now, DEFAULT_TIMEZONE
 
 # Cargar variables de entorno
 load_dotenv()
@@ -39,6 +42,8 @@ FORMATO DE MONEDA:
 
 {accounts_section}
 
+{date_context}
+
 RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
 {{
     "amount": <número_decimal>,
@@ -46,35 +51,45 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
     "payee": "<lugar_o_comercio>",
     "account": "<cuenta_exacta_de_la_lista_o_null>",
     "memo": "<mensaje_original>",
+    "date": "<YYYY-MM-DD_o_null>",
     "confidence": <0.0_a_1.0>
 }}
 
-EJEMPLOS:
+EJEMPLOS CORRECTOS:
 - "Me pedi en McDonald's, me gasté como 25 lucas" → amount: 25000.0, category: "🥗 Meal delivery", payee: "McDonald's", account: null
 - "Uber al aeropuerto 80k con mi rappi card" → amount: 80000.0, category: "🚙 Rideshare (Uber/Lyft/etc.)", payee: "Uber", account: "Rappi Card"
 - "Compras del super: 150 mil pesos en efectivo" → amount: 150000.0, category: "🛒 Groceries", payee: "Supermercado", account: "Efectivo"
 - "Netflix mensual 15.900 con bancolombia" → amount: 15900.0, category: "📺Netflix", payee: "Netflix", account: "Bancolombia"
 - "Me gasté $3000 en Carulla con mi Nu Card" → amount: 3000.0, category: "🛒 Groceries", payee: "Carulla", account: "Nu Card"
+- "Compre una botella en MercadoLibre por 12345 con mi nu card → amount: 12345.0, category: "🛍️Shopping (MercadoLibre/Amazon/etc.)", payee: "MercadoLibre", account: "Nu Card" 
+- "Gasté 20k en productos de belleza en Éxito con mi Visa" → amount: 20000.0, category: "🧴 Personal Care", payee: "Éxito", account: "Visa"
 
-⚠️ REGLAS CRÍTICAS:
-1. **CATEGORÍA vs CUENTA**: 
-   - CATEGORÍA = ¿PARA QUÉ es el gasto? (comida, transporte, entretenimiento)
-   - CUENTA = ¿CÓMO se pagó? (tarjeta, efectivo, banco)
+EJEMPLOS INCORRECTOS (NO HACER ESTO):
+- ❌ "Gasté 20k en productos de belleza en Éxito con mi Visa" → category: "Visa", account: null (MAL: usando cuenta como categoría)
+- ❌ "Compré ropa en Zara con mi tarjeta" → category: "tarjeta", account: null (MAL: usando cuenta como categoría)
+
+⚠️ REGLAS CRÍTICAS - ¡ATENCIÓN ESPECIAL A ESTAS REGLAS!:
+1. **CATEGORÍA vs CUENTA - DISTINCIÓN CLAVE**: 
+   - CATEGORÍA = ¿PARA QUÉ es el gasto? (comida, transporte, entretenimiento, cuidado personal, etc.)
+   - CUENTA = ¿CÓMO se pagó? (tarjeta, efectivo, banco - solo nombres de cuentas reales)
    - NUNCA uses nombres de cuentas como categorías
    - NUNCA uses nombres de categorías como cuentas
+   - NUNCA uses palabras genéricas como "tarjeta", "efectivo", "dinero" como categoría
 
-2. **VALIDACIÓN**:
+2. **VALIDACIÓN IMPORTANTE**:
    - La categoría DEBE ser de la lista de categorías YNAB
    - La cuenta DEBE ser de la lista de cuentas YNAB o null
-   - Si "Carulla" → categoría: "Groceries", NO "Nu Card"
+   - Si "Carulla" → categoría: "🛒 Groceries", NO "Nu Card", NO "tarjeta"
    - Si "con mi Nu Card" → account: "Nu Card", NO categoría
+   - Si "productos de belleza" → categoría: "🧴 Personal Care", NO "tarjeta", NO "efectivo"
 
-3. **PROCESAMIENTO**:
-   - Identifica el LUGAR/COMERCIO para determinar categoría
-   - Identifica "con mi", "usando", "en" para determinar cuenta
+3. **PROCESAMIENTO DETALLADO**:
+   - Identifica primero el LUGAR/COMERCIO y el TIPO DE PRODUCTO/SERVICIO para determinar categoría
+   - Identifica "con mi", "usando", "en" + NOMBRE ESPECÍFICO para determinar cuenta
    - Usa EXACTAMENTE los nombres de las listas proporcionadas
    - Si no detectas cuenta específica, usa account: null
-   - Si no puedes parsear el mensaje, devuelve confidence: 0.0
+   - Si no puedes parsear el mensaje con alta confianza, devuelve confidence: 0.0
+   - Si detectas que una cuenta se está usando como categoría, corrige automáticamente
 """
     
     def update_categories(self, categories: list):
@@ -87,18 +102,36 @@ EJEMPLOS:
         self.ynab_accounts = accounts
         logger.info(f"Actualizadas {len(accounts)} cuentas YNAB para LLM")
     
-    def _generate_system_prompt(self) -> str:
+    def _get_date_context(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
+        """Genera el contexto de fecha actual para inyectar en los prompts del LLM."""
+        now = user_now(timezone_str)
+        dias_semana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+        dia_semana = dias_semana[now.weekday()]
+        fecha_actual = now.strftime("%Y-%m-%d")
+        return (
+            f"FECHA ACTUAL DEL SISTEMA: {fecha_actual} ({dia_semana})\n\n"
+            "DETECCIÓN DE FECHAS:\n"
+            "- Si el mensaje menciona una fecha (relativa como \"ayer\", \"anteayer\", \"el lunes\", "
+            "\"la semana pasada\" o absoluta como \"24/07\", \"el 5 de marzo\", \"el 3\"), "
+            "resuélvela a formato YYYY-MM-DD.\n"
+            "- Para fechas absolutas sin año (ej: \"24/07\"): usa la ocurrencia más reciente en el pasado "
+            "respecto a la fecha actual. Si la fecha aún no ha pasado este año, usa el año anterior.\n"
+            "- Para fechas futuras explícitas (ej: \"mañana\", \"el viernes\"): resuelve normalmente.\n"
+            "- Si no hay mención de fecha, devuelve date: null."
+        )
+
+    def _generate_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
         """Genera el prompt del sistema con las categorías y cuentas actuales"""
         # Sección de categorías
         if self.ynab_categories:
             categories_text = "CATEGORÍAS DISPONIBLES EN TU PRESUPUESTO YNAB:\n"
-            for i, category in enumerate(self.ynab_categories[:20], 1):  # Limitar a 20 para no sobrecargar
+            for i, category in enumerate(self.ynab_categories[:100], 1):  # Aumentado a 100
                 categories_text += f"- {category['name']}\n"
             
-            if len(self.ynab_categories) > 20:
-                categories_text += f"... y {len(self.ynab_categories) - 20} categorías más\n"
+            if len(self.ynab_categories) > 100:
+                categories_text += f"... y {len(self.ynab_categories) - 100} categorías más\n"
             
-            categories_text += "\nUsa EXACTAMENTE estos nombres de categorías."
+            categories_text += "\n⚠️ REGLA DE ORO: Mapea el mensaje a la categoría más semánticamente cercana de la lista anterior. Usa EXACTAMENTE el nombre de la categoría, incluyendo emojis si los tiene."
         else:
             categories_text = """CATEGORÍAS COMUNES:
 - Comida/Alimentación: supermercado, groceries, mercado, comida
@@ -126,22 +159,256 @@ EJEMPLOS:
         
         return self.base_system_prompt.format(
             categories_section=categories_text,
-            accounts_section=accounts_text
+            accounts_section=accounts_text,
+            date_context=self._get_date_context(timezone_str),
         )
-    
-    def parse_expense(self, message: str) -> Optional[Dict]:
+
+    def _generate_receipt_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
+        """Genera el prompt del sistema específico para analizar imágenes de recibos"""
+        # Reutilizar lógica de categorías
+        if self.ynab_categories:
+            categories_text = "CATEGORÍAS DISPONIBLES EN TU PRESUPUESTO YNAB:\n"
+            for category in self.ynab_categories[:100]:
+                categories_text += f"- {category['name']}\n"
+            categories_text += "\n⚠️ REGLA DE ORO: Mapea el recibo a la categoría más semánticamente cercana de la lista anterior."
+        else:
+            categories_text = "No hay categorías configuradas. Usa categorías generales."
+
+        # Reutilizar lógica de cuentas
+        if self.ynab_accounts:
+            accounts_text = "CUENTAS DISPONIBLES:\n"
+            for account in self.ynab_accounts:
+                accounts_text += f"- {account}\n"
+        else:
+            accounts_text = "No hay cuentas configuradas."
+
+        return f"""Eres un experto en analizar recibos, facturas y tickets de venta en español colombiano.
+Tu tarea es extraer la información de un gasto a partir de una IMAGEN de un recibo.
+
+{categories_text}
+
+{accounts_text}
+
+INSTRUCCIONES ESPECÍFICAS PARA RECIBOS:
+1. **Monto Total**: Extrae el valor total pagado (incluyendo impuestos y propinas si están en el total).
+2. **Lugar/Payee**: Identifica el nombre del establecimiento (ej: "Éxito", "Restaurante El Corral", "Gasolinera Terpel").
+3. **Categoría**: Elige la categoría más adecuada de la lista proporcionada basado en el lugar y los productos comprados.
+4. **Memo**: Genera un resumen breve de lo comprado (ej: "Almuerzo: Hamburguesa y soda", "Mercado quincenal").
+5. **Fecha**: Si la fecha es visible, inclúyela al inicio del memo en formato [DD/MM] y también en el campo "date" en formato YYYY-MM-DD.
+6. **Cuenta**: Si el recibo indica medio de pago (ej: "VISA ****1234") y coincide con una de las CUENTAS DISPONIBLES, selecciónala. De lo contrario, usa null.
+
+CONTEXTO COLOMBIANO:
+- Moneda: Pesos Colombianos (COP). Los montos suelen ser números grandes (ej: 45000, 120000).
+- Impuestos: IVA (19%) e Impoconsumo (8%) suelen estar incluidos en el total.
+
+{self._get_date_context(timezone_str)}
+
+RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
+{{
+    "amount": <número_decimal>,
+    "category": "<categoría_exacta_de_la_lista>",
+    "payee": "<lugar_o_comercio>",
+    "account": "<cuenta_exacta_de_la_lista_o_null>",
+    "memo": "<resumen_breve_del_recibo>",
+    "date": "<YYYY-MM-DD_o_null>",
+    "confidence": <0.0_a_1.0>
+}}
+
+⚠️ REGLAS CRÍTICAS:
+- Si la imagen NO es un recibo, factura o ticket de venta, o es totalmente ilegible, devuelve confidence: 0.0.
+- Si faltan datos críticos (monto o lugar), devuelve confidence: 0.0.
+- No inventes datos. Si algo no es claro, usa lo más probable o baja el confidence.
+"""
+
+    def _generate_message_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
+        """Genera el prompt del sistema para clasificar intent y parsear mensajes"""
+        categories_text = "No hay categorías disponibles."
+        if self.ynab_categories:
+            categories_text = "CATEGORÍAS DISPONIBLES:\n"
+            for category in self.ynab_categories[:100]:
+                categories_text += f"- {category['name']}\n"
+            
+            categories_text += "\nSi el usuario pregunta por una categoría (ej: 'comida'), búscala semánticamente en esta lista (ej: '🛒 Groceries') y devuelve el NOMBRE EXACTO."
+
+        accounts_text = "No hay cuentas disponibles."
+        if self.ynab_accounts:
+            accounts_text = "CUENTAS DISPONIBLES:\n"
+            for account in self.ynab_accounts:
+                accounts_text += f"- {account}\n"
+            
+            accounts_text += "\nSi el usuario pregunta por una cuenta, usa el NOMBRE EXACTO de esta lista."
+
+        return f"""Eres un asistente que clasifica mensajes de usuarios de una app de presupuesto en español colombiano.
+
+Debes determinar si el mensaje es un GASTO o una CONSULTA sobre el presupuesto.
+
+CONSULTAS: mensajes que preguntan sobre saldos, presupuesto, o estado financiero.
+Palabras clave de consulta: "cuánto", "cómo va", "resumen", "saldo", "debo", "queda", "he gastado", "presupuesto", "disponible", "balance".
+
+GASTOS: mensajes que reportan un gasto realizado. Contienen un monto y un lugar/concepto.
+
+{categories_text}
+
+{accounts_text}
+
+{self._get_date_context(timezone_str)}
+
+RESPONDE EN JSON con UNA de estas tres estructuras:
+
+Para CONSULTAS:
+{{
+    "intent": "query",
+    "query_type": "category_balance" | "account_balance" | "budget_summary",
+    "query_target": "<nombre_exacto_de_categoría_o_cuenta_o_null>",
+    "confidence": <0.0_a_1.0>
+}}
+
+Para GASTOS:
+{{
+    "intent": "expense",
+    "amount": <número_decimal>,
+    "category": "<categoría_exacta_de_la_lista>",
+    "payee": "<lugar>",
+    "account": "<cuenta_exacta_de_la_lista_o_null>",
+    "memo": "<mensaje_original>",
+    "date": "<YYYY-MM-DD_o_null>",
+    "confidence": <0.0_a_1.0>
+}}
+
+Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó", "por mí", "me compró", "para mí"):
+{{
+    "intent": "shared_expense",
+    "amount": <número_decimal>,
+    "category": "<categoría_exacta_de_la_lista>",
+    "payee": "<lugar>",
+    "account": "<cuenta_exacta_de_la_lista_o_null>",
+    "memo": "<mensaje_original>",
+    "date": "<YYYY-MM-DD_o_null>",
+    "confidence": <0.0_a_1.0>,
+    "person": "<nombre_de_la_persona>",
+    "proportion": "<fraccion_o_null>",
+    "payer": "user" | "other"
+}}
+
+REGLAS CRÍTICAS:
+1. "category_balance": pregunta por UNA categoría específica. DEBES mapear lo que diga el usuario al nombre exacto de la lista de CATEGORÍAS DISPONIBLES.
+2. "account_balance": pregunta por UNA cuenta específica. DEBES mapear al nombre exacto de la lista de CUENTAS DISPONIBLES.
+3. "budget_summary": pregunta general sobre el presupuesto (ej: "cómo va mi presupuesto"). query_target debe ser null.
+4. Para GASTOS, la categoría DEBE ser una de la lista de CATEGORÍAS DISPONIBLES.
+5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
+6. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Eli gastó 50k en carulla conmigo", "Juan pagó la cena"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
+7. "proportion" en gastos compartidos: cuando el gasto es COMPLETAMENTE para el usuario y otra persona pagó (frases como "por mí", "me compró", "para mí", "por mi cuenta"), usa proportion: "1" y payer: "other". Esto significa que el usuario debe el 100% del gasto. Ejemplo: "Eli gastó 100k en MercadoLibre por mí" → proportion: "1", payer: "other", person: "Eli". Si hay lenguaje de split ("a medias", "mitad"), usa la proporción correspondiente. Si no hay lenguaje de split NI de deuda total, usa proportion: null (default 50/50).
+"""
+
+    def _strip_markdown_code_blocks(self, content: str) -> str:
+        """Elimina bloques de código Markdown si existen"""
+        content = content.strip()
+        if content.startswith("```"):
+            # Eliminar la primera línea (```json o ```)
+            lines = content.split("\n")
+            if len(lines) > 2:
+                # Filtrar las líneas que empiezan con ```
+                content = "\n".join([line for line in lines if not line.strip().startswith("```")])
+        return content.strip()
+
+    def parse_message(self, message: str, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
+        """
+        Clasifica el intent del mensaje y retorna la estructura correspondiente.
+
+        Returns:
+            Dict con intent "expense" o "query", o None si falla
+        """
+        try:
+            system_prompt = self._generate_message_system_prompt(timezone_str)
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": message}
+                ],
+                temperature=0.1,
+                max_tokens=300
+            )
+
+            content = response.choices[0].message.content.strip()
+            content = self._strip_markdown_code_blocks(content)
+
+            try:
+                result = json.loads(content)
+
+                if 'intent' not in result or 'confidence' not in result:
+                    logger.error(f"Respuesta sin intent o confidence: {result}")
+                    return None
+
+                if not isinstance(result['confidence'], (int, float)) or not (0 <= result['confidence'] <= 1):
+                    logger.error(f"Confianza inválida: {result['confidence']}")
+                    return None
+
+                result['confidence'] = float(result['confidence'])
+
+                if result['intent'] == 'query':
+                    if 'query_type' not in result:
+                        logger.error(f"Query sin query_type: {result}")
+                        return None
+                    if result['query_type'] not in ('category_balance', 'account_balance', 'budget_summary'):
+                        logger.error(f"query_type inválido: {result['query_type']}")
+                        return None
+                elif result['intent'] == 'expense':
+                    required = ['amount', 'category', 'payee', 'memo']
+                    if not all(f in result for f in required):
+                        logger.error(f"Expense sin campos requeridos: {result}")
+                        return None
+                    if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
+                        logger.error(f"Cantidad inválida: {result['amount']}")
+                        return None
+                    result['amount'] = float(result['amount'])
+                elif result['intent'] == 'shared_expense':
+                    required = ['amount', 'category', 'payee', 'memo', 'person']
+                    if not all(f in result for f in required):
+                        logger.error(f"Shared expense sin campos requeridos: {result}")
+                        return None
+                    if not result.get('person') or not str(result['person']).strip():
+                        logger.error(f"Shared expense sin persona: {result}")
+                        return None
+                    if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
+                        logger.error(f"Cantidad inválida: {result['amount']}")
+                        return None
+                    result['amount'] = float(result['amount'])
+                    # Validate and normalise payer field (defaults to 'user')
+                    payer = result.get('payer', 'user')
+                    if payer not in ('user', 'other'):
+                        logger.warning(f"payer inválido '{payer}', usando 'user'")
+                        payer = 'user'
+                    result['payer'] = payer
+                else:
+                    logger.error(f"Intent desconocido: {result['intent']}")
+                    return None
+
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parseando JSON de OpenAI: {content}, Error: {e}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error llamando a OpenAI API: {e}")
+            return None
+
+    def parse_expense(self, message: str, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
         """
         Parsea un mensaje usando OpenAI GPT
-        
+
         Args:
             message: Mensaje del usuario sobre un gasto
-            
+            timezone_str: IANA timezone string for date context
+
         Returns:
             Dict con información del gasto o None si falla
         """
         try:
             # Generar prompt dinámico con categorías actuales
-            system_prompt = self._generate_system_prompt()
+            system_prompt = self._generate_system_prompt(timezone_str)
             
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -155,6 +422,7 @@ EJEMPLOS:
             
             # Extraer el contenido de la respuesta
             content = response.choices[0].message.content.strip()
+            content = self._strip_markdown_code_blocks(content)
             
             # Parsear el JSON
             try:
@@ -179,7 +447,7 @@ EJEMPLOS:
                 result['amount'] = float(result['amount'])
                 result['confidence'] = float(result['confidence'])
                 
-                logger.info(f"Parseo exitoso con LLM: {message} → {result}")
+                logger.debug(f"Parseo exitoso con LLM: {message} → {result}")
                 return result
                 
             except json.JSONDecodeError as e:
@@ -188,6 +456,81 @@ EJEMPLOS:
                 
         except Exception as e:
             logger.error(f"Error llamando a OpenAI API: {e}")
+            return None
+
+    def parse_receipt_image(self, image_base64: str, caption: str = None, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
+        """
+        Analiza una imagen de un recibo en base64 usando OpenAI GPT-4o-mini Vision.
+
+        Args:
+            image_base64: Imagen del recibo codificada en base64.
+            caption: Texto opcional que acompaña a la imagen.
+
+        Returns:
+            Dict con información del gasto o None si falla.
+        """
+        try:
+            system_prompt = self._generate_receipt_system_prompt(timezone_str)
+
+            user_content = [
+                {
+                    "type": "text",
+                    "text": "Analiza este recibo/ticket y extrae la información del gasto."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{image_base64}"
+                    }
+                }
+            ]
+
+            if caption:
+                user_content.append({
+                    "type": "text",
+                    "text": f"Contexto adicional proporcionado por el usuario: {caption}"
+                })
+
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.1,
+                max_tokens=500
+            )
+
+            content = response.choices[0].message.content.strip()
+            content = self._strip_markdown_code_blocks(content)
+
+            try:
+                result = json.loads(content)
+
+                required_fields = ['amount', 'category', 'payee', 'memo', 'confidence']
+                if not all(field in result for field in required_fields):
+                    logger.error(f"Respuesta de Vision falta campos requeridos: {result}")
+                    return None
+
+                if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
+                    logger.error(f"Cantidad inválida de Vision: {result['amount']}")
+                    return None
+
+                if not isinstance(result['confidence'], (int, float)) or not (0 <= result['confidence'] <= 1):
+                    logger.error(f"Confianza inválida de Vision: {result['confidence']}")
+                    return None
+
+                result['amount'] = float(result['amount'])
+                result['confidence'] = float(result['confidence'])
+
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parseando JSON de Vision: {content}, Error: {e}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error llamando a OpenAI Vision API: {e}")
             return None
     
     def test_parsing(self):
