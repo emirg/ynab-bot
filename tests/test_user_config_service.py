@@ -237,3 +237,45 @@ class TestUpdateTimezone:
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         status = service.get_user_status(authorized_user.telegram_id)
         assert status['timezone'] == DEFAULT_TIMEZONE
+
+
+# ---------------------------------------------------------------------------
+# set_confirmation_mode / get_confirmation_mode
+# ---------------------------------------------------------------------------
+
+class TestConfirmationMode:
+
+    def test_default_is_false_for_new_user(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        result = service.get_confirmation_mode(999)
+        assert result is False
+
+    def test_default_is_false_on_existing_user(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.get_confirmation_mode(authorized_user.telegram_id)
+        assert result is False
+
+    def test_set_confirmation_mode_on(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_user_repository.save.return_value = authorized_user
+        result = service.set_confirmation_mode(authorized_user.telegram_id, True)
+        assert result.confirm_before_create is True
+        mock_user_repository.save.assert_called_once()
+
+    def test_set_confirmation_mode_off(self, service, mock_user_repository, authorized_user):
+        authorized_user.confirm_before_create = True
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_user_repository.save.return_value = authorized_user
+        result = service.set_confirmation_mode(authorized_user.telegram_id, False)
+        assert result.confirm_before_create is False
+        mock_user_repository.save.assert_called_once()
+
+    def test_set_confirmation_mode_user_not_found_raises(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        with pytest.raises(YNABApiException):
+            service.set_confirmation_mode(999, True)
+
+    def test_get_confirmation_mode_reflects_enabled(self, service, mock_user_repository, authorized_user):
+        authorized_user.confirm_before_create = True
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        assert service.get_confirmation_mode(authorized_user.telegram_id) is True

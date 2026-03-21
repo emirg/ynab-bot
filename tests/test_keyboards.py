@@ -11,6 +11,7 @@ from presentation.telegram.keyboards import (
     build_split_account_selection_keyboard,
     build_split_alias_action_keyboard,
     build_split_ask_alias_keyboard,
+    build_confirmation_keyboard,
 )
 from domain.models.user import YNABBudget, YNABAccount, YNABCategory
 from domain.models.split_config import SplitGroup
@@ -165,4 +166,37 @@ def test_build_split_ask_alias_keyboard():
     assert len(markup.inline_keyboard) == 2
     assert markup.inline_keyboard[0][0].callback_data == "split_ask_alias_cat-id"
     assert markup.inline_keyboard[1][0].callback_data == "split_skip_alias"
+
+
+# ---------------------------------------------------------------------------
+# Confirmation keyboard
+# ---------------------------------------------------------------------------
+
+def test_build_confirmation_keyboard_returns_inline_keyboard_markup():
+    markup = build_confirmation_keyboard()
+    assert isinstance(markup, InlineKeyboardMarkup)
+
+
+def test_build_confirmation_keyboard_has_one_row():
+    markup = build_confirmation_keyboard()
+    assert len(markup.inline_keyboard) == 1
+
+
+def test_build_confirmation_keyboard_has_two_buttons():
+    markup = build_confirmation_keyboard()
+    assert len(markup.inline_keyboard[0]) == 2
+
+
+def test_build_confirmation_keyboard_button_texts():
+    markup = build_confirmation_keyboard()
+    row = markup.inline_keyboard[0]
+    assert row[0].text == "Confirmar ✓"
+    assert row[1].text == "Cancelar ✗"
+
+
+def test_build_confirmation_keyboard_callback_data():
+    markup = build_confirmation_keyboard()
+    row = markup.inline_keyboard[0]
+    assert row[0].callback_data == "confirm_expense"
+    assert row[1].callback_data == "cancel_expense"
 

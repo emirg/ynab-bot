@@ -181,6 +181,24 @@ class UserConfigService:
         logger.info(f"Updated timezone for user {telegram_user_id} to {timezone_str}")
         return user_config
 
+    def set_confirmation_mode(self, telegram_user_id: int, enabled: bool) -> UserConfiguration:
+        """Enable or disable confirmation mode for the user before creating transactions."""
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config:
+            raise YNABApiException("Usuario no encontrado")
+
+        user_config.toggle_confirmation(enabled)
+        user_config = self.user_repository.save(user_config)
+        logger.info(f"Set confirmation_mode={enabled} for user {telegram_user_id}")
+        return user_config
+
+    def get_confirmation_mode(self, telegram_user_id: int) -> bool:
+        """Return whether confirmation before creating is enabled for the user."""
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config:
+            return False
+        return user_config.confirm_before_create
+
     def reset_user_config(self, telegram_user_id: int) -> bool:
         """Reset user configuration"""
         try:

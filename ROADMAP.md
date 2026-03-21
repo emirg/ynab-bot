@@ -68,12 +68,13 @@ Soportar gastos compartidos que hizo otra persona en nombre del usuario:
 - `/corregir` — REMOVIDO, absorbido por `/editar categoria`
 - Ventana de tiempo: últimos 5 minutos o última transacción del día
 
-### 3.2 — Confirmación Opcional Pre-Registro
+### 3.2 — Confirmación Opcional Pre-Registro [COMPLETADO]
 
-- Modo configurable por usuario: antes de crear la transacción, el bot muestra un preview y espera confirmación
-- "Voy a registrar: Almuerzo $25.000 en Restaurantes. ¿Confirmar?"
-- Activable/desactivable via `/confirmacion on/off`
+- Modo configurable por usuario: antes de crear la transacción, el bot muestra un preview y espera confirmación [COMPLETADO]
+- "Voy a registrar: Almuerzo $25.000 en Restaurantes. ¿Confirmar?" con botones inline [COMPLETADO]
+- Activable/desactivable via `/confirmacion on/off` [COMPLETADO]
 - Por defecto desactivado para no agregar fricción
+- Pipeline dividido en prepare + commit para soportar la confirmación sin romper el flujo existente
 
 ### 3.3 — Mejor Manejo de Errores [COMPLETADO]
 
@@ -97,10 +98,6 @@ Cada lunes a las 8am (en la zona horaria del usuario), el bot envía automática
 - Comando `/resumen` — resumen de gastos del día/semana/mes actual
 - Desglose por categoría con totales
 - Comparación contra lo presupuestado si está disponible via YNAB API
-
-### 3.6 — Alertas
-
-- TODO
 
 ## Extras (features implementadas fuera del roadmap original)
 

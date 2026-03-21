@@ -13,7 +13,7 @@ def test_database_initialization(tmp_path):
     cursor = conn.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
 
-    assert version == 8
+    assert version == 9
     db_manager.close()
 
 
@@ -30,7 +30,7 @@ def test_database_idempotency(tmp_path):
     cursor = conn.execute("SELECT MAX(version) FROM schema_version")
     version = cursor.fetchone()[0]
 
-    assert version == 8
+    assert version == 9
     db_manager.close()
 
 
@@ -71,17 +71,72 @@ def test_timezone_column_exists(tmp_path):
 
 
 def test_migration_v8_fresh_db(tmp_path):
-    """Migration v8 applies cleanly on a fresh DB (v1 through v8)."""
+    """Migration v8 applies cleanly on a DB bootstrapped to exactly v8."""
     db_file = tmp_path / "test_v8_fresh.db"
+
+    import src.infrastructure.repositories.database_manager as dm_module
+
+    original_migrations = dm_module._MIGRATIONS
+    dm_module._MIGRATIONS = [m for m in original_migrations if m[0] <= 8]
+    try:
+        db_manager = DatabaseManager(str(db_file))
+        conn = db_manager.get_connection()
+
+        cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+        assert cursor.fetchone()[0] == 8
+
+        cursor = conn.execute("PRAGMA table_info(user_configurations)")
+        columns = [row[1] for row in cursor.fetchall()]
+        assert "last_weekly_summary_sent" in columns
+
+        db_manager.close()
+    finally:
+        dm_module._MIGRATIONS = original_migrations
+
+
+def test_migration_v9_fresh_db(tmp_path):
+    """Migration v9 applies cleanly on a fresh DB (v1 through v9)."""
+    db_file = tmp_path / "test_v9_fresh.db"
     db_manager = DatabaseManager(str(db_file))
     conn = db_manager.get_connection()
 
     cursor = conn.execute("SELECT MAX(version) FROM schema_version")
-    assert cursor.fetchone()[0] == 8
+    assert cursor.fetchone()[0] == 9
 
     cursor = conn.execute("PRAGMA table_info(user_configurations)")
     columns = [row[1] for row in cursor.fetchall()]
-    assert "last_weekly_summary_sent" in columns
+    assert "confirm_before_create" in columns
+
+    db_manager.close()
+
+
+def test_migration_v9_on_existing_v8_db(tmp_path):
+    """Migration v9 applies cleanly on a DB that was already at v8."""
+    db_file = tmp_path / "test_v8_to_v9.db"
+
+    import src.infrastructure.repositories.database_manager as dm_module
+
+    original_migrations = dm_module._MIGRATIONS
+    dm_module._MIGRATIONS = [m for m in original_migrations if m[0] <= 8]
+    try:
+        db_manager = DatabaseManager(str(db_file))
+        conn = db_manager.get_connection()
+        cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+        assert cursor.fetchone()[0] == 8
+        db_manager.close()
+    finally:
+        dm_module._MIGRATIONS = original_migrations
+
+    # Now open again with full migrations — v9 should be applied
+    db_manager = DatabaseManager(str(db_file))
+    conn = db_manager.get_connection()
+
+    cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+    assert cursor.fetchone()[0] == 9
+
+    cursor = conn.execute("PRAGMA table_info(user_configurations)")
+    columns = [row[1] for row in cursor.fetchall()]
+    assert "confirm_before_create" in columns
 
     db_manager.close()
 
@@ -104,15 +159,19 @@ def test_migration_v8_on_existing_v7_db(tmp_path):
     finally:
         dm_module._MIGRATIONS = original_migrations
 
-    # Now open again with full migrations — v8 should be applied
-    db_manager = DatabaseManager(str(db_file))
-    conn = db_manager.get_connection()
+    # Now open again with migrations up to v8 — v8 should be applied
+    dm_module._MIGRATIONS = [m for m in original_migrations if m[0] <= 8]
+    try:
+        db_manager = DatabaseManager(str(db_file))
+        conn = db_manager.get_connection()
 
-    cursor = conn.execute("SELECT MAX(version) FROM schema_version")
-    assert cursor.fetchone()[0] == 8
+        cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+        assert cursor.fetchone()[0] == 8
 
-    cursor = conn.execute("PRAGMA table_info(user_configurations)")
-    columns = [row[1] for row in cursor.fetchall()]
-    assert "last_weekly_summary_sent" in columns
+        cursor = conn.execute("PRAGMA table_info(user_configurations)")
+        columns = [row[1] for row in cursor.fetchall()]
+        assert "last_weekly_summary_sent" in columns
 
-    db_manager.close()
+        db_manager.close()
+    finally:
+        dm_module._MIGRATIONS = original_migrations

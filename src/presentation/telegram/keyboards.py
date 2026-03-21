@@ -153,3 +153,14 @@ def build_split_ask_alias_keyboard(category_id: str) -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
+def build_confirmation_keyboard() -> InlineKeyboardMarkup:
+    """Builds an inline keyboard for expense confirmation with Confirmar/Cancelar buttons."""
+    keyboard = [
+        [
+            InlineKeyboardButton("Confirmar ✓", callback_data="confirm_expense"),
+            InlineKeyboardButton("Cancelar ✗", callback_data="cancel_expense"),
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+

@@ -155,6 +155,14 @@ _MIGRATIONS = [
         ALTER TABLE user_configurations ADD COLUMN last_weekly_summary_sent TEXT;
         """,
     ),
+    # Version 9: Add confirm_before_create column to user_configurations
+    (
+        9,
+        "Add confirm_before_create column to user_configurations",
+        """
+        ALTER TABLE user_configurations ADD COLUMN confirm_before_create INTEGER DEFAULT 0;
+        """,
+    ),
 ]
 
 

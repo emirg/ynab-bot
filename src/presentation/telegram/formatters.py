@@ -88,6 +88,63 @@ class ExpenseResponseFormatter:
         return message.strip()
     
     @staticmethod
+    def format_preview(result: ExpenseResult, user_tz: str = DEFAULT_TIMEZONE) -> str:
+        """Format expense preview before registration (confirmation flow)."""
+        if not result.success or not result.expense:
+            return "❌ Error procesando respuesta"
+
+        expense = result.expense
+        confidence_emoji = "🔥" if expense.confidence > 0.8 else "✅" if expense.confidence > 0.5 else "⚠️"
+        date_line = ExpenseResponseFormatter._format_date_line(expense, user_tz)
+
+        if expense.is_split and expense.payer == 'other':
+            user_pct = int(expense.split_proportion * 100)
+            user_share = int(expense.amount * expense.split_proportion)
+            message = f"""
+📋 *Voy a registrar:*
+
+💰 *Total del gasto:* ${expense.amount:,.0f}
+🤝 *Pagado por:* {expense.split_person}
+📊 *Tu deuda ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
+💳 *Cuenta compartida:* {expense.account_name or 'Cuenta por defecto'}
+🏪 *Lugar:* {expense.payee}{date_line}
+
+📝 *Memo:* {expense.memo}
+            """
+        elif expense.is_split:
+            user_pct = int(expense.split_proportion * 100)
+            split_pct = 100 - user_pct
+            user_share = int(expense.amount * expense.split_proportion)
+            split_share = int(expense.amount) - user_share
+            message = f"""
+📋 *Voy a registrar:*
+
+💰 *Total:* ${expense.amount:,.0f}
+🤝 *Compartido con:* {expense.split_person}
+📊 *Tu parte ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
+📊 *Splitwise ({split_pct}%):* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}
+🏪 *Lugar:* {expense.payee}{date_line}
+💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
+{confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
+
+📝 *Memo:* {expense.memo}
+            """
+        else:
+            message = f"""
+📋 *Voy a registrar:*
+
+💰 *Monto:* ${expense.amount:,.0f}
+🏪 *Lugar:* {expense.payee}{date_line}
+📁 *Categoría:* {expense.category_name or 'Sin categoría'}
+💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
+{confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
+
+📝 *Memo:* {expense.memo}
+            """
+
+        return message.strip()
+
+    @staticmethod
     def format_error(result: ExpenseResult, exception: Optional[Exception] = None) -> str:
         """Format error response.
 

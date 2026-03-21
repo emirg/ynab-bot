@@ -247,6 +247,103 @@ class TestExpenseResponseFormatter:
 
 
 # ---------------------------------------------------------------------------
+# ExpenseResponseFormatter.format_preview
+# ---------------------------------------------------------------------------
+
+class TestExpenseResponseFormatterPreview:
+
+    def test_format_preview_regular_expense(self, sample_expense):
+        result = ExpenseResult.success_result(sample_expense, 'txn-1')
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert 'Voy a registrar' in msg
+        assert 'registrado exitosamente' not in msg
+        assert "McDonald's" in msg
+        assert '$25,000' in msg
+        assert 'Restaurants' in msg
+        assert 'Razon' in msg
+        assert 'sugerido por IA' in msg
+
+    def test_format_preview_regular_no_transaction_id_line(self, sample_expense):
+        result = ExpenseResult.success_result(sample_expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert 'Voy a registrar' in msg
+
+    def test_format_preview_error_result_returns_error(self):
+        result = ExpenseResult.error_result('fail')
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert 'Error' in msg
+
+    def test_format_preview_split_expense(self):
+        expense = Expense(
+            amount=Decimal('50000'), payee="McDonald's", memo='almuerzo mitad',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA, confianza 85%',
+            is_split=True, split_person='Juan',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Compartidos',
+        )
+        result = ExpenseResult.success_result(expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert 'Voy a registrar' in msg
+        assert 'registrado exitosamente' not in msg
+        assert 'Juan' in msg
+        assert '$50,000' in msg
+        assert '$25,000' in msg
+        assert 'Restaurants' in msg
+        assert 'Gastos Compartidos' in msg
+        assert 'Tu parte (50%)' in msg
+        assert 'Splitwise (50%)' in msg
+
+    def test_format_preview_other_paid_split(self):
+        expense = Expense(
+            amount=Decimal('50000'), payee='Carulla', memo='Eli gastó por mí',
+            category_name='Groceries', account_name='Nu Savings',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos con Eli',
+            payer='other',
+        )
+        result = ExpenseResult.success_result(expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert 'Voy a registrar' in msg
+        assert 'registrado exitosamente' not in msg
+        assert 'Pagado por' in msg
+        assert 'Eli' in msg
+        assert '$50,000' in msg
+        assert '$25,000' in msg
+        assert 'Tu deuda (50%)' in msg
+        assert 'Splitwise' not in msg
+
+    def test_format_preview_no_category(self, minimal_expense):
+        result = ExpenseResult.success_result(minimal_expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert 'Voy a registrar' in msg
+        assert 'Sin categoría' in msg
+
+    def test_format_preview_no_account(self, minimal_expense):
+        result = ExpenseResult.success_result(minimal_expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert 'Cuenta por defecto' in msg
+
+    def test_format_preview_confidence_emojis(self, sample_expense):
+        sample_expense.confidence = 0.95
+        result = ExpenseResult.success_result(sample_expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert '🔥' in msg
+
+        sample_expense.confidence = 0.6
+        result = ExpenseResult.success_result(sample_expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert '✅' in msg
+
+        sample_expense.confidence = 0.3
+        result = ExpenseResult.success_result(sample_expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+        assert '⚠️' in msg
+
+
+# ---------------------------------------------------------------------------
 # Date display in format_success
 # ---------------------------------------------------------------------------
 

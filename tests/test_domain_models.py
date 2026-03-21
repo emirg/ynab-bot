@@ -501,6 +501,37 @@ class TestUserConfiguration:
         u.mark_weekly_summary_sent()
         assert u.updated_at > old_updated
 
+    def test_confirm_before_create_default_is_false(self):
+        u = UserConfiguration(telegram_id=1)
+        assert u.confirm_before_create is False
+
+    def test_toggle_confirmation_enables(self):
+        import time
+        u = UserConfiguration(telegram_id=1)
+        old_updated = u.updated_at
+        time.sleep(0.01)
+        u.toggle_confirmation(True)
+        assert u.confirm_before_create is True
+        assert u.updated_at > old_updated
+
+    def test_toggle_confirmation_disables(self):
+        import time
+        u = UserConfiguration(telegram_id=1, confirm_before_create=True)
+        old_updated = u.updated_at
+        time.sleep(0.01)
+        u.toggle_confirmation(False)
+        assert u.confirm_before_create is False
+        assert u.updated_at > old_updated
+
+    def test_toggle_confirmation_updated_at_is_datetime(self):
+        import time
+        u = UserConfiguration(telegram_id=1)
+        old_updated = u.updated_at
+        time.sleep(0.01)
+        u.toggle_confirmation(True)
+        assert isinstance(u.updated_at, datetime)
+        assert u.updated_at > old_updated
+
 
 # ---------------------------------------------------------------------------
 # YNAB domain models

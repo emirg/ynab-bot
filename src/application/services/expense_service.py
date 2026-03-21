@@ -117,6 +117,261 @@ class ExpenseService:
                 expense_result=ExpenseResult.error_result("Error interno procesando el mensaje. Intenta de nuevo."),
             )
 
+    # ------------------------------------------------------------------
+    # Public parse-phase methods (no YNAB write)
+    # ------------------------------------------------------------------
+
+    def prepare_expense(self, telegram_user_id: int, message: str) -> dict:
+        """Parse and build an Expense object without creating a YNAB transaction.
+
+        Returns a dict with keys:
+            expense      - fully-built Expense object
+            budget_id    - str
+            account_id   - str
+            user_config  - UserConfiguration
+            expense_result - ExpenseResult with transaction_id=None
+            intent       - str ('expense')
+
+        Raises UserNotConfiguredException, ExpenseParsingException, or other
+        domain exceptions on failure (not caught here — caller decides).
+        """
+        if len(message) > _MAX_MESSAGE_LENGTH:
+            raise ExpenseParsingException(message, 0.0)
+
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config or not user_config.is_configured():
+            missing = "budget_id and account_id" if not user_config else "budget configuration"
+            raise UserNotConfiguredException(telegram_user_id, missing)
+
+        ynab_repository = self.ynab_factory.get_repository(user_config)
+        categories = ynab_repository.get_categories(user_config.budget_id)
+        accounts = ynab_repository.get_accounts(user_config.budget_id)
+        payees = ynab_repository.get_payees(user_config.budget_id)
+        self._update_llm_parser_data(categories, accounts, payees)
+
+        user_tz = user_config.timezone
+
+        parsed = self.llm_parser.parse_message(message, timezone_str=user_tz)
+        if not parsed:
+            raise ExpenseParsingException(message, 0.0)
+
+        expense = self._build_expense_from_parsed(parsed, message, categories, user_tz=user_tz)
+        if not expense:
+            raise ExpenseParsingException(message, 0.0)
+
+        expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+        expense.category_explanation = self._build_category_explanation(expense)
+
+        if not expense.account_id:
+            expense.account_id = user_config.default_account_id
+            expense.account_name = user_config.default_account_name
+
+        account_id = expense.account_id
+        expense_result = ExpenseResult.success_result(expense, transaction_id=None)
+
+        return {
+            'expense': expense,
+            'budget_id': user_config.budget_id,
+            'account_id': account_id,
+            'user_config': user_config,
+            'expense_result': expense_result,
+            'intent': 'expense',
+        }
+
+    def commit_expense(self, telegram_user_id: int, expense: 'Expense', budget_id: str, account_id: str) -> 'ExpenseResult':
+        """Create a YNAB transaction and record learning for an already-prepared Expense.
+
+        Creates a FRESH ynab_repository from the factory (to handle OAuth token
+        refresh between prepare and commit).
+
+        Returns ExpenseResult with transaction_id set on success.
+        """
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config or not user_config.is_configured():
+            missing = "budget_id and account_id" if not user_config else "budget configuration"
+            raise UserNotConfiguredException(telegram_user_id, missing)
+
+        # Fresh repository to handle possible token refresh
+        ynab_repository = self.ynab_factory.get_repository(user_config)
+
+        transaction_id = ynab_repository.create_transaction(expense, budget_id, account_id)
+        if not transaction_id:
+            raise YNABApiException("Failed to create transaction")
+
+        self.learning_repository.record_successful_transaction(telegram_user_id, expense)
+        self.learning_repository.add_recent_transaction(telegram_user_id, expense, transaction_id)
+
+        logger.info(f"Committed expense: {expense.payee} ${expense.amount}")
+        return ExpenseResult.success_result(expense, transaction_id)
+
+    def prepare_shared_expense(self, telegram_user_id: int, message: str) -> dict:
+        """Parse and build a shared Expense object without creating a YNAB transaction.
+
+        Returns a dict with keys:
+            expense      - fully-built Expense object (is_split=True)
+            budget_id    - str
+            account_id   - str
+            user_config  - UserConfiguration
+            expense_result - ExpenseResult with transaction_id=None
+            intent       - str ('shared_expense')
+
+        Raises on failure — caller decides error handling.
+        """
+        if len(message) > _MAX_MESSAGE_LENGTH:
+            raise ExpenseParsingException(message, 0.0)
+
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config or not user_config.is_configured():
+            missing = "budget_id and account_id" if not user_config else "budget configuration"
+            raise UserNotConfiguredException(telegram_user_id, missing)
+
+        if self.split_config_repository is None:
+            raise ExpenseParsingException(message, 0.0)
+
+        ynab_repository = self.ynab_factory.get_repository(user_config)
+        categories = ynab_repository.get_categories(user_config.budget_id)
+        accounts = ynab_repository.get_accounts(user_config.budget_id)
+        payees = ynab_repository.get_payees(user_config.budget_id)
+        self._update_llm_parser_data(categories, accounts, payees)
+
+        user_tz = user_config.timezone
+
+        parsed = self.llm_parser.parse_message(message, timezone_str=user_tz)
+        if not parsed:
+            raise ExpenseParsingException(message, 0.0)
+
+        person = parsed.get('person', '').strip()
+        split_group = self.split_config_repository.find_split_group_by_alias(telegram_user_id, person)
+        if not split_group:
+            raise ExpenseParsingException(message, 0.0)
+
+        proportion = self._parse_proportion(parsed.get('proportion'))
+        payer = parsed.get('payer', 'user')
+
+        expense = self._build_expense_from_parsed(parsed, message, categories, user_tz=user_tz)
+        if not expense:
+            raise ExpenseParsingException(message, 0.0)
+
+        expense.is_split = True
+        expense.split_person = person
+        expense.split_proportion = proportion
+        expense.split_category_id = split_group.category_id
+        expense.split_category_name = split_group.category_name
+        expense.payer = payer
+
+        if payer == 'other':
+            shared_account = self.split_config_repository.get_shared_account(telegram_user_id)
+            if not shared_account:
+                raise ExpenseParsingException(message, 0.0)
+            expense.account_id = shared_account.account_id
+            expense.account_name = shared_account.account_name
+        else:
+            expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+            expense.category_explanation = self._build_category_explanation(expense)
+
+            if not expense.account_id:
+                expense.account_id = user_config.default_account_id
+                expense.account_name = user_config.default_account_name
+
+        account_id = expense.account_id
+        expense_result = ExpenseResult.success_result(expense, transaction_id=None)
+
+        return {
+            'expense': expense,
+            'budget_id': user_config.budget_id,
+            'account_id': account_id,
+            'user_config': user_config,
+            'expense_result': expense_result,
+            'intent': 'shared_expense',
+        }
+
+    def commit_shared_expense(self, telegram_user_id: int, prepared_data: dict) -> 'ExpenseResult':
+        """Create a YNAB transaction and record learning for an already-prepared shared Expense.
+
+        Takes the dict returned by prepare_shared_expense. Creates a FRESH ynab_repository
+        from the factory (to handle OAuth token refresh between prepare and commit).
+
+        Returns ExpenseResult with transaction_id set on success.
+        """
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config or not user_config.is_configured():
+            missing = "budget_id and account_id" if not user_config else "budget configuration"
+            raise UserNotConfiguredException(telegram_user_id, missing)
+
+        expense = prepared_data['expense']
+        budget_id = prepared_data['budget_id']
+        account_id = prepared_data['account_id']
+
+        # Fresh repository to handle possible token refresh
+        ynab_repository = self.ynab_factory.get_repository(user_config)
+
+        transaction_id = ynab_repository.create_transaction(expense, budget_id, account_id)
+        if not transaction_id:
+            raise YNABApiException("Failed to create transaction")
+
+        self.learning_repository.record_successful_transaction(telegram_user_id, expense)
+        self.learning_repository.add_recent_transaction(telegram_user_id, expense, transaction_id)
+
+        logger.info(f"Committed shared expense: {expense.payee} ${expense.amount} with {expense.split_person}")
+        return ExpenseResult.success_result(expense, transaction_id)
+
+    def prepare_receipt(self, telegram_user_id: int, image_base64: str, caption: str = None) -> dict:
+        """Parse a receipt image and build an Expense object without creating a YNAB transaction.
+
+        Returns a dict with keys:
+            expense      - fully-built Expense object (parser_source='receipt')
+            budget_id    - str
+            account_id   - str
+            user_config  - UserConfiguration
+            expense_result - ExpenseResult with transaction_id=None
+            intent       - str ('expense')
+
+        Raises on failure — caller decides error handling.
+        """
+        user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+        if not user_config or not user_config.is_configured():
+            missing = "budget_id and account_id" if not user_config else "budget configuration"
+            raise UserNotConfiguredException(telegram_user_id, missing)
+
+        ynab_repository = self.ynab_factory.get_repository(user_config)
+        categories = ynab_repository.get_categories(user_config.budget_id)
+        accounts = ynab_repository.get_accounts(user_config.budget_id)
+        payees = ynab_repository.get_payees(user_config.budget_id)
+        self._update_llm_parser_data(categories, accounts, payees)
+
+        user_tz = user_config.timezone
+
+        parsed = self.llm_parser.parse_receipt_image(image_base64, caption, timezone_str=user_tz)
+        if not parsed:
+            raise ImageProcessingException("No se pudo analizar el recibo. Asegúrate de que la imagen sea legible.")
+
+        expense = self._build_expense_from_parsed(parsed, caption or "Recibo", categories, parser_source='receipt', user_tz=user_tz)
+        if not expense:
+            raise ImageProcessingException("No se pudo extraer información válida del recibo.")
+
+        expense = self._enhance_with_learning(expense, categories, telegram_user_id)
+        expense.category_explanation = self._build_category_explanation(expense)
+
+        if not expense.account_id:
+            expense.account_id = user_config.default_account_id
+            expense.account_name = user_config.default_account_name
+
+        account_id = expense.account_id
+        expense_result = ExpenseResult.success_result(expense, transaction_id=None)
+
+        return {
+            'expense': expense,
+            'budget_id': user_config.budget_id,
+            'account_id': account_id,
+            'user_config': user_config,
+            'expense_result': expense_result,
+            'intent': 'expense',
+        }
+
+    # ------------------------------------------------------------------
+    # Internal pipeline helpers
+    # ------------------------------------------------------------------
+
     def _process_parsed_expense(self, parsed, message, categories, user_config, ynab_repository, telegram_user_id, user_tz: str = DEFAULT_TIMEZONE) -> ExpenseResult:
         """Process an already-parsed expense dict through the existing pipeline."""
         expense = self._build_expense_from_parsed(parsed, message, categories, user_tz=user_tz)

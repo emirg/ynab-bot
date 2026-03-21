@@ -35,6 +35,7 @@ class UserConfiguration:
     ynab_refresh_token: Optional[str] = None
     ynab_token_expires_at: Optional[datetime] = None
     last_weekly_summary_sent: Optional[datetime] = None
+    confirm_before_create: bool = False
 
     def is_configured(self) -> bool:
         """Check if user has minimum required configuration"""
@@ -124,6 +125,11 @@ class UserConfiguration:
     def mark_weekly_summary_sent(self):
         """Record that the weekly summary was sent now (UTC)."""
         self.last_weekly_summary_sent = datetime.now(timezone.utc)
+        self.updated_at = datetime.now()
+
+    def toggle_confirmation(self, enabled: bool):
+        """Enable or disable the confirmation-before-create flow."""
+        self.confirm_before_create = enabled
         self.updated_at = datetime.now()
 
 

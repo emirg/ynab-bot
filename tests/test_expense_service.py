@@ -1594,3 +1594,352 @@ class TestErrorResultsUseUserMessage:
             target_logger.removeHandler(capture)
 
         assert any('not configured' in r.getMessage().lower() for r in capture.records)
+
+
+# ---------------------------------------------------------------------------
+# prepare_expense / commit_expense (two-phase pipeline)
+# ---------------------------------------------------------------------------
+
+class TestPrepareExpense:
+    """Tests for the prepare phase: no YNAB transaction is created."""
+
+    def test_returns_dict_with_required_keys(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        assert isinstance(result, dict)
+        for key in ('expense', 'budget_id', 'account_id', 'user_config', 'expense_result', 'intent'):
+            assert key in result, f"Missing key: {key}"
+
+    def test_no_ynab_transaction_created(self, service, mock_user_repository, mock_ynab_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        mock_ynab_repository.create_transaction.assert_not_called()
+
+    def test_no_learning_recorded(self, service, mock_user_repository, mock_learning_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        mock_learning_repository.record_successful_transaction.assert_not_called()
+        mock_learning_repository.add_recent_transaction.assert_not_called()
+
+    def test_expense_result_has_no_transaction_id(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        assert result['expense_result'].transaction_id is None
+
+    def test_expense_object_is_valid(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        expense = result['expense']
+        assert expense.payee is not None
+        assert expense.amount is not None
+
+    def test_intent_is_expense(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        assert result['intent'] == 'expense'
+
+    def test_budget_id_matches_user_config(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        assert result['budget_id'] == authorized_user.budget_id
+
+    def test_raises_on_user_not_configured(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        from domain.exceptions import UserNotConfiguredException
+        with pytest.raises(UserNotConfiguredException):
+            service.prepare_expense(999, 'test message')
+
+    def test_raises_on_parse_failure(self, service, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = None
+        from domain.exceptions import ExpenseParsingException
+        with pytest.raises(ExpenseParsingException):
+            service.prepare_expense(TELEGRAM_ID, 'nonsense')
+
+    def test_raises_on_message_too_long(self, service, mock_user_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        from domain.exceptions import ExpenseParsingException
+        with pytest.raises(ExpenseParsingException):
+            service.prepare_expense(TELEGRAM_ID, 'x' * 501)
+
+    def test_default_account_applied_when_missing(self, service, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        # Parser returns no account
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 15000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+        }
+        result = service.prepare_expense(TELEGRAM_ID, 'Carulla 15k')
+        assert result['account_id'] == authorized_user.default_account_id
+
+
+class TestCommitExpense:
+    """Tests for the commit phase: YNAB transaction creation + learning."""
+
+    def test_creates_ynab_transaction(self, service, mock_user_repository, mock_ynab_repository, authorized_user, sample_expense):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service.commit_expense(TELEGRAM_ID, sample_expense, authorized_user.budget_id, authorized_user.default_account_id)
+        mock_ynab_repository.create_transaction.assert_called_once_with(
+            sample_expense, authorized_user.budget_id, authorized_user.default_account_id
+        )
+
+    def test_returns_expense_result_with_transaction_id(self, service, mock_user_repository, authorized_user, sample_expense):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.commit_expense(TELEGRAM_ID, sample_expense, authorized_user.budget_id, authorized_user.default_account_id)
+        assert result.success is True
+        assert result.transaction_id == 'txn-id-123'
+
+    def test_records_successful_transaction(self, service, mock_user_repository, mock_learning_repository, authorized_user, sample_expense):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service.commit_expense(TELEGRAM_ID, sample_expense, authorized_user.budget_id, authorized_user.default_account_id)
+        mock_learning_repository.record_successful_transaction.assert_called_once_with(TELEGRAM_ID, sample_expense)
+
+    def test_adds_to_recent_transactions(self, service, mock_user_repository, mock_learning_repository, authorized_user, sample_expense):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service.commit_expense(TELEGRAM_ID, sample_expense, authorized_user.budget_id, authorized_user.default_account_id)
+        mock_learning_repository.add_recent_transaction.assert_called_once_with(TELEGRAM_ID, sample_expense, 'txn-id-123')
+
+    def test_creates_fresh_repository_from_factory(self, service, mock_user_repository, mock_ynab_factory, authorized_user, sample_expense):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service.commit_expense(TELEGRAM_ID, sample_expense, authorized_user.budget_id, authorized_user.default_account_id)
+        # factory.get_repository must be called (fresh repo per commit)
+        mock_ynab_factory.get_repository.assert_called_with(authorized_user)
+
+    def test_raises_on_ynab_failure(self, service, mock_user_repository, mock_ynab_repository, authorized_user, sample_expense):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.create_transaction.return_value = None
+        from domain.exceptions import YNABApiException
+        with pytest.raises(YNABApiException):
+            service.commit_expense(TELEGRAM_ID, sample_expense, authorized_user.budget_id, authorized_user.default_account_id)
+
+    def test_raises_on_user_not_configured(self, service, mock_user_repository, sample_expense):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        from domain.exceptions import UserNotConfiguredException
+        with pytest.raises(UserNotConfiguredException):
+            service.commit_expense(999, sample_expense, 'budget-x', 'account-x')
+
+
+class TestPrepareAndCommitRoundTrip:
+    """Integration-style tests: prepare + commit produce same end state as process_message."""
+
+    def test_prepare_then_commit_creates_transaction(
+        self, service, mock_user_repository, mock_ynab_repository, mock_learning_repository, authorized_user
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        prep = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        mock_ynab_repository.create_transaction.assert_not_called()
+
+        result = service.commit_expense(TELEGRAM_ID, prep['expense'], prep['budget_id'], prep['account_id'])
+        mock_ynab_repository.create_transaction.assert_called_once()
+        assert result.success is True
+        assert result.transaction_id == 'txn-id-123'
+        mock_learning_repository.record_successful_transaction.assert_called_once()
+        mock_learning_repository.add_recent_transaction.assert_called_once()
+
+    def test_process_message_still_works_end_to_end(self, service, mock_user_repository, authorized_user):
+        """Backward compatibility: process_message must still return a successful MessageResult."""
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service.process_message(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
+        assert result.expense_result.success is True
+        assert result.expense_result.transaction_id == 'txn-id-123'
+
+
+class TestPrepareReceipt:
+    """Tests for prepare_receipt (parse phase for receipt images)."""
+
+    def test_returns_dict_with_required_keys(self, service, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 45000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
+        }
+        result = service.prepare_receipt(TELEGRAM_ID, 'base64_data', 'almuerzo')
+        for key in ('expense', 'budget_id', 'account_id', 'user_config', 'expense_result', 'intent'):
+            assert key in result
+
+    def test_no_ynab_transaction_created(self, service, mock_user_repository, mock_ynab_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 45000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
+        }
+        service.prepare_receipt(TELEGRAM_ID, 'base64_data', 'almuerzo')
+        mock_ynab_repository.create_transaction.assert_not_called()
+
+    def test_expense_result_has_no_transaction_id(self, service, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 45000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
+        }
+        result = service.prepare_receipt(TELEGRAM_ID, 'base64_data')
+        assert result['expense_result'].transaction_id is None
+
+    def test_parser_source_is_receipt(self, service, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 45000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
+        }
+        result = service.prepare_receipt(TELEGRAM_ID, 'base64_data')
+        assert result['expense'].parser_source == 'receipt'
+
+    def test_raises_on_parse_failure(self, service, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_receipt_image.return_value = None
+        from domain.exceptions import ImageProcessingException
+        with pytest.raises(ImageProcessingException):
+            service.prepare_receipt(TELEGRAM_ID, 'bad_data')
+
+    def test_raises_on_user_not_configured(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        from domain.exceptions import UserNotConfiguredException
+        with pytest.raises(UserNotConfiguredException):
+            service.prepare_receipt(999, 'data')
+
+
+class TestPrepareSharedExpense:
+    """Tests for prepare_shared_expense (parse phase for shared expenses)."""
+
+    def test_returns_dict_with_required_keys(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'mercado', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
+        }
+        result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+        for key in ('expense', 'budget_id', 'account_id', 'user_config', 'expense_result', 'intent'):
+            assert key in result
+
+    def test_intent_is_shared_expense(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'mercado', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
+        }
+        result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+        assert result['intent'] == 'shared_expense'
+
+    def test_expense_is_marked_as_split(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'mercado', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
+        }
+        result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+        assert result['expense'].is_split is True
+
+    def test_no_ynab_transaction_created(self, service_with_split, mock_user_repository, mock_ynab_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'mercado', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
+        }
+        service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+        mock_ynab_repository.create_transaction.assert_not_called()
+
+    def test_expense_result_has_no_transaction_id(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'mercado', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
+        }
+        result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+        assert result['expense_result'].transaction_id is None
+
+    def test_raises_on_user_not_configured(self, service_with_split, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        from domain.exceptions import UserNotConfiguredException
+        with pytest.raises(UserNotConfiguredException):
+            service_with_split.prepare_shared_expense(999, 'test')
+
+    def test_raises_when_no_split_config_repository(self, service, mock_user_repository, mock_llm_parser, authorized_user):
+        """Service without split_config_repository raises ExpenseParsingException."""
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'mercado', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
+        }
+        from domain.exceptions import ExpenseParsingException
+        with pytest.raises(ExpenseParsingException):
+            service.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+
+
+# ---------------------------------------------------------------------------
+# commit_shared_expense
+# ---------------------------------------------------------------------------
+
+class TestCommitSharedExpense:
+    """Tests for the commit phase of shared expenses."""
+
+    @pytest.fixture
+    def prepared_shared(self, sample_expense, authorized_user):
+        """Simulate the dict returned by prepare_shared_expense."""
+        sample_expense.is_split = True
+        sample_expense.split_person = 'Juan'
+        return {
+            'expense': sample_expense,
+            'budget_id': authorized_user.budget_id,
+            'account_id': authorized_user.default_account_id,
+            'user_config': authorized_user,
+            'expense_result': None,
+            'intent': 'shared_expense',
+        }
+
+    def test_creates_ynab_transaction(self, service_with_split, mock_user_repository, mock_ynab_repository, authorized_user, prepared_shared):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
+        mock_ynab_repository.create_transaction.assert_called_once_with(
+            prepared_shared['expense'], authorized_user.budget_id, authorized_user.default_account_id
+        )
+
+    def test_returns_expense_result_with_transaction_id(self, service_with_split, mock_user_repository, authorized_user, prepared_shared):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        result = service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
+        assert result.success is True
+        assert result.transaction_id == 'txn-id-123'
+
+    def test_records_successful_transaction(self, service_with_split, mock_user_repository, mock_learning_repository, authorized_user, prepared_shared):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
+        mock_learning_repository.record_successful_transaction.assert_called_once_with(TELEGRAM_ID, prepared_shared['expense'])
+
+    def test_adds_to_recent_transactions(self, service_with_split, mock_user_repository, mock_learning_repository, authorized_user, prepared_shared):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
+        mock_learning_repository.add_recent_transaction.assert_called_once_with(TELEGRAM_ID, prepared_shared['expense'], 'txn-id-123')
+
+    def test_creates_fresh_repository_from_factory(self, service_with_split, mock_user_repository, mock_ynab_factory, authorized_user, prepared_shared):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
+        mock_ynab_factory.get_repository.assert_called_with(authorized_user)
+
+    def test_raises_on_ynab_failure(self, service_with_split, mock_user_repository, mock_ynab_repository, authorized_user, prepared_shared):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.create_transaction.return_value = None
+        from domain.exceptions import YNABApiException
+        with pytest.raises(YNABApiException):
+            service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
+
+    def test_raises_on_user_not_configured(self, service_with_split, mock_user_repository, prepared_shared):
+        mock_user_repository.find_by_telegram_id.return_value = None
+        from domain.exceptions import UserNotConfiguredException
+        with pytest.raises(UserNotConfiguredException):
+            service_with_split.commit_shared_expense(999, prepared_shared)

@@ -205,3 +205,44 @@ class TestWeeklySummarySentPersistence:
         repo.save(user)
         found = repo.find_by_telegram_id(52)
         assert found.last_weekly_summary_sent is not None
+
+
+# ---------------------------------------------------------------------------
+# confirm_before_create persistence
+# ---------------------------------------------------------------------------
+
+class TestConfirmBeforeCreatePersistence:
+
+    def test_default_is_false(self, repo):
+        user = UserConfiguration(telegram_id=60)
+        repo.save(user)
+        found = repo.find_by_telegram_id(60)
+        assert found.confirm_before_create is False
+
+    def test_round_trip_true(self, repo):
+        user = UserConfiguration(telegram_id=61, confirm_before_create=True)
+        repo.save(user)
+        found = repo.find_by_telegram_id(61)
+        assert found.confirm_before_create is True
+
+    def test_round_trip_false(self, repo):
+        user = UserConfiguration(telegram_id=62, confirm_before_create=False)
+        repo.save(user)
+        found = repo.find_by_telegram_id(62)
+        assert found.confirm_before_create is False
+
+    def test_update_from_false_to_true(self, repo):
+        user = UserConfiguration(telegram_id=63, confirm_before_create=False)
+        repo.save(user)
+        user.toggle_confirmation(True)
+        repo.save(user)
+        found = repo.find_by_telegram_id(63)
+        assert found.confirm_before_create is True
+
+    def test_update_from_true_to_false(self, repo):
+        user = UserConfiguration(telegram_id=64, confirm_before_create=True)
+        repo.save(user)
+        user.toggle_confirmation(False)
+        repo.save(user)
+        found = repo.find_by_telegram_id(64)
+        assert found.confirm_before_create is False

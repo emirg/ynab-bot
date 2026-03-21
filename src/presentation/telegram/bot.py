@@ -78,6 +78,9 @@ class YNABTelegramBot:
         self.application.add_handler(CommandHandler("editar", self.learning_handler.handle_edit_command))
         self.application.add_handler(CommandHandler("aprendizaje", self.learning_handler.handle_learning_dashboard_command))
         self.application.add_handler(CommandHandler("olvidar", self.learning_handler.handle_forget_command))
+
+        # Expense flow commands
+        self.application.add_handler(CommandHandler("confirmacion", self.expense_handler.handle_confirmacion_command))
         
         # Admin commands
         self.application.add_handler(CommandHandler("admin", self.admin_handler.handle_admin_command))
@@ -98,6 +101,10 @@ class YNABTelegramBot:
         self.application.add_handler(CallbackQueryHandler(
             self.admin_handler.handle_admin_callback,
             pattern=r"^(approve_|block_)"
+        ))
+        self.application.add_handler(CallbackQueryHandler(
+            self.expense_handler.handle_confirmation_callback,
+            pattern=r"^(confirm|cancel)_expense$"
         ))
         
         # Message handlers (order matters - more specific first)
