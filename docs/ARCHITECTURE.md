@@ -10,10 +10,10 @@ main.py → health server (port $PORT) → DIContainer (infrastructure/container
 
 ## Layers
 
-- **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`, `BudgetQueryResult`, `MessageResult`, `OnboardingStep`, `SplitGroup`, `SharedAccountConfig`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, and custom exceptions. No external dependencies.
-- **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full parse→enhance→create→learn pipeline and routes between expenses and budget queries via `process_message()`. `BudgetQueryService` handles category balance, account balance, and budget summary queries. `UserConfigService` manages per-user YNAB budget/account configuration. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository and provides dashboard/forget/stats methods. `OnboardingService` derives the user's onboarding state from existing fields (no DB column). `SplitConfigService` manages split group configuration, person aliases, and shared account settings — validates against YNAB API before persisting.
-- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v5), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (HTTP health check + OAuth callback endpoint, fires `on_oauth_success` callback after token exchange), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together.
-- **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers. Handlers: `GeneralHandler` (includes guided onboarding via `OnboardingService`), `ConfigHandler` (includes `/connect`, `/disconnect`), `ExpenseHandler`, `LearningHandler` (includes `/aprendizaje`, `/olvidar`), `SplitConfigHandler` (`/splitwise` — split group CRUD, alias management, shared account config via inline keyboards with pagination), `AdminHandler`. `keyboards.py` provides shared inline keyboard builders (budget/account selection, split config panels with pagination). Auth via `@require_authentication` and `@require_admin` decorators.
+- **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`, `BudgetQueryResult`, `MessageResult`, `OnboardingStep`, `SplitGroup`, `SharedAccountConfig`, `WeeklySummary`, `OnDemandSummary`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, `time_utils` (timezone-aware date helpers), and custom exceptions. No external dependencies.
+- **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full prepare→commit pipeline (parse→enhance, then create→learn) and routes between expenses and budget queries via `process_message()`. Supports confirmation mode: when enabled, `prepare_expense()` returns a preview without committing, and `commit_expense()` finalizes after user confirmation. `BudgetQueryService` handles category balance, account balance, and budget summary queries. `UserConfigService` manages per-user YNAB budget/account configuration, timezone, and confirmation mode. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository and provides dashboard/forget/stats methods. `OnboardingService` derives the user's onboarding state from existing fields (no DB column). `SplitConfigService` manages split group configuration, person aliases, and shared account settings — validates against YNAB API before persisting. `WeeklySummaryService` fetches YNAB transactions for the past week and computes per-category spending totals. `OnDemandSummaryService` provides day/week/month spending summaries with category breakdowns.
+- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v9), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (HTTP health check + OAuth callback endpoint, fires `on_oauth_success` callback after token exchange), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts), `scheduler.py` (weekly summary tick job, runs every 15 minutes, checks per-user timezone to fire on Monday 8am local time), `http_client.py` (resilient HTTP client with automatic retries for transient errors), `logging_config.py` (structured logging setup). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together.
+- **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers and the weekly summary scheduler job. Handlers: `GeneralHandler` (includes guided onboarding via `OnboardingService`), `ConfigHandler` (includes `/connect`, `/disconnect`, `/zona` for timezone), `ExpenseHandler` (handles text/voice/photo expenses, `/confirmacion on|off`, and confirmation callbacks), `LearningHandler` (includes `/aprendizaje`, `/olvidar`, `/deshacer`, `/editar`), `SplitConfigHandler` (`/splitwise` — split group CRUD, alias management, shared account config via inline keyboards with pagination), `SummaryHandler` (`/resumen` — on-demand spending summary), `AdminHandler`. `keyboards.py` provides shared inline keyboard builders (confirmation keyboard, budget/account selection, split config panels with pagination). Auth via `@require_authentication` and `@require_admin` decorators.
 
 ## Supporting Modules
 
@@ -26,7 +26,10 @@ main.py → health server (port $PORT) → DIContainer (infrastructure/container
 User (text) → ExpenseHandler.handle_text_message()
   → ExpenseService.process_message()
     → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query" | "shared_expense")
-    → if intent == "expense": expense pipeline (parse→enhance→create→learn), with optional date backdating
+    → if intent == "expense":
+      → prepare phase: parse→enhance (builds expense object)
+      → if confirmation_mode ON: store in context.user_data["pending_expense"], show preview with inline keyboard
+      → if confirmation_mode OFF: auto-commit → create→learn
     → if intent == "shared_expense":
       → resolve split group & person alias
       → if payer == "user": subtransactions (real category + split tracking category)
@@ -35,6 +38,11 @@ User (text) → ExpenseHandler.handle_text_message()
     → if intent == "query": BudgetQueryService.execute_query()
       → category_balance | account_balance | budget_summary
   → BudgetQueryFormatter or ExpenseResponseFormatter → Telegram response
+
+User (confirmation callback) → ExpenseHandler.handle_confirmation_callback()
+  → retrieve pending_expense from context.user_data
+  → if confirmed: commit_expense() → create→learn
+  → if cancelled: discard pending expense
 
 User (voice) → ExpenseHandler.handle_voice_message()
   → speech_to_text.py (Whisper)
@@ -46,6 +54,9 @@ User (photo) → ExpenseHandler.handle_photo_message()
     → LLMExpenseParser.parse_receipt_image() → vision extraction (amount, payee, items→memo)
     → existing expense pipeline (enhance→create→learn), parser_source='receipt'
   → ExpenseResponseFormatter → Telegram response
+
+Weekly summary (scheduler) → weekly_summary_tick()
+  → for each user: check timezone, if Monday 8am local → WeeklySummaryService → send summary via Telegram
 ```
 
 ## Per-User YNAB OAuth
@@ -70,7 +81,7 @@ Split expenses use YNAB subtransactions to track debts via a dedicated Splitwise
 - **User-paid split**: Transaction with two subtransactions — user's share goes to the real category, the other person's share goes to the split tracking category.
 - **Third-party paid split** (zero-sum): Transaction amount is `$0` with two subtransactions — outflow from real category balanced by inflow to split tracking category. Uses the shared tracking account configured via `/splitwise`.
 - **100% debt**: When `proportion=1` and `payer=other`, user owes the full amount (e.g., "Juan pagó el mercado por mí").
-- **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Data stored in `split_groups`, `split_person_aliases`, and `split_shared_account` SQLite tables (migration v5).
+- **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Data stored in `split_groups`, `split_person_aliases`, and `split_shared_account` SQLite tables.
 
 ## User Authentication
 
@@ -107,7 +118,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - **Framework**: pytest with fixtures in `tests/conftest.py`, coverage via pytest-cov
 - **Config**: `pytest.ini` scopes coverage to `src/domain`, `src/application`, `src/infrastructure`, and `src/presentation/telegram/formatters.py`
 - **Conventions**: Shared fixtures for domain models, mock repositories (`mock_ynab_factory`, `mock_oauth_service`, `mock_user_repository`, `mock_learning_repository`, `mock_split_config_repository`, `mock_llm_parser`, `mock_budget_query_service`), and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock`. `conftest.py` adds `src/` to `sys.path`.
-- **Coverage**: ~520 tests. Domain layer at 100%.
+- **Coverage**: ~1112 tests, ~92% coverage. Domain layer at 100%.
 
 ## Key Conventions
 
@@ -119,7 +130,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - Query matching uses a two-tier approach: LLM performs semantic matching (user term → exact YNAB name), then `BudgetQueryService` applies 4-step fuzzy matching as fallback (exact → case-insensitive → clean/no-emoji → partial)
 - YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`
 - YNAB services use `YNABRepositoryFactory` (not a singleton repo) — always resolve per-user via `factory.get_repository(user_config)`
-- SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v5)
+- SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v9)
 
 ## Development Workflow — Agent Pipeline
  

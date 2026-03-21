@@ -15,7 +15,10 @@ A multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using O
 - 🏪 **Smart Categorization**: Assigns real YNAB categories based on merchant/location with semantic matching
 - 👥 **Multi-User**: Authentication system with admin approval and guided onboarding
 - 🔐 **Per-User OAuth**: Each user connects their own YNAB account via OAuth2
-- ✏️ **Correction System**: Manually correct categories and teach the bot
+- ✏️ **Edit & Undo**: Edit recent transactions (amount, payee, category, account) or undo the last one entirely
+- ✅ **Confirmation Mode**: Optional pre-registration preview — the bot shows what it will log and waits for confirmation
+- 📊 **Weekly & On-Demand Summaries**: Automatic weekly spending summary every Monday + on-demand summary via `/resumen`
+- 🕐 **Timezone Support**: Per-user timezone configuration for accurate date handling and weekly summaries
 - 📊 **Statistics**: View learning progress, top payees/categories, and accuracy improvements
 
 ## 📁 Project Structure
@@ -39,11 +42,16 @@ ynab-bot/
 │   │   ├── oauth_service.py         # YNAB OAuth2 lifecycle (auth, tokens, refresh)
 │   │   ├── learning_service.py      # Dashboard, forget, stats
 │   │   ├── onboarding_service.py    # Guided onboarding state derivation
-│   │   └── split_config_service.py  # Split group/alias/shared account management
+│   │   ├── split_config_service.py  # Split group/alias/shared account management
+│   │   ├── weekly_summary_service.py # Automated weekly spending summary
+│   │   └── on_demand_summary_service.py # On-demand spending summary
 │   ├── infrastructure/
 │   │   ├── config/app_config.py     # Loads config/.env
 │   │   ├── container.py             # Dependency injection (DIContainer)
 │   │   ├── health.py                # Health check + OAuth callback HTTP server
+│   │   ├── scheduler.py             # Weekly summary job scheduler
+│   │   ├── http_client.py           # Resilient HTTP client with retries
+│   │   ├── logging_config.py        # Structured logging setup
 │   │   ├── token_encryption.py      # Fernet encryption for tokens at rest
 │   │   ├── telegram_notifier.py     # Sync Telegram API wrapper (post-OAuth notifications)
 │   │   └── repositories/           # SQLite, YNAB API, YNABRepositoryFactory
@@ -51,7 +59,7 @@ ynab-bot/
 │   │   ├── bot.py                   # Handler registration
 │   │   ├── formatters.py           # Message formatting (expenses, queries, shared)
 │   │   ├── keyboards.py            # Inline keyboard builders (budgets, accounts, split config)
-│   │   ├── handlers/               # General, Config, Expense, Learning, SplitConfig, Admin
+│   │   ├── handlers/               # General, Config, Expense, Learning, SplitConfig, Summary, Admin
 │   │   └── middleware/             # @require_authentication, @require_admin
 │   ├── parsers/
 │   │   └── llm_expense_parser.py    # GPT-4o-mini parser (intent classification, date parsing, shared expenses)
@@ -62,7 +70,7 @@ ynab-bot/
 │   └── .env.example                 # Configuration template
 ├── data/                            # Persistent data
 │   └── users.db                     # SQLite database (users, learning, split config)
-└── tests/                           # Test suite (~520 tests)
+└── tests/                           # Test suite (~1112 tests, ~92% coverage)
 ```
 
 ## 🚀 Installation & Setup
@@ -125,16 +133,22 @@ python main.py     # Starts the bot
 - `/budgets` — List available budgets
 - `/accounts` — List available accounts
 - `/status` — View current configuration and YNAB connection status
+- `/zona <timezone>` — Configure timezone (e.g. `/zona America/Bogota`)
+- `/confirmacion on|off` — Enable/disable confirmation before registering expenses
 
 **Shared Expenses:**
 - `/splitwise` — Configure Splitwise groups, person aliases, and shared account
 
-**Learning:**
+**Learning & Transactions:**
 - `/stats` — Learning statistics (top payees and categories)
 - `/aprendizaje` — View learned payee-category associations with frequency
 - `/olvidar <payee>` — Delete incorrect associations for a payee
 - `/recent` — View recent transactions
-- `/corregir` — Correct a transaction's category
+- `/editar [n] <campo> <valor>` — Edit a recent transaction (amount, payee, category, account). Optional index `n` (default: last).
+- `/deshacer` — Undo the last transaction (deletes from YNAB, decrements learning)
+
+**Summaries:**
+- `/resumen` — On-demand spending summary (day/week/month with category breakdown)
 
 **Administration** (admins only):
 - `/admin` — Admin panel
@@ -216,12 +230,12 @@ The bot detects bank accounts mentioned in messages:
 - "con Rappi Card" → Rappi Card account
 - "efectivo" → Cash account
 
-### Correction and Learning System
+### Edit & Undo
 
-1. Use `/corregir` to view recent transactions
-2. Select the transaction to correct
-3. Choose the correct category from your YNAB categories
-4. The bot learns from the correction for future transactions
+- Use `/editar categoria <nueva categoría>` to correct the last transaction's category (the bot learns from the correction)
+- Use `/editar monto <nuevo monto>` to fix the amount
+- Use `/editar 2 categoria Restaurantes` to edit the second-to-last transaction
+- Use `/deshacer` to delete the last transaction entirely (also reverts learning)
 
 ## 👥 Authentication & YNAB Connection
 
@@ -254,7 +268,7 @@ Each user connects their own YNAB account. No shared tokens.
 ## 🧪 Tests
 
 ```bash
-# Full suite (~520 tests)
+# Full suite (~1112 tests, ~92% coverage)
 pytest
 
 # Single test file
@@ -281,7 +295,7 @@ User (text)
   → ExpenseService.process_message()
     → LLMExpenseParser.parse_message() → classifies intent ("expense" | "query" | "shared_expense")
     → LLM semantically maps user terms to exact YNAB category/account names
-    → if expense: parse→enhance→create→learn pipeline (with optional date backdating)
+    → if expense: prepare pipeline (parse→enhance) → confirm or auto-commit → create→learn
     → if shared_expense: split logic (subtransactions or zero-sum) → create→learn
     → if query: BudgetQueryService (4-step fuzzy fallback) → category/account/summary data
   → Formatted Telegram response
