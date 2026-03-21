@@ -329,6 +329,151 @@ class TestGetTransactions:
 
 
 # ---------------------------------------------------------------------------
+# delete_transaction
+# ---------------------------------------------------------------------------
+
+class TestDeleteTransaction:
+
+    def test_success_200(self, repo, client):
+        client.delete.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1', 'deleted': True}}},
+            status_code=200,
+        )
+        result = repo.delete_transaction('budget-1', 'txn-1')
+        assert result is True
+        client.delete.assert_called_once_with('/budgets/budget-1/transactions/txn-1')
+
+    def test_success_201(self, repo, client):
+        client.delete.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1', 'deleted': True}}},
+            status_code=201,
+        )
+        result = repo.delete_transaction('budget-1', 'txn-1')
+        assert result is True
+
+    def test_http_400_returns_false(self, repo, client):
+        client.delete.return_value = _mock_response({'error': 'bad request'}, status_code=400)
+        result = repo.delete_transaction('budget-1', 'txn-1')
+        assert result is False
+
+    def test_http_404_returns_false(self, repo, client):
+        client.delete.return_value = _mock_response({'error': 'not found'}, status_code=404)
+        result = repo.delete_transaction('budget-1', 'txn-1')
+        assert result is False
+
+    def test_ynab_api_exception_returns_false(self, repo, client):
+        client.delete.side_effect = YNABApiException("Network error after retries", status_code=None)
+        result = repo.delete_transaction('budget-1', 'txn-1')
+        assert result is False
+
+    def test_generic_exception_returns_false(self, repo, client):
+        client.delete.side_effect = RuntimeError("Unexpected failure")
+        result = repo.delete_transaction('budget-1', 'txn-1')
+        assert result is False
+
+    def test_uses_correct_endpoint(self, repo, client):
+        client.delete.return_value = _mock_response({}, status_code=200)
+        repo.delete_transaction('my-budget-id', 'my-txn-id')
+        called_path = client.delete.call_args[0][0]
+        assert 'my-budget-id' in called_path
+        assert 'my-txn-id' in called_path
+        assert 'transactions' in called_path
+
+
+# ---------------------------------------------------------------------------
+# update_transaction
+# ---------------------------------------------------------------------------
+
+class TestUpdateTransaction:
+
+    def test_success_amount_only(self, repo, client):
+        client.put.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1', 'amount': -30000000}}},
+            status_code=200,
+        )
+        result = repo.update_transaction('budget-1', 'txn-1', {'amount': -30000000})
+        assert result is True
+        client.put.assert_called_once()
+        call_args = client.put.call_args
+        assert 'txn-1' in call_args[0][0]
+        assert call_args[1]['json'] == {'transaction': {'amount': -30000000}}
+
+    def test_success_payee_only(self, repo, client):
+        client.put.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1', 'payee_name': "McDonald's"}}},
+            status_code=200,
+        )
+        result = repo.update_transaction('budget-1', 'txn-1', {'payee_name': "McDonald's"})
+        assert result is True
+        call_args = client.put.call_args
+        assert call_args[1]['json'] == {'transaction': {'payee_name': "McDonald's"}}
+
+    def test_success_category_id_only(self, repo, client):
+        client.put.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1', 'category_id': 'cat-new'}}},
+            status_code=200,
+        )
+        result = repo.update_transaction('budget-1', 'txn-1', {'category_id': 'cat-new'})
+        assert result is True
+        call_args = client.put.call_args
+        assert call_args[1]['json'] == {'transaction': {'category_id': 'cat-new'}}
+
+    def test_success_account_id_only(self, repo, client):
+        client.put.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1', 'account_id': 'acc-2'}}},
+            status_code=200,
+        )
+        result = repo.update_transaction('budget-1', 'txn-1', {'account_id': 'acc-2'})
+        assert result is True
+        call_args = client.put.call_args
+        assert call_args[1]['json'] == {'transaction': {'account_id': 'acc-2'}}
+
+    def test_success_all_fields_combined(self, repo, client):
+        fields = {
+            'amount': -30000000,
+            'payee_name': "McDonald's",
+            'category_id': 'cat-new',
+            'account_id': 'acc-2',
+        }
+        client.put.return_value = _mock_response(
+            {'data': {'transaction': {'id': 'txn-1'}}},
+            status_code=201,
+        )
+        result = repo.update_transaction('budget-1', 'txn-1', fields)
+        assert result is True
+        call_args = client.put.call_args
+        assert call_args[1]['json'] == {'transaction': fields}
+
+    def test_uses_correct_endpoint(self, repo, client):
+        client.put.return_value = _mock_response({}, status_code=200)
+        repo.update_transaction('my-budget-id', 'my-txn-id', {'amount': -10000})
+        called_path = client.put.call_args[0][0]
+        assert 'my-budget-id' in called_path
+        assert 'my-txn-id' in called_path
+        assert 'transactions' in called_path
+
+    def test_http_400_returns_false(self, repo, client):
+        client.put.return_value = _mock_response({'error': 'bad request'}, status_code=400)
+        result = repo.update_transaction('budget-1', 'txn-1', {'amount': -10000})
+        assert result is False
+
+    def test_http_404_returns_false(self, repo, client):
+        client.put.return_value = _mock_response({'error': 'not found'}, status_code=404)
+        result = repo.update_transaction('budget-1', 'txn-1', {'category_id': 'cat-1'})
+        assert result is False
+
+    def test_ynab_api_exception_returns_false(self, repo, client):
+        client.put.side_effect = YNABApiException("Network error after retries", status_code=None)
+        result = repo.update_transaction('budget-1', 'txn-1', {'amount': -10000})
+        assert result is False
+
+    def test_generic_exception_returns_false(self, repo, client):
+        client.put.side_effect = RuntimeError("Unexpected failure")
+        result = repo.update_transaction('budget-1', 'txn-1', {'amount': -10000})
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
 # update_transaction_category
 # ---------------------------------------------------------------------------
 

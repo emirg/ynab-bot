@@ -1,4 +1,6 @@
 import logging
+import re
+from decimal import Decimal, InvalidOperation
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -9,6 +11,41 @@ from application.services.learning_service import LearningService
 from application.services.expense_service import ExpenseService
 
 logger = logging.getLogger(__name__)
+
+_KEYWORDS = {"monto", "comercio", "categoria", "cuenta"}
+
+
+def _parse_amount(token: str) -> Decimal:
+    """Parse an amount string supporting plain numbers, mil/lucas/k suffix, and comma decimals.
+
+    Examples:
+        "40000" -> Decimal("40000")
+        "40mil" -> Decimal("40000")
+        "40k"   -> Decimal("40000")
+        "40lucas" -> Decimal("40000")
+        "1,5"   -> Decimal("1.5")
+        "1.5"   -> Decimal("1.5")
+
+    Raises:
+        ValueError: if the token cannot be parsed.
+    """
+    token = token.strip()
+    # Detect suffix: mil, lucas, or k (case-insensitive)
+    multiplier = 1
+    suffix_match = re.match(r"^([\d.,]+)(mil|lucas|k)$", token, re.IGNORECASE)
+    if suffix_match:
+        number_part = suffix_match.group(1)
+        multiplier = 1000
+    else:
+        number_part = token
+
+    # Replace comma decimal separator with dot
+    number_part = number_part.replace(",", ".")
+
+    try:
+        return Decimal(number_part) * multiplier
+    except InvalidOperation:
+        raise ValueError(f"Monto invalido: '{token}'")
 
 
 class LearningHandler(BaseHandler):
@@ -61,68 +98,130 @@ class LearningHandler(BaseHandler):
             await self.send_error_message(update, f"Error obteniendo transacciones recientes: {str(e)}")
 
     @require_authentication(lambda self: self.container.get_auth_service())
-    async def handle_correction_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /corregir command - correct recent transaction category"""
-        self.log_handler_start("LearningHandler.handle_correction_command", update)
+    async def handle_edit_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /editar command - edit a recent transaction field(s)"""
+        self.log_handler_start("LearningHandler.handle_edit_command", update)
 
         try:
-            if not context.args or len(context.args) < 2:
-                help_message = """
-📝 *Uso del comando /corregir:*
+            args = list(context.args) if context.args else []
 
-`/corregir <número> <nueva_categoría>`
+            # --- Index parsing ---
+            transaction_index = 0
+            if args and args[0].isdigit():
+                transaction_index = int(args[0]) - 1  # Convert 1-based to 0-based
+                args = args[1:]
 
-*Ejemplo:*
-`/corregir 1 Groceries`
+            # --- Keyword parsing ---
+            parsed: dict[str, str] = {}
+            current_keyword = None
+            value_tokens: list[str] = []
 
-*Pasos:*
-1. Usa `/recent` para ver transacciones recientes
-2. Identifica el número de la transacción a corregir
-3. Usa `/corregir` con el número y la nueva categoría
+            def _flush():
+                if current_keyword and value_tokens:
+                    parsed[current_keyword] = " ".join(value_tokens)
 
-💡 *Tip:* La nueva categoría debe ser exactamente como aparece en YNAB
-                """.strip()
-                await self.send_message(update, help_message)
+            for token in args:
+                if token.lower() in _KEYWORDS:
+                    _flush()
+                    current_keyword = token.lower()
+                    value_tokens = []
+                elif current_keyword is not None:
+                    # For monto, only take the first token
+                    if current_keyword == "monto" and not value_tokens:
+                        value_tokens.append(token)
+                    elif current_keyword != "monto":
+                        value_tokens.append(token)
+                # Unknown tokens before any keyword are silently ignored
+
+            _flush()
+
+            # No recognized keywords found — show help
+            if not parsed:
+                await self.send_message(update, self.formatter.format_edit_help())
                 return
 
-            # Parse arguments
-            try:
-                transaction_index = int(context.args[0]) - 1  # Convert to 0-based index
-                new_category_id = " ".join(context.args[1:])  # Join remaining args as category
-            except ValueError:
-                await self.send_error_message(update, "Número de transacción inválido")
-                return
+            # --- Amount parsing ---
+            new_amount = None
+            if "monto" in parsed:
+                try:
+                    new_amount = _parse_amount(parsed["monto"])
+                except ValueError as e:
+                    await self.send_error_message(update, str(e))
+                    return
 
-            if transaction_index < 0:
-                await self.send_error_message(update, "El número de transacción debe ser mayor a 0")
-                return
+            new_payee = parsed.get("comercio") or None
+            new_category = parsed.get("categoria") or None
+            new_account = parsed.get("cuenta") or None
 
             user_id = self.get_user_id(update)
 
-            # Attempt correction
-            result = self.expense_service.correct_recent_transaction(
-                user_id, transaction_index, new_category_id
+            result = self.expense_service.edit_last_transaction(
+                user_id,
+                transaction_index,
+                new_amount,
+                new_payee,
+                new_category,
+                new_account,
             )
 
-            if result and 'error' in result:
-                await self.send_error_message(update, result['error'])
+            if result is None:
+                await self.send_error_message(update, "No se pudo editar la transaccion. Intenta de nuevo.")
                 return
 
-            if result:
-                new_category_name = result.get('new_category_name', new_category_id)
-                response = self.formatter.format_correction_success(
-                    result["payee"], result["old_category_name"], new_category_name
-                )
-                if result.get('ynab_updated'):
-                    response += "\n\nLa transaccion en YNAB tambien fue actualizada."
-                await self.send_message(update, response)
-                self.log_handler_success("LearningHandler.handle_correction_command", update)
-            else:
-                await self.send_error_message(update, "No se pudo procesar la corrección. Verifica el número de transacción.")
+            if "error" in result:
+                error_code = result["error"]
+                if error_code == "time_window_exceeded":
+                    await self.send_error_message(update, self.formatter.format_time_window_error())
+                elif error_code == "no_recent_transactions":
+                    await self.send_error_message(update, self.formatter.format_no_recent_transaction_error())
+                elif error_code == "index_out_of_range":
+                    await self.send_error_message(update, "El indice de transaccion esta fuera de rango.")
+                elif error_code in ("category_not_found", "account_not_found"):
+                    await self.send_error_message(update, result.get("message", error_code))
+                else:
+                    await self.send_error_message(update, result.get("message", error_code))
+                return
+
+            response = self.formatter.format_edit_success(result["payee"], result["changes"])
+            await self.send_message(update, response)
+            self.log_handler_success("LearningHandler.handle_edit_command", update)
 
         except Exception as e:
-            self.log_handler_error("LearningHandler.handle_correction_command", update, e)
-            await self.send_error_message(update, f"Error procesando corrección: {str(e)}")
+            self.log_handler_error("LearningHandler.handle_edit_command", update, e)
+            await self.send_error_message(update, f"Error editando transaccion: {str(e)}")
+
+    @require_authentication(lambda self: self.container.get_auth_service())
+    async def handle_undo_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /deshacer command - undo the last transaction"""
+        self.log_handler_start("LearningHandler.handle_undo_command", update)
+
+        try:
+            user_id = self.get_user_id(update)
+            result = self.expense_service.undo_last_transaction(user_id)
+
+            if result is None:
+                await self.send_error_message(update, "No se pudo deshacer la transaccion. Intenta de nuevo.")
+                return
+
+            if 'error' in result:
+                error_code = result['error']
+                if error_code == 'time_window_exceeded':
+                    await self.send_error_message(update, self.formatter.format_time_window_error())
+                elif error_code == 'no_recent_transactions':
+                    await self.send_error_message(update, self.formatter.format_no_recent_transaction_error())
+                else:
+                    await self.send_error_message(update, error_code)
+                return
+
+            response = self.formatter.format_undo_success(
+                result['payee'], result['amount'], result['category_name']
+            )
+            await self.send_message(update, response)
+            self.log_handler_success("LearningHandler.handle_undo_command", update)
+
+        except Exception as e:
+            self.log_handler_error("LearningHandler.handle_undo_command", update, e)
+            await self.send_error_message(update, f"Error deshaciendo transaccion: {str(e)}")
 
     @require_authentication(lambda self: self.container.get_auth_service())
     async def handle_learning_dashboard_command(
@@ -189,8 +288,10 @@ Borraré todo lo que he aprendido sobre ese comercio y la próxima vez te pregun
             await self.handle_stats_command(update, context)
         elif message_text.startswith("/recent"):
             await self.handle_recent_command(update, context)
-        elif message_text.startswith("/corregir"):
-            await self.handle_correction_command(update, context)
+        elif message_text.startswith("/editar"):
+            await self.handle_edit_command(update, context)
+        elif message_text.startswith("/deshacer"):
+            await self.handle_undo_command(update, context)
         elif message_text.startswith("/aprendizaje"):
             await self.handle_learning_dashboard_command(update, context)
         elif message_text.startswith("/olvidar"):

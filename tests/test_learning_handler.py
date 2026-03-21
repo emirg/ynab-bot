@@ -90,69 +90,247 @@ async def test_handle_forget_command_with_args(handler, update, context):
     args, _ = update.message.reply_text.call_args
     assert "He olvidado McDonald's" in args[0]
 
+# --- /editar handler tests ---
+
 @pytest.mark.anyio
-async def test_handle_correction_command_no_args(handler, update, context):
+async def test_handle_edit_command_no_args_shows_help(handler, update, context):
+    """No args (or only index) → help text is shown."""
     context.args = []
-    await handler.handle_correction_command(update, context)
+    await handler.handle_edit_command(update, context)
     update.message.reply_text.assert_called_once()
     args, _ = update.message.reply_text.call_args
-    assert "Uso del comando /corregir" in args[0]
+    assert "editar" in args[0].lower() or "monto" in args[0].lower()
+
 
 @pytest.mark.anyio
-async def test_handle_correction_command_invalid_number(handler, update, context):
-    context.args = ['abc', 'Groceries']
-    await handler.handle_correction_command(update, context)
-    update.message.reply_text.assert_called_once()
-    args, _ = update.message.reply_text.call_args
-    assert "invalido" in args[0].lower() or "inválido" in args[0].lower()
-
-@pytest.mark.anyio
-async def test_handle_correction_command_success(handler, update, context):
-    context.args = ['1', 'Groceries']
-    handler.expense_service.correct_recent_transaction.return_value = {
+async def test_handle_edit_command_edit_amount(handler, update, context):
+    """Edit amount with a plain number."""
+    context.args = ['monto', '30000']
+    handler.expense_service.edit_last_transaction.return_value = {
         'payee': 'McDonalds',
-        'old_category_name': 'Comida rapida',
-        'new_category_name': 'Groceries',
-        'ynab_updated': False,
+        'changes': {'amount': {'old': 25000, 'new': 30000}},
     }
-    await handler.handle_correction_command(update, context)
+    await handler.handle_edit_command(update, context)
+    handler.expense_service.edit_last_transaction.assert_called_once()
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    # new_amount should be Decimal("30000"), transaction_index 0
+    from decimal import Decimal
+    assert call_kwargs[0][0] == 123  # user_id
+    assert call_kwargs[0][1] == 0   # transaction_index
+    assert call_kwargs[0][2] == Decimal("30000")  # new_amount
     update.message.reply_text.assert_called_once()
     args, _ = update.message.reply_text.call_args
-    assert 'Groceries' in args[0]
+    assert 'McDonalds' in args[0] or 'actualizada' in args[0].lower()
+
 
 @pytest.mark.anyio
-async def test_handle_correction_command_success_with_ynab_update(handler, update, context):
-    context.args = ['1', 'Groceries']
-    handler.expense_service.correct_recent_transaction.return_value = {
+async def test_handle_edit_command_edit_amount_mil_suffix(handler, update, context):
+    """Edit amount with mil suffix."""
+    context.args = ['monto', '40mil']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': 'Supermercado',
+        'changes': {'amount': {'old': 10000, 'new': 40000}},
+    }
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    from decimal import Decimal
+    assert call_kwargs[0][2] == Decimal("40000")
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_edit_amount_k_suffix(handler, update, context):
+    """Edit amount with k suffix."""
+    context.args = ['monto', '40k']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': 'Tienda',
+        'changes': {'amount': {'old': 10000, 'new': 40000}},
+    }
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    from decimal import Decimal
+    assert call_kwargs[0][2] == Decimal("40000")
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_edit_amount_comma_decimal(handler, update, context):
+    """Edit amount with comma as decimal separator."""
+    context.args = ['monto', '1,5']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': 'Cafe',
+        'changes': {'amount': {'old': 1000, 'new': 1500}},
+    }
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    from decimal import Decimal
+    assert call_kwargs[0][2] == Decimal("1.5")
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_invalid_amount(handler, update, context):
+    """Invalid amount format → error message shown, service not called."""
+    context.args = ['monto', 'abc']
+    await handler.handle_edit_command(update, context)
+    handler.expense_service.edit_last_transaction.assert_not_called()
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'invalido' in args[0].lower() or 'Monto' in args[0]
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_edit_payee(handler, update, context):
+    """Edit payee (comercio) with multi-word value."""
+    context.args = ['comercio', "McDonald's", 'Argentina']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': "McDonald's Argentina",
+        'changes': {'payee': {'old': 'Mc', 'new': "McDonald's Argentina"}},
+    }
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    assert call_kwargs[0][3] == "McDonald's Argentina"  # new_payee
+    update.message.reply_text.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_edit_category(handler, update, context):
+    """Edit category with fuzzy match returning success."""
+    context.args = ['categoria', 'Restaurantes']
+    handler.expense_service.edit_last_transaction.return_value = {
         'payee': 'McDonalds',
-        'old_category_name': 'Comida rapida',
-        'new_category_name': 'Groceries',
-        'ynab_updated': True,
+        'changes': {'category': {'old': 'Comida rapida', 'new': 'Restaurantes'}},
     }
-    await handler.handle_correction_command(update, context)
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    assert call_kwargs[0][4] == 'Restaurantes'  # new_category
     update.message.reply_text.assert_called_once()
     args, _ = update.message.reply_text.call_args
-    assert 'YNAB' in args[0]
+    assert 'Restaurantes' in args[0]
+
 
 @pytest.mark.anyio
-async def test_handle_correction_command_category_not_found(handler, update, context):
-    context.args = ['1', 'NonExistent']
-    handler.expense_service.correct_recent_transaction.return_value = {
-        'error': "No encontre una categoria que coincida con 'NonExistent'. Verifica el nombre e intenta de nuevo."
+async def test_handle_edit_command_edit_account(handler, update, context):
+    """Edit account (cuenta)."""
+    context.args = ['cuenta', 'Tarjeta', 'de', 'credito']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': 'McDonalds',
+        'changes': {'account': {'new': 'Tarjeta de credito'}},
     }
-    await handler.handle_correction_command(update, context)
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    assert call_kwargs[0][5] == 'Tarjeta de credito'  # new_account
     update.message.reply_text.assert_called_once()
-    args, _ = update.message.reply_text.call_args
-    assert 'NonExistent' in args[0]
+
 
 @pytest.mark.anyio
-async def test_handle_correction_command_failure(handler, update, context):
-    context.args = ['1', 'Groceries']
-    handler.expense_service.correct_recent_transaction.return_value = None
-    await handler.handle_correction_command(update, context)
+async def test_handle_edit_command_edit_multiple_fields(handler, update, context):
+    """Edit multiple fields in one command."""
+    context.args = ['monto', '30000', 'comercio', "McDonald's", 'categoria', 'Restaurantes']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': "McDonald's",
+        'changes': {
+            'amount': {'old': 25000, 'new': 30000},
+            'payee': {'old': 'Mc', 'new': "McDonald's"},
+            'category': {'old': 'Otro', 'new': 'Restaurantes'},
+        },
+    }
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    from decimal import Decimal
+    assert call_kwargs[0][2] == Decimal("30000")
+    assert call_kwargs[0][3] == "McDonald's"
+    assert call_kwargs[0][4] == "Restaurantes"
+    update.message.reply_text.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_with_index(handler, update, context):
+    """First numeric arg is consumed as 1-based transaction index."""
+    context.args = ['3', 'categoria', 'Restaurantes']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': 'Cafe',
+        'changes': {'category': {'old': 'Otro', 'new': 'Restaurantes'}},
+    }
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    assert call_kwargs[0][1] == 2  # 3 - 1 = 2 (0-based)
+    assert call_kwargs[0][4] == 'Restaurantes'
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_category_not_found(handler, update, context):
+    """Category not found error is handled correctly."""
+    context.args = ['categoria', 'NombreInexistente']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'error': 'category_not_found',
+        'message': "No encontre una categoria que coincida con 'NombreInexistente'.",
+    }
+    await handler.handle_edit_command(update, context)
     update.message.reply_text.assert_called_once()
     args, _ = update.message.reply_text.call_args
-    assert "No se pudo" in args[0]
+    assert 'NombreInexistente' in args[0] or 'categoria' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_account_not_found(handler, update, context):
+    """Account not found error is handled correctly."""
+    context.args = ['cuenta', 'CuentaFalsa']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'error': 'account_not_found',
+        'message': "No encontre una cuenta que coincida con 'CuentaFalsa'.",
+    }
+    await handler.handle_edit_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'CuentaFalsa' in args[0] or 'cuenta' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_time_window_error(handler, update, context):
+    """Time window error uses formatter message."""
+    context.args = ['monto', '10000']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'error': 'time_window_exceeded',
+    }
+    await handler.handle_edit_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'minutos' in args[0].lower() or '5' in args[0]
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_no_recent_transactions(handler, update, context):
+    """No recent transactions error uses formatter message."""
+    context.args = ['monto', '10000']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'error': 'no_recent_transactions',
+    }
+    await handler.handle_edit_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'transacciones' in args[0].lower() or 'modificar' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_index_out_of_range(handler, update, context):
+    """Index out of range error is handled."""
+    context.args = ['99', 'monto', '10000']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'error': 'index_out_of_range',
+    }
+    await handler.handle_edit_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'rango' in args[0].lower() or 'indice' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_edit_command_service_returns_none(handler, update, context):
+    """Service returns None → generic error message."""
+    context.args = ['monto', '10000']
+    handler.expense_service.edit_last_transaction.return_value = None
+    await handler.handle_edit_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'No se pudo' in args[0] or 'editar' in args[0].lower()
 
 @pytest.mark.anyio
 async def test_handle_routing_aprendizaje(handler, update, context):
@@ -171,9 +349,107 @@ async def test_handle_routing_olvidar(handler, update, context):
     # Setup
     update.message.text = "/olvidar McDonald's"
     handler.handle_forget_command = AsyncMock()
-    
+
     # Run
     await handler.handle(update, context)
-    
+
     # Verify
     handler.handle_forget_command.assert_called_once_with(update, context)
+
+
+# --- /deshacer handler tests ---
+
+@pytest.mark.anyio
+async def test_handle_undo_command_success(handler, update, context):
+    """Successful undo returns a confirmation message with payee, amount, category."""
+    handler.expense_service.undo_last_transaction.return_value = {
+        'payee': 'McDonalds',
+        'amount': 25000,
+        'category_name': 'Restaurantes',
+    }
+
+    await handler.handle_undo_command(update, context)
+
+    handler.expense_service.undo_last_transaction.assert_called_once_with(123)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'McDonalds' in args[0]
+    assert 'Restaurantes' in args[0]
+
+
+@pytest.mark.anyio
+async def test_handle_undo_command_no_recent_transactions(handler, update, context):
+    """Service returns no_recent_transactions error → formatter message shown."""
+    handler.expense_service.undo_last_transaction.return_value = {
+        'error': 'no_recent_transactions',
+    }
+
+    await handler.handle_undo_command(update, context)
+
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    # Should use format_no_recent_transaction_error() message
+    assert 'transacciones recientes' in args[0].lower() or 'modificar' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_undo_command_time_window_error(handler, update, context):
+    """Service returns time_window_exceeded error → formatter message shown."""
+    handler.expense_service.undo_last_transaction.return_value = {
+        'error': 'time_window_exceeded',
+    }
+
+    await handler.handle_undo_command(update, context)
+
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    # Should use format_time_window_error() message
+    assert 'minutos' in args[0].lower() or '5 minutos' in args[0] or 'modificar' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_undo_command_other_error(handler, update, context):
+    """Service returns an unrecognized error code → it is shown directly."""
+    handler.expense_service.undo_last_transaction.return_value = {
+        'error': 'no_ynab_transaction_id',
+    }
+
+    await handler.handle_undo_command(update, context)
+
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'no_ynab_transaction_id' in args[0]
+
+
+@pytest.mark.anyio
+async def test_handle_undo_command_ynab_failure(handler, update, context):
+    """Service returns None (unexpected failure) → generic error message shown."""
+    handler.expense_service.undo_last_transaction.return_value = None
+
+    await handler.handle_undo_command(update, context)
+
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'No se pudo' in args[0] or 'deshacer' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_routing_deshacer(handler, update, context):
+    """/deshacer is routed to handle_undo_command."""
+    update.message.text = "/deshacer"
+    handler.handle_undo_command = AsyncMock()
+
+    await handler.handle(update, context)
+
+    handler.handle_undo_command.assert_called_once_with(update, context)
+
+
+@pytest.mark.anyio
+async def test_handle_routing_editar(handler, update, context):
+    """/editar is routed to handle_edit_command."""
+    update.message.text = "/editar monto 10000"
+    handler.handle_edit_command = AsyncMock()
+
+    await handler.handle(update, context)
+
+    handler.handle_edit_command.assert_called_once_with(update, context)

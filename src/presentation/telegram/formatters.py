@@ -384,6 +384,79 @@ class LearningResponseFormatter:
         """Format correction error response"""
         return f"❌ *Error en corrección:* {error_message}"
 
+    @staticmethod
+    def format_undo_success(payee: str, amount: float, category_name: str) -> str:
+        """Format successful undo (transaction deletion) response"""
+        amount_str = f"{amount:,.0f}".replace(",", ".")
+        return f"✅ Se eliminó la transacción: {payee} ${amount_str} ({category_name})"
+
+    @staticmethod
+    def format_edit_success(payee: str, changes: dict) -> str:
+        """Format successful edit response listing changed fields.
+
+        The ``changes`` dict may contain keys:
+        - ``amount``: dict with ``old`` and ``new`` (float values)
+        - ``payee``: dict with ``old`` and ``new`` (str values)
+        - ``category``: dict with ``old`` and ``new`` (str values)
+        - ``account``: dict with ``new`` only (str value; old is unknown)
+        """
+        lines = ["✅ *Transacción actualizada:*"]
+        has_category_change = False
+
+        if "amount" in changes:
+            old_str = f"{changes['amount']['old']:,.0f}".replace(",", ".")
+            new_str = f"{changes['amount']['new']:,.0f}".replace(",", ".")
+            lines.append(f"- *Monto:* ${old_str} → ${new_str}")
+
+        if "payee" in changes:
+            lines.append(f"- *Comercio:* {changes['payee']['old']} → {changes['payee']['new']}")
+
+        if "category" in changes:
+            lines.append(f"- *Categoría:* {changes['category']['old']} → {changes['category']['new']}")
+            has_category_change = True
+
+        if "account" in changes:
+            lines.append(f"- *Cuenta:* → {changes['account']['new']}")
+
+        result = "\n".join(lines)
+        if has_category_change:
+            result += "\n\n🧠 *El sistema ha aprendido de esta corrección*"
+
+        return result
+
+    @staticmethod
+    def format_time_window_error() -> str:
+        """Error shown when the transaction is outside the editable time window"""
+        return "⏰ Solo puedes modificar transacciones de los últimos 5 minutos o la última del día."
+
+    @staticmethod
+    def format_no_recent_transaction_error() -> str:
+        """Error shown when there are no recent transactions to modify"""
+        return "❌ No hay transacciones recientes para modificar."
+
+    @staticmethod
+    def format_edit_help() -> str:
+        """Help text for the /editar command"""
+        return """
+📝 *Uso de /editar*
+
+Modifica campos de una transacción reciente usando palabras clave:
+
+*Campos disponibles:*
+• `monto` — nuevo monto
+• `comercio` — nombre del comercio
+• `categoria` — categoría YNAB (búsqueda por nombre)
+• `cuenta` — cuenta YNAB (búsqueda por nombre)
+
+*Ejemplos:*
+• `/editar monto 30000`
+• `/editar comercio McDonald's`
+• `/editar categoria Restaurantes`
+• `/editar cuenta Tarjeta de crédito`
+• `/editar monto 30000 categoria Restaurantes`
+• `/editar 2 categoria Restaurantes` _(2a transacción más reciente)_
+        """.strip()
+
 
 class SplitConfigResponseFormatter:
     """Formatter for split configuration-related responses"""
@@ -522,7 +595,7 @@ Envía un mensaje como:
 
 {GeneralResponseFormatter.format_command_list()}
 
-💡 *Tip:* Si el bot se equivoca de categoría, usa `/corregir`. ¡Así aprenderá para la próxima vez!
+💡 *Tip:* Si el bot se equivoca de categoría, usa `/editar categoria NuevaCategoria`. ¡Así aprenderá para la próxima vez!
         """.strip()
 
     @staticmethod
@@ -551,7 +624,8 @@ Envía un mensaje como:
 🧠 *Aprendizaje*
 • `/aprendizaje` - Panel de aprendizaje
 • `/olvidar` - Borrar asociaciones
-• `/corregir` - Corregir categorías
+• `/editar` - Editar transacción (monto, comercio, categoría, cuenta)
+• `/deshacer` - Eliminar última transacción
 • `/recent` - Últimos gastos
 • `/stats` - Estadísticas
         """.strip()

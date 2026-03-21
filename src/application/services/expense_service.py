@@ -1,9 +1,10 @@
 import logging
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.budget_query import BudgetQueryResult, MessageResult
@@ -612,76 +613,254 @@ class ExpenseService:
         
         return f"confianza {conf_pct}%"
 
-    def correct_recent_transaction(self, telegram_user_id: int, transaction_index: int, new_category_input: str) -> Optional[Dict]:
-        """Correct a recent transaction category: resolve via fuzzy match, update YNAB, and save learning.
+    def _is_within_time_window(self, transaction: dict, user_config) -> bool:
+        """Return True if the transaction is within the allowed edit/undo time window.
 
-        Returns a dict with correction details on success, a dict with 'error' key on
-        validation failure, or None on unexpected failure.
+        The window passes when EITHER:
+        - The transaction was created within the last 5 minutes (UTC), OR
+        - The transaction date falls on today in the user's timezone.
+
+        Both checks use the 'timestamp' key returned by get_recent_transactions.
+        """
+        timestamp_str = transaction.get('timestamp')
+        if not timestamp_str:
+            return False
+
+        try:
+            txn_dt = datetime.fromisoformat(timestamp_str)
+        except (ValueError, TypeError):
+            return False
+
+        # 5-minute check (compare naive UTC datetimes)
+        now_utc = datetime.utcnow()
+        txn_naive = txn_dt.replace(tzinfo=None) if txn_dt.tzinfo else txn_dt
+        within_5_min = (now_utc - txn_naive) <= timedelta(minutes=5)
+
+        # Same-day check in user's timezone
+        is_today = False
+        try:
+            now_user = user_now(user_config.timezone)
+            txn_date_user = (
+                txn_dt.date() if not txn_dt.tzinfo
+                else txn_dt.astimezone(ZoneInfo(user_config.timezone)).date()
+            )
+            is_today = txn_date_user == now_user.date()
+        except (ValueError, TypeError):
+            pass
+
+        return within_5_min or is_today
+
+    def _find_account_id_from_accounts_list(self, account_name: str, accounts: list) -> Optional[str]:
+        """Find account ID by name from a list of account objects (3-step fuzzy match).
+
+        Used by edit_last_transaction to match user input against live YNAB accounts.
+        Steps: exact -> case-insensitive -> partial (substring in either direction).
+        Returns account id string or None if no match found.
+        """
+        if not account_name or not accounts:
+            return None
+
+        input_stripped = account_name.strip()
+        input_lower = input_stripped.lower()
+
+        # Step 1: Exact match
+        for account in accounts:
+            if account.name == input_stripped:
+                return account.id
+
+        # Step 2: Case-insensitive match
+        for account in accounts:
+            if account.name.lower() == input_lower:
+                return account.id
+
+        # Step 3: Partial match (substring in either direction)
+        for account in accounts:
+            account_name_lower = account.name.lower()
+            if input_lower in account_name_lower or account_name_lower in input_lower:
+                logger.debug(f"Partial account match: '{account_name}' -> '{account.name}'")
+                return account.id
+
+        return None
+
+    def edit_last_transaction(
+        self,
+        telegram_user_id: int,
+        transaction_index: int = 0,
+        new_amount: Optional[Decimal] = None,
+        new_payee: Optional[str] = None,
+        new_category: Optional[str] = None,
+        new_account: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Edit fields of a recent transaction: amount, payee, category, and/or account.
+
+        Enforces the same time window as undo_last_transaction. Category edits
+        trigger learning updates (same as the old correct_recent_transaction).
+
+        Args:
+            telegram_user_id: Telegram user ID.
+            transaction_index: 0-based index into recent transactions (0 = most recent).
+            new_amount: New amount as a positive Decimal (will be negated to milliunits).
+            new_payee: New payee name string.
+            new_category: New category name (fuzzy matched).
+            new_account: New account name (fuzzy matched).
+
+        Returns:
+            dict with old/new field values on success,
+            dict with 'error' key on validation failure,
+            None on unexpected failure or user not configured.
         """
         try:
             user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
             if not user_config or not user_config.is_configured():
                 return None
 
-            # Load categories and build lookup maps for fuzzy matching
-            ynab_repository = self.ynab_factory.get_repository(user_config)
-            categories = ynab_repository.get_categories(user_config.budget_id)
-            self._update_llm_parser_data(categories, [], [])
-
-            # Resolve user input to a real YNAB category via fuzzy matching
-            resolved_category_id = self._find_category_id_by_name(new_category_input, categories)
-            if not resolved_category_id:
-                return {
-                    "error": f"No encontre una categoria que coincida con '{new_category_input}'. Verifica el nombre e intenta de nuevo."
-                }
-
-            # Look up the resolved category name
-            resolved_category_name = new_category_input
-            for cat in categories:
-                if cat.id == resolved_category_id:
-                    resolved_category_name = cat.name
-                    break
-
-            # Get and validate recent transactions
-            recent_transactions = self.learning_repository.get_recent_transactions(telegram_user_id, 20)
-
-            if transaction_index >= len(recent_transactions):
-                logger.error(f"Transaction index {transaction_index} out of range")
-                return None
-
-            transaction = recent_transactions[transaction_index]
-            old_category_id = transaction.get('category_id')
-            payee = transaction.get('payee')
-
-            if not old_category_id or not payee:
-                logger.error("Invalid transaction data for correction")
-                return None
-
-            old_category_name = transaction.get('category_name') or old_category_id
-
-            # Update the YNAB transaction if we have its ID
-            ynab_updated = False
-            ynab_transaction_id = transaction.get('ynab_transaction_id')
-            if ynab_transaction_id:
-                ynab_updated = ynab_repository.update_transaction_category(
-                    user_config.budget_id, ynab_transaction_id, resolved_category_id
-                )
-                if not ynab_updated:
-                    logger.warning(f"YNAB update failed for transaction {ynab_transaction_id}, saving learning anyway")
-
-            # Record the correction for learning (always, even if YNAB update failed)
-            self.learning_repository.record_user_correction(
-                telegram_user_id, payee, old_category_id, resolved_category_id, resolved_category_name
+            # Fetch enough recent transactions to cover the requested index
+            fetch_count = max(transaction_index + 1, 20)
+            recent_transactions = self.learning_repository.get_recent_transactions(
+                telegram_user_id, fetch_count
             )
 
-            logger.info(f"Recorded correction: {payee} {old_category_id} -> {resolved_category_id} ({resolved_category_name})")
+            # Bounds check
+            if transaction_index >= len(recent_transactions):
+                return {"error": "index_out_of_range"}
+
+            transaction = recent_transactions[transaction_index]
+            ynab_transaction_id = transaction.get('ynab_transaction_id')
+            if not ynab_transaction_id:
+                return {"error": "no_ynab_transaction_id"}
+
+            # Validate time window
+            if not self._is_within_time_window(transaction, user_config):
+                return {"error": "time_window_exceeded"}
+
+            # Create YNAB repository
+            ynab_repository = self.ynab_factory.get_repository(user_config)
+            budget_id = user_config.budget_id
+
+            # Build fields dict for YNAB update
+            fields: Dict = {}
+            changes: Dict = {}
+            payee = transaction.get('payee', '')
+            old_category_id = transaction.get('category_id')
+            resolved_category_id = None
+            resolved_category_name = None
+
+            if new_amount is not None:
+                amount_milliunits = int(new_amount * -1000)
+                old_amount = transaction.get('amount', 0)
+                fields['amount'] = amount_milliunits
+                changes['amount'] = {'old': old_amount, 'new': float(new_amount)}
+
+            if new_payee is not None:
+                old_payee = payee
+                fields['payee_name'] = new_payee
+                # Attempt payee ID matching (uses pre-built dicts from last parse; best effort)
+                payee_match = self._match_payee(new_payee)
+                if payee_match:
+                    payee_id, canonical_name = payee_match
+                    fields['payee_id'] = payee_id
+                changes['payee'] = {'old': old_payee, 'new': new_payee}
+
+            if new_category is not None:
+                categories = ynab_repository.get_categories(budget_id)
+                self._update_llm_parser_data(categories, [], [])
+                resolved_category_id = self._find_category_id_by_name(new_category, categories)
+                if not resolved_category_id:
+                    return {"error": "category_not_found", "message": f"No encontré una categoría que coincida con '{new_category}'."}
+                # Look up the canonical category name
+                resolved_category_name = new_category
+                for cat in categories:
+                    if cat.id == resolved_category_id:
+                        resolved_category_name = cat.name
+                        break
+                old_category_name = transaction.get('category_name', old_category_id or '')
+                fields['category_id'] = resolved_category_id
+                changes['category'] = {'old': old_category_name, 'new': resolved_category_name}
+
+            if new_account is not None:
+                accounts = ynab_repository.get_accounts(budget_id)
+                resolved_account_id = self._find_account_id_from_accounts_list(new_account, accounts)
+                if not resolved_account_id:
+                    return {"error": "account_not_found", "message": f"No encontré una cuenta que coincida con '{new_account}'."}
+                fields['account_id'] = resolved_account_id
+                changes['account'] = {'new': new_account}
+
+            # Perform the YNAB update
+            updated = ynab_repository.update_transaction(budget_id, ynab_transaction_id, fields)
+            if not updated:
+                return {"error": "ynab_update_failed"}
+
+            # Learning update for category edits
+            if resolved_category_id and old_category_id and payee:
+                self.learning_repository.record_user_correction(
+                    telegram_user_id, payee, old_category_id, resolved_category_id, resolved_category_name
+                )
+                logger.info(
+                    f"Recorded category correction: {payee} {old_category_id} -> {resolved_category_id}"
+                )
+
+            logger.info(f"Edited transaction {ynab_transaction_id}: fields={list(fields.keys())}")
             return {
                 'payee': payee,
-                'old_category_name': old_category_name,
-                'new_category_name': resolved_category_name,
-                'ynab_updated': ynab_updated,
+                'changes': changes,
+                'ynab_transaction_id': ynab_transaction_id,
             }
 
         except Exception as e:
-            logger.error(f"Error correcting transaction: {e}")
+            logger.error(f"Error editing transaction: {e}")
+            return None
+
+    def undo_last_transaction(self, telegram_user_id: int) -> Optional[Dict]:
+        """Delete the most recent transaction if within the allowed time window.
+
+        Time window: created within the last 5 minutes, OR it is the most recent
+        transaction created today (in the user's timezone).
+
+        Returns:
+          - dict with 'payee', 'amount', 'category_name' on success
+          - dict with 'error' key on validation failure
+          - None on unexpected failure or user not configured
+        """
+        try:
+            user_config = self.user_repository.find_by_telegram_id(telegram_user_id)
+            if not user_config or not user_config.is_configured():
+                return None
+
+            recent_transactions = self.learning_repository.get_recent_transactions(telegram_user_id, 1)
+            if not recent_transactions:
+                return {"error": "no_recent_transactions"}
+
+            transaction = recent_transactions[0]
+            ynab_transaction_id = transaction.get('ynab_transaction_id')
+            if not ynab_transaction_id:
+                return {"error": "no_ynab_transaction_id"}
+
+            # Validate time window
+            if not self._is_within_time_window(transaction, user_config):
+                return {"error": "time_window_exceeded"}
+
+            # Delete from YNAB
+            ynab_repository = self.ynab_factory.get_repository(user_config)
+            deleted = ynab_repository.delete_transaction(user_config.budget_id, ynab_transaction_id)
+            if not deleted:
+                return {"error": "ynab_delete_failed"}
+
+            # Update learning: decrement payee-category association
+            payee = transaction.get('payee', '')
+            category_id = transaction.get('category_id', '')
+            if payee and category_id:
+                self.learning_repository.decrement_learning(telegram_user_id, payee, category_id)
+
+            # Remove from local recent transactions
+            self.learning_repository.delete_recent_transaction(telegram_user_id, ynab_transaction_id)
+
+            logger.info(f"Undid transaction: {payee} {ynab_transaction_id}")
+            return {
+                'payee': payee,
+                'amount': transaction.get('amount', 0),
+                'category_name': transaction.get('category_name', ''),
+            }
+
+        except Exception as e:
+            logger.error(f"Error undoing transaction: {e}")
             return None

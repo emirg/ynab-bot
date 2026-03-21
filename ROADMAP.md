@@ -61,12 +61,12 @@ Soportar gastos compartidos que hizo otra persona en nombre del usuario:
 
 ## Milestone 3: Robustez & Calidad de Vida
 
-### 3.1 — Editar/Eliminar Último Gasto [PARCIAL]
+### 3.1 — Editar/Eliminar Último Gasto [COMPLETADO]
 
-- `/corregir` — permite corregir la categoría del último gasto registrado, actualizando la transacción en YNAB y guardando la asociación payee → categoría para futuras predicciones [COMPLETADO]
-- `/deshacer` — elimina la última transacción creada en YNAB [PENDIENTE]
-- `/editar` — corregir monto o payee del último gasto [PENDIENTE]
-- Ventana de tiempo razonable (últimos 5 minutos o última transacción del día)
+- `/deshacer` — elimina la última transacción creada en YNAB, decrementa aprendizaje y limpia recent_transactions [COMPLETADO]
+- `/editar` — corregir monto, comercio, categoría y/o cuenta de transacciones recientes. Acepta un índice opcional como primer argumento (por defecto la última). Absorbe la funcionalidad de `/corregir`: al editar la categoría, actualiza el aprendizaje payee → categoría. [COMPLETADO]
+- `/corregir` — REMOVIDO, absorbido por `/editar categoria`
+- Ventana de tiempo: últimos 5 minutos o última transacción del día
 
 ### 3.2 — Confirmación Opcional Pre-Registro
 

@@ -42,3 +42,15 @@ class YNABRepository(ABC):
         """Get transactions since a given date (YYYY-MM-DD). Returns raw dicts with at least
         amount, category_name, date, deleted, and payee_name fields."""
         pass
+
+    @abstractmethod
+    def delete_transaction(self, budget_id: str, transaction_id: str) -> bool:
+        """Delete a transaction. Returns True if deletion succeeded."""
+        pass
+
+    @abstractmethod
+    def update_transaction(self, budget_id: str, transaction_id: str, fields: dict) -> bool:
+        """Update fields of an existing transaction. The fields dict may contain any combination of:
+        amount (int, milliunits), payee_name (str), payee_id (str), category_id (str), account_id (str).
+        Returns True on success."""
+        pass

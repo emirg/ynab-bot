@@ -230,6 +230,28 @@ class SQLiteLearningRepository(LearningRepository):
         )
         conn.commit()
 
+    def decrement_learning(self, telegram_id: int, payee: str, category_id: str) -> None:
+        normalized = normalize_payee(payee)
+        conn = self._db.get_connection()
+
+        conn.execute(
+            """
+            UPDATE payee_category_mappings
+            SET count = count - 1, last_updated = ?
+            WHERE telegram_id = ? AND normalized_payee = ? AND category_id = ? AND count > 0
+            """,
+            (datetime.now().isoformat(), telegram_id, normalized, category_id),
+        )
+        conn.execute(
+            """
+            DELETE FROM payee_category_mappings
+            WHERE telegram_id = ? AND normalized_payee = ? AND category_id = ? AND count <= 0
+            """,
+            (telegram_id, normalized, category_id),
+        )
+        conn.commit()
+        logger.info(f"Decremented learning: {normalized} -> {category_id} (user {telegram_id})")
+
     def get_recent_transactions(self, telegram_id: int, limit: int = 10) -> List[Dict]:
         conn = self._db.get_connection()
         cursor = conn.execute(
@@ -255,3 +277,12 @@ class SQLiteLearningRepository(LearningRepository):
             }
             for row in cursor.fetchall()
         ]
+
+    def delete_recent_transaction(self, telegram_id: int, ynab_transaction_id: str) -> bool:
+        conn = self._db.get_connection()
+        cursor = conn.execute(
+            "DELETE FROM recent_transactions WHERE telegram_id = ? AND ynab_transaction_id = ?",
+            (telegram_id, ynab_transaction_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0

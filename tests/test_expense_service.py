@@ -401,75 +401,505 @@ class TestBuildCategoryExplanation:
 
 
 # ---------------------------------------------------------------------------
-# correct_recent_transaction
+# undo_last_transaction
 # ---------------------------------------------------------------------------
 
-class TestCorrectRecentTransaction:
+class TestUndoLastTransaction:
+    """Tests for ExpenseService.undo_last_transaction()."""
 
-    def test_success_resolves_category_via_fuzzy_match(self, service, mock_user_repository, mock_learning_repository, mock_ynab_repository, authorized_user):
+    # Helper: build a recent-transaction dict that is within the 5-minute window
+    def _recent_txn(self, minutes_ago=1, has_ynab_id=True, is_today=True):
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        timestamp = (now - timedelta(minutes=minutes_ago)).isoformat()
+        return {
+            'payee': 'McDonalds',
+            'amount': -25000,
+            'category_name': 'Restaurants',
+            'category_id': 'cat-2',
+            'ynab_transaction_id': 'txn-undo-1' if has_ynab_id else None,
+            'timestamp': timestamp,
+        }
+
+    def test_success_deletes_and_returns_details(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
-        mock_learning_repository.get_recent_transactions.return_value = [
-            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Comida rapida', 'amount': 25000, 'ynab_transaction_id': None},
-        ]
-        # 'Groceries' matches sample_categories cat-1
-        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Groceries')
+        mock_ynab_repository.delete_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
         assert result is not None
         assert 'error' not in result
         assert result['payee'] == 'McDonalds'
-        assert result['old_category_name'] == 'Comida rapida'
-        assert result['new_category_name'] == 'Groceries'
-        assert result['ynab_updated'] is False  # no ynab_transaction_id
-        mock_learning_repository.record_user_correction.assert_called_once()
-        call_args = mock_learning_repository.record_user_correction.call_args
-        assert call_args[0][0] == TELEGRAM_ID
-        assert call_args[0][3] == 'cat-1'  # resolved category UUID
-        assert call_args[0][4] == 'Groceries'  # category name passed
-
-    def test_category_not_found_returns_error(self, service, mock_user_repository, authorized_user):
-        mock_user_repository.find_by_telegram_id.return_value = authorized_user
-        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'NonExistentCategory')
-        assert result is not None
-        assert 'error' in result
-        assert 'NonExistentCategory' in result['error']
-
-    def test_ynab_transaction_updated_when_id_present(self, service, mock_user_repository, mock_learning_repository, mock_ynab_repository, authorized_user):
-        mock_user_repository.find_by_telegram_id.return_value = authorized_user
-        mock_ynab_repository.update_transaction_category.return_value = True
-        mock_learning_repository.get_recent_transactions.return_value = [
-            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Old', 'amount': 25000, 'ynab_transaction_id': 'txn-abc'},
-        ]
-        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Restaurants')
-        assert result['ynab_updated'] is True
-        mock_ynab_repository.update_transaction_category.assert_called_once_with(
-            authorized_user.budget_id, 'txn-abc', 'cat-2',
+        assert result['amount'] == -25000
+        assert result['category_name'] == 'Restaurants'
+        mock_ynab_repository.delete_transaction.assert_called_once_with(
+            authorized_user.budget_id, 'txn-undo-1'
         )
 
-    def test_ynab_update_failure_still_saves_learning(self, service, mock_user_repository, mock_learning_repository, mock_ynab_repository, authorized_user):
+    def test_success_decrements_learning(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
-        mock_ynab_repository.update_transaction_category.return_value = False
-        mock_learning_repository.get_recent_transactions.return_value = [
-            {'payee': 'McDonalds', 'category_id': 'cat-old', 'category_name': 'Old', 'amount': 25000, 'ynab_transaction_id': 'txn-abc'},
-        ]
-        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Restaurants')
-        assert result['ynab_updated'] is False
-        # Learning correction still saved
-        mock_learning_repository.record_user_correction.assert_called_once()
+        mock_ynab_repository.delete_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
 
-    def test_success_falls_back_to_id_when_no_category_name(self, service, mock_user_repository, mock_learning_repository, authorized_user):
+        service.undo_last_transaction(TELEGRAM_ID)
+
+        mock_learning_repository.decrement_learning.assert_called_once_with(
+            TELEGRAM_ID, 'McDonalds', 'cat-2'
+        )
+
+    def test_success_removes_from_recent_transactions(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
-        mock_learning_repository.get_recent_transactions.return_value = [
-            {'payee': 'McDonalds', 'category_id': 'cat-old', 'amount': 25000, 'ynab_transaction_id': None},
-        ]
-        result = service.correct_recent_transaction(TELEGRAM_ID, 0, 'Groceries')
-        assert result['old_category_name'] == 'cat-old'
+        mock_ynab_repository.delete_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
 
-    def test_user_not_found(self, service, mock_user_repository):
-        mock_user_repository.find_by_telegram_id.return_value = None
-        assert service.correct_recent_transaction(999, 0, 'Groceries') is None
+        service.undo_last_transaction(TELEGRAM_ID)
 
-    def test_index_out_of_range(self, service, mock_learning_repository):
+        mock_learning_repository.delete_recent_transaction.assert_called_once_with(
+            TELEGRAM_ID, 'txn-undo-1'
+        )
+
+    def test_no_recent_transactions_returns_error(
+        self, service, mock_user_repository, mock_learning_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = []
-        assert service.correct_recent_transaction(TELEGRAM_ID, 5, 'Groceries') is None
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result is not None
+        assert result.get('error') == 'no_recent_transactions'
+
+    def test_missing_ynab_transaction_id_returns_error(
+        self, service, mock_user_repository, mock_learning_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = [
+            self._recent_txn(has_ynab_id=False)
+        ]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result is not None
+        assert result.get('error') == 'no_ynab_transaction_id'
+
+    def test_transaction_too_old_returns_time_window_error(
+        self, service, mock_user_repository, mock_learning_repository, authorized_user,
+    ):
+        """Transaction older than 5 minutes and from a past day should fail."""
+        from datetime import datetime, timedelta
+        # 10 minutes ago yesterday - outside both windows
+        past = (datetime.utcnow() - timedelta(days=1, minutes=10)).isoformat()
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = [{
+            'payee': 'McDonalds',
+            'amount': -25000,
+            'category_name': 'Restaurants',
+            'category_id': 'cat-2',
+            'ynab_transaction_id': 'txn-old-1',
+            'timestamp': past,
+        }]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result is not None
+        assert result.get('error') == 'time_window_exceeded'
+
+    def test_transaction_today_but_older_than_5_min_is_allowed(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        """Transaction from today (but > 5 min ago) should still be undoable."""
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+        # 30 minutes ago, but still today in user's timezone
+        user_tz = ZoneInfo(authorized_user.timezone)
+        now_user = datetime.now(tz=user_tz)
+        thirty_min_ago = now_user - timedelta(minutes=30)
+        # timestamp in user timezone (so same-day check passes)
+        timestamp = thirty_min_ago.isoformat()
+
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.delete_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [{
+            'payee': 'Carulla',
+            'amount': -50000,
+            'category_name': 'Groceries',
+            'category_id': 'cat-1',
+            'ynab_transaction_id': 'txn-today-1',
+            'timestamp': timestamp,
+        }]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result is not None
+        assert 'error' not in result
+        assert result['payee'] == 'Carulla'
+
+    def test_ynab_delete_fails_returns_error(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.delete_transaction.return_value = False
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result is not None
+        assert result.get('error') == 'ynab_delete_failed'
+        # Learning and cleanup should NOT be called when YNAB delete fails
+        mock_learning_repository.decrement_learning.assert_not_called()
+        mock_learning_repository.delete_recent_transaction.assert_not_called()
+
+    def test_user_not_configured_returns_none(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _find_account_id_from_accounts_list
+# ---------------------------------------------------------------------------
+
+class TestFindAccountIdFromAccountsList:
+    """Unit tests for the accounts-list-based fuzzy matcher."""
+
+    def _make_accounts(self):
+        from domain.models.user import YNABAccount
+        return [
+            YNABAccount(id='acc-1', name='Nu Card', type='creditCard', balance=0),
+            YNABAccount(id='acc-2', name='Bancolombia Ahorros', type='checking', balance=0),
+            YNABAccount(id='acc-3', name='Efectivo', type='cash', balance=0),
+        ]
+
+    def test_exact_match(self, service):
+        accounts = self._make_accounts()
+        result = service._find_account_id_from_accounts_list('Nu Card', accounts)
+        assert result == 'acc-1'
+
+    def test_case_insensitive_match(self, service):
+        accounts = self._make_accounts()
+        result = service._find_account_id_from_accounts_list('nu card', accounts)
+        assert result == 'acc-1'
+
+    def test_partial_match_input_in_account_name(self, service):
+        accounts = self._make_accounts()
+        result = service._find_account_id_from_accounts_list('Bancolombia', accounts)
+        assert result == 'acc-2'
+
+    def test_partial_match_account_name_in_input(self, service):
+        accounts = self._make_accounts()
+        result = service._find_account_id_from_accounts_list('mi cuenta Efectivo aqui', accounts)
+        assert result == 'acc-3'
+
+    def test_no_match_returns_none(self, service):
+        accounts = self._make_accounts()
+        result = service._find_account_id_from_accounts_list('Davivienda', accounts)
+        assert result is None
+
+    def test_empty_input_returns_none(self, service):
+        accounts = self._make_accounts()
+        assert service._find_account_id_from_accounts_list('', accounts) is None
+
+    def test_empty_accounts_returns_none(self, service):
+        assert service._find_account_id_from_accounts_list('Nu Card', []) is None
+
+
+# ---------------------------------------------------------------------------
+# edit_last_transaction
+# ---------------------------------------------------------------------------
+
+class TestEditLastTransaction:
+    """Tests for ExpenseService.edit_last_transaction()."""
+
+    def _recent_txn(self, minutes_ago=1, has_ynab_id=True):
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        timestamp = (now - timedelta(minutes=minutes_ago)).isoformat()
+        return {
+            'payee': 'McDonalds',
+            'amount': -25000,
+            'category_name': 'Restaurants',
+            'category_id': 'cat-2',
+            'ynab_transaction_id': 'txn-edit-1' if has_ynab_id else None,
+            'timestamp': timestamp,
+        }
+
+    # --- amount edit ---
+
+    def test_edit_amount_only(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('30'))
+
+        assert result is not None
+        assert 'error' not in result
+        assert 'amount' in result['changes']
+        assert result['changes']['amount']['new'] == 30.0
+        mock_ynab_repository.update_transaction.assert_called_once_with(
+            authorized_user.budget_id, 'txn-edit-1', {'amount': -30000}
+        )
+        mock_learning_repository.record_user_correction.assert_not_called()
+
+    # --- payee edit ---
+
+    def test_edit_payee_only(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_payee="Burger King")
+
+        assert result is not None
+        assert 'error' not in result
+        assert result['changes']['payee']['new'] == 'Burger King'
+        mock_ynab_repository.update_transaction.assert_called_once()
+        fields_used = mock_ynab_repository.update_transaction.call_args[0][2]
+        assert fields_used['payee_name'] == 'Burger King'
+        mock_learning_repository.record_user_correction.assert_not_called()
+
+    # --- category edit (with fuzzy match + learning update) ---
+
+    def test_edit_category_only_with_learning(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_category='Groceries')
+
+        assert result is not None
+        assert 'error' not in result
+        assert result['changes']['category']['new'] == 'Groceries'
+        fields_used = mock_ynab_repository.update_transaction.call_args[0][2]
+        assert fields_used['category_id'] == 'cat-1'
+        # Learning should be updated
+        mock_learning_repository.record_user_correction.assert_called_once()
+        call_args = mock_learning_repository.record_user_correction.call_args[0]
+        assert call_args[0] == TELEGRAM_ID
+        assert call_args[1] == 'McDonalds'
+        assert call_args[2] == 'cat-2'   # old category
+        assert call_args[3] == 'cat-1'   # new category id
+
+    def test_edit_category_fuzzy_match(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        """Partial category name should still resolve."""
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_category='Restau')  # partial
+
+        assert result is not None
+        assert 'error' not in result
+        assert 'category' in result['changes']
+
+    def test_edit_category_not_found_returns_error(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_category='NonExistentXYZ')
+
+        assert result is not None
+        assert result.get('error') == 'category_not_found'
+        assert 'NonExistentXYZ' in result.get('message', '')
+        mock_ynab_repository.update_transaction.assert_not_called()
+
+    # --- account edit ---
+
+    def test_edit_account_only(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user, sample_accounts,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_ynab_repository.get_accounts.return_value = sample_accounts
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_account='Bancolombia')
+
+        assert result is not None
+        assert 'error' not in result
+        assert 'account' in result['changes']
+        fields_used = mock_ynab_repository.update_transaction.call_args[0][2]
+        assert fields_used['account_id'] == 'acc-2'
+        mock_learning_repository.record_user_correction.assert_not_called()
+
+    def test_edit_account_not_found_returns_error(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user, sample_accounts,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.get_accounts.return_value = sample_accounts
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_account='CuentaInexistente')
+
+        assert result is not None
+        assert result.get('error') == 'account_not_found'
+        assert 'CuentaInexistente' in result.get('message', '')
+        mock_ynab_repository.update_transaction.assert_not_called()
+
+    # --- multiple fields ---
+
+    def test_edit_multiple_fields(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user, sample_accounts,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_ynab_repository.get_accounts.return_value = sample_accounts
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(
+            TELEGRAM_ID,
+            new_amount=Decimal('50'),
+            new_payee='Burger King',
+            new_category='Groceries',
+            new_account='Nu Card',
+        )
+
+        assert result is not None
+        assert 'error' not in result
+        fields_used = mock_ynab_repository.update_transaction.call_args[0][2]
+        assert 'amount' in fields_used
+        assert 'payee_name' in fields_used
+        assert 'category_id' in fields_used
+        assert 'account_id' in fields_used
+
+    # --- transaction_index ---
+
+    def test_edit_with_transaction_index(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        txn0 = self._recent_txn()
+        txn1 = {**self._recent_txn(), 'ynab_transaction_id': 'txn-edit-2', 'payee': 'Carulla'}
+        mock_learning_repository.get_recent_transactions.return_value = [txn0, txn1]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, transaction_index=1, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert 'error' not in result
+        # Should have targeted the second transaction
+        mock_ynab_repository.update_transaction.assert_called_once_with(
+            authorized_user.budget_id, 'txn-edit-2', {'amount': -10000}
+        )
+
+    def test_transaction_index_out_of_range(
+        self, service, mock_user_repository, mock_learning_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, transaction_index=5, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert result.get('error') == 'index_out_of_range'
+
+    # --- time window ---
+
+    def test_transaction_too_old_returns_time_window_error(
+        self, service, mock_user_repository, mock_learning_repository, authorized_user,
+    ):
+        from datetime import datetime, timedelta
+        past = (datetime.utcnow() - timedelta(days=1, minutes=10)).isoformat()
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = [{
+            'payee': 'McDonalds',
+            'amount': -25000,
+            'category_name': 'Restaurants',
+            'category_id': 'cat-2',
+            'ynab_transaction_id': 'txn-old',
+            'timestamp': past,
+        }]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert result.get('error') == 'time_window_exceeded'
+
+    # --- no recent transactions ---
+
+    def test_no_recent_transactions(
+        self, service, mock_user_repository, mock_learning_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = []
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert result.get('error') == 'index_out_of_range'
+
+    # --- YNAB update fails ---
+
+    def test_ynab_update_fails_returns_error(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = False
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert result.get('error') == 'ynab_update_failed'
+        mock_learning_repository.record_user_correction.assert_not_called()
+
+    # --- user not configured ---
+
+    def test_user_not_configured_returns_none(self, service, mock_user_repository):
+        mock_user_repository.find_by_telegram_id.return_value = None
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is None
+
+    # --- missing ynab_transaction_id ---
+
+    def test_missing_ynab_transaction_id_returns_error(
+        self, service, mock_user_repository, mock_learning_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_recent_transactions.return_value = [
+            self._recent_txn(has_ynab_id=False)
+        ]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert result.get('error') == 'no_ynab_transaction_id'
 
 
 # ---------------------------------------------------------------------------

@@ -46,3 +46,13 @@ class LearningRepository(ABC):
     def delete_payee_associations(self, telegram_id: int, normalized_payee: str) -> int:
         """Delete all associations for a given payee for a user. Returns row count deleted."""
         pass
+
+    @abstractmethod
+    def decrement_learning(self, telegram_id: int, payee: str, category_id: str) -> None:
+        """Decrement the learning count for a payee-category mapping. Deletes row if count reaches 0."""
+        pass
+
+    @abstractmethod
+    def delete_recent_transaction(self, telegram_id: int, ynab_transaction_id: str) -> bool:
+        """Delete a recent transaction by ynab_transaction_id for a specific user. Returns True if deleted."""
+        pass

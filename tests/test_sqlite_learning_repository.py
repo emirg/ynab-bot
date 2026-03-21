@@ -379,3 +379,105 @@ class TestPayeeAssociations:
 
         assert repo.get_payee_associations(TELEGRAM_ID) == []
         assert len(repo.get_payee_associations(other_user_id)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Decrement learning
+# ---------------------------------------------------------------------------
+
+class TestDecrementLearning:
+
+    def test_decrement_reduces_count(self, repo, expense_mcdonalds):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        # count is now 2
+        repo.decrement_learning(TELEGRAM_ID, "McDonald's", 'cat-restaurants')
+        result = repo.predict_category(TELEGRAM_ID, "McDonald's", [{'id': 'cat-restaurants'}])
+        assert result is not None
+        assert result[2] == 1  # count decremented from 2 to 1
+
+    def test_decrement_to_zero_deletes_row(self, repo, expense_mcdonalds):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        # count is 1; decrement should remove the row entirely
+        repo.decrement_learning(TELEGRAM_ID, "McDonald's", 'cat-restaurants')
+        result = repo.predict_category(TELEGRAM_ID, "McDonald's", [{'id': 'cat-restaurants'}])
+        assert result is None
+
+    def test_decrement_nonexistent_is_noop(self, repo):
+        # Should not raise; simply does nothing
+        repo.decrement_learning(TELEGRAM_ID, "Unknown Payee", 'cat-nonexistent')
+        assert repo.get_payee_associations(TELEGRAM_ID) == []
+
+    def test_decrement_normalizes_payee(self, repo, expense_mcdonalds):
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        # Pass un-normalized variant; should still match
+        repo.decrement_learning(TELEGRAM_ID, "MC DONALD'S", 'cat-restaurants')
+        result = repo.predict_category(TELEGRAM_ID, "McDonald's", [{'id': 'cat-restaurants'}])
+        assert result is None  # row deleted
+
+    def test_decrement_per_user_isolation(self, repo, db_manager, expense_mcdonalds):
+        other_user_id = 999999999
+        user_repo = SQLiteUserRepository(db_manager)
+        user_repo.save(UserConfiguration(telegram_id=other_user_id, status=UserStatus.AUTHORIZED))
+
+        repo.record_successful_transaction(TELEGRAM_ID, expense_mcdonalds)
+        repo.record_successful_transaction(other_user_id, expense_mcdonalds)
+
+        # Decrement only for TELEGRAM_ID
+        repo.decrement_learning(TELEGRAM_ID, "McDonald's", 'cat-restaurants')
+
+        assert repo.predict_category(TELEGRAM_ID, "McDonald's", [{'id': 'cat-restaurants'}]) is None
+        result_other = repo.predict_category(other_user_id, "McDonald's", [{'id': 'cat-restaurants'}])
+        assert result_other is not None
+        assert result_other[2] == 1  # other user unaffected
+
+    def test_decrement_only_affects_matching_category(self, repo):
+        # Two categories for the same payee
+        e1 = Expense(amount=Decimal('1000'), payee='Exito', memo='x',
+                     category_id='cat-groceries', category_name='Groceries')
+        e2 = Expense(amount=Decimal('1000'), payee='Exito', memo='x',
+                     category_id='cat-household', category_name='Household')
+        repo.record_successful_transaction(TELEGRAM_ID, e1)
+        repo.record_successful_transaction(TELEGRAM_ID, e2)
+
+        repo.decrement_learning(TELEGRAM_ID, 'Exito', 'cat-groceries')
+
+        associations = repo.get_payee_associations(TELEGRAM_ID)
+        assert len(associations) == 1
+        assert associations[0]['category_id'] == 'cat-household'
+
+
+# ---------------------------------------------------------------------------
+# Delete recent transaction
+# ---------------------------------------------------------------------------
+
+class TestDeleteRecentTransaction:
+
+    def test_delete_existing_transaction_returns_true(self, repo, expense_mcdonalds):
+        repo.add_recent_transaction(TELEGRAM_ID, expense_mcdonalds, ynab_transaction_id='txn-abc-123')
+
+        result = repo.delete_recent_transaction(TELEGRAM_ID, 'txn-abc-123')
+
+        assert result is True
+        transactions = repo.get_recent_transactions(TELEGRAM_ID)
+        assert all(t['ynab_transaction_id'] != 'txn-abc-123' for t in transactions)
+
+    def test_delete_nonexistent_transaction_returns_false(self, repo):
+        result = repo.delete_recent_transaction(TELEGRAM_ID, 'txn-does-not-exist')
+
+        assert result is False
+
+    def test_delete_enforces_per_user_isolation(self, repo, db_manager, expense_mcdonalds):
+        other_user_id = 999999999
+        user_repo = SQLiteUserRepository(db_manager)
+        user_repo.save(UserConfiguration(telegram_id=other_user_id, status=UserStatus.AUTHORIZED))
+
+        repo.add_recent_transaction(other_user_id, expense_mcdonalds, ynab_transaction_id='txn-other-user')
+
+        # Trying to delete other user's transaction as TELEGRAM_ID should return False
+        result = repo.delete_recent_transaction(TELEGRAM_ID, 'txn-other-user')
+
+        assert result is False
+        # Other user's transaction must still exist
+        other_transactions = repo.get_recent_transactions(other_user_id)
+        assert any(t['ynab_transaction_id'] == 'txn-other-user' for t in other_transactions)

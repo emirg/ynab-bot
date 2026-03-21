@@ -181,6 +181,73 @@ class YNABApiRepository(YNABRepository):
             logger.error(f"Failed to get transactions for budget {budget_id}: {e}", extra={"operation": "get_transactions"})
             raise YNABApiException(f"Failed to get transactions: {e}")
 
+    def delete_transaction(self, budget_id: str, transaction_id: str) -> bool:
+        """Delete a transaction. Returns True if deletion succeeded."""
+        try:
+            response = self.client.delete(
+                f"/budgets/{budget_id}/transactions/{transaction_id}"
+            )
+
+            if response.status_code in [200, 201]:
+                logger.info(
+                    f"Transaction {transaction_id} deleted successfully",
+                    extra={"operation": "delete_transaction"},
+                )
+                return True
+            else:
+                logger.error(
+                    f"Failed to delete transaction: HTTP {response.status_code}: {response.text}",
+                    extra={"operation": "delete_transaction"},
+                )
+                return False
+
+        except YNABApiException:
+            logger.error(
+                f"Failed to delete transaction: YNAB API error",
+                extra={"operation": "delete_transaction"},
+            )
+            return False
+        except Exception as e:
+            logger.error(
+                f"Failed to delete transaction: {e}",
+                extra={"operation": "delete_transaction"},
+            )
+            return False
+
+    def update_transaction(self, budget_id: str, transaction_id: str, fields: dict) -> bool:
+        """Update fields of an existing transaction. Returns True on success."""
+        try:
+            response = self.client.put(
+                f"/budgets/{budget_id}/transactions/{transaction_id}",
+                json={"transaction": fields},
+            )
+
+            if response.status_code in [200, 201]:
+                logger.info(
+                    f"Transaction {transaction_id} updated successfully",
+                    extra={"operation": "update_transaction"},
+                )
+                return True
+            else:
+                logger.error(
+                    f"Failed to update transaction: HTTP {response.status_code}: {response.text}",
+                    extra={"operation": "update_transaction"},
+                )
+                return False
+
+        except YNABApiException:
+            logger.error(
+                "Failed to update transaction: YNAB API error",
+                extra={"operation": "update_transaction"},
+            )
+            return False
+        except Exception as e:
+            logger.error(
+                f"Failed to update transaction: {e}",
+                extra={"operation": "update_transaction"},
+            )
+            return False
+
     def update_transaction_category(self, budget_id: str, transaction_id: str, category_id: str) -> bool:
         """Update the category of an existing transaction. Returns True on success."""
         try:

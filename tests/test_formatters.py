@@ -475,6 +475,98 @@ class TestLearningResponseFormatter:
         assert 'something failed' in msg
         assert '❌' in msg
 
+    def test_format_undo_success(self):
+        msg = LearningResponseFormatter.format_undo_success('Éxito', 25000.0, 'Supermercado')
+        assert 'Éxito' in msg
+        assert '$25.000' in msg
+        assert 'Supermercado' in msg
+        assert 'eliminó' in msg
+
+    def test_format_undo_success_large_amount(self):
+        msg = LearningResponseFormatter.format_undo_success('McDonald\'s', 1500000.0, 'Restaurantes')
+        assert '$1.500.000' in msg
+        assert 'McDonald\'s' in msg
+        assert 'Restaurantes' in msg
+
+    def test_format_edit_success_amount_only(self):
+        changes = {'amount': {'old': 25000.0, 'new': 30000.0}}
+        msg = LearningResponseFormatter.format_edit_success('Éxito', changes)
+        assert 'Transacción actualizada' in msg
+        assert '$25.000' in msg
+        assert '$30.000' in msg
+        assert '→' in msg
+        # No category change, no learning note
+        assert 'aprendido' not in msg
+
+    def test_format_edit_success_payee_only(self):
+        changes = {'payee': {'old': 'McD', 'new': 'McDonald\'s'}}
+        msg = LearningResponseFormatter.format_edit_success('McD', changes)
+        assert 'Comercio' in msg
+        assert 'McD' in msg
+        assert 'McDonald\'s' in msg
+        assert 'aprendido' not in msg
+
+    def test_format_edit_success_category_only(self):
+        changes = {'category': {'old': 'Groceries', 'new': 'Restaurantes'}}
+        msg = LearningResponseFormatter.format_edit_success('Éxito', changes)
+        assert 'Categoría' in msg
+        assert 'Groceries' in msg
+        assert 'Restaurantes' in msg
+        assert 'aprendido' in msg
+
+    def test_format_edit_success_account_only(self):
+        changes = {'account': {'new': 'Tarjeta de crédito'}}
+        msg = LearningResponseFormatter.format_edit_success('Éxito', changes)
+        assert 'Cuenta' in msg
+        assert 'Tarjeta de crédito' in msg
+        assert 'aprendido' not in msg
+
+    def test_format_edit_success_multiple_changes(self):
+        changes = {
+            'amount': {'old': 25000.0, 'new': 30000.0},
+            'category': {'old': 'Groceries', 'new': 'Restaurantes'},
+        }
+        msg = LearningResponseFormatter.format_edit_success('Éxito', changes)
+        assert '$25.000' in msg
+        assert '$30.000' in msg
+        assert 'Groceries' in msg
+        assert 'Restaurantes' in msg
+        assert 'aprendido' in msg
+
+    def test_format_edit_success_all_fields(self):
+        changes = {
+            'amount': {'old': 10000.0, 'new': 20000.0},
+            'payee': {'old': 'Old Name', 'new': 'New Name'},
+            'category': {'old': 'Cat A', 'new': 'Cat B'},
+            'account': {'new': 'Efectivo'},
+        }
+        msg = LearningResponseFormatter.format_edit_success('Old Name', changes)
+        assert 'Monto' in msg
+        assert 'Comercio' in msg
+        assert 'Categoría' in msg
+        assert 'Cuenta' in msg
+        assert 'aprendido' in msg
+
+    def test_format_time_window_error(self):
+        msg = LearningResponseFormatter.format_time_window_error()
+        assert '5 minutos' in msg
+        assert 'última' in msg or 'ultima' in msg
+
+    def test_format_no_recent_transaction_error(self):
+        msg = LearningResponseFormatter.format_no_recent_transaction_error()
+        assert 'recientes' in msg
+        assert '❌' in msg
+
+    def test_format_edit_help(self):
+        msg = LearningResponseFormatter.format_edit_help()
+        assert 'monto' in msg
+        assert 'comercio' in msg
+        assert 'categoria' in msg.lower() or 'categoría' in msg
+        assert 'cuenta' in msg
+        assert '/editar' in msg
+        # Shows index example
+        assert '/editar 2' in msg or 'índice' in msg or 'index' in msg.lower() or '2a' in msg or '2 ' in msg
+
 
 # ---------------------------------------------------------------------------
 # GeneralResponseFormatter
@@ -495,7 +587,8 @@ class TestGeneralResponseFormatter:
         assert '/connect' in msg
         assert '/config' in msg
         assert 'Aprendizaje' in msg
-        assert '/corregir' in msg
+        assert '/editar' in msg
+        assert '/corregir' not in msg
 
     def test_format_onboarding_welcome(self):
         # NEEDS_YNAB_CONNECTION

@@ -127,3 +127,6 @@ class ResilientHTTPClient:
 
     def patch(self, path: str, **kwargs) -> requests.Response:
         return self._request("PATCH", path, **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self._request("DELETE", path, **kwargs)
