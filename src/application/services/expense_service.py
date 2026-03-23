@@ -912,10 +912,12 @@ class ExpenseService:
         is_today = False
         try:
             now_user = user_now(user_config.timezone)
-            txn_date_user = (
-                txn_dt.date() if not txn_dt.tzinfo
-                else txn_dt.astimezone(ZoneInfo(user_config.timezone)).date()
-            )
+            # Naive timestamps from DB are UTC — attach UTC tzinfo before converting
+            if not txn_dt.tzinfo:
+                txn_dt_aware = txn_dt.replace(tzinfo=ZoneInfo("UTC"))
+            else:
+                txn_dt_aware = txn_dt
+            txn_date_user = txn_dt_aware.astimezone(ZoneInfo(user_config.timezone)).date()
             is_today = txn_date_user == now_user.date()
         except (ValueError, TypeError):
             pass
