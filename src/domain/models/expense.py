@@ -33,6 +33,7 @@ class Expense:
     is_split: bool = False
     split_person: Optional[str] = None
     split_proportion: Decimal = field(default_factory=lambda: Decimal('0.5'))
+    split_fixed_amount: Optional[Decimal] = None
     split_category_id: Optional[str] = None
     split_category_name: Optional[str] = None
     payer: str = 'user'
@@ -60,7 +61,11 @@ class Expense:
         # Other-paid split: 0-sum transaction with two subtransactions
         if self.payer == 'other' and self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
             transaction_data["amount"] = 0
-            user_share_milliunits = int(self.amount * self.split_proportion * -1000)
+            if self.split_fixed_amount is not None:
+                others_share_mu = int(self.split_fixed_amount * -1000)  # other person's share in milliunits
+                user_share_milliunits = int(self.amount * -1000) - others_share_mu
+            else:
+                user_share_milliunits = int(self.amount * self.split_proportion * -1000)
             subtransactions = [
                 {"amount": user_share_milliunits},
                 {"amount": -user_share_milliunits, "category_id": self.split_category_id},
@@ -70,8 +75,12 @@ class Expense:
             transaction_data["subtransactions"] = subtransactions
         # User-paid split transaction: create subtransactions instead of top-level category
         elif self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
-            user_share = int(self.amount * self.split_proportion * -1000)
-            split_share = amount_milliunits - user_share
+            if self.split_fixed_amount is not None:
+                split_share = int(self.split_fixed_amount * -1000)
+                user_share = amount_milliunits - split_share
+            else:
+                user_share = int(self.amount * self.split_proportion * -1000)
+                split_share = amount_milliunits - user_share
             subtransactions = [
                 {"amount": user_share},
                 {"amount": split_share, "category_id": self.split_category_id},

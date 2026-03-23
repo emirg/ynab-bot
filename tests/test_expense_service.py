@@ -1118,6 +1118,63 @@ class TestProcessMessage:
         assert expense.payer == 'user'
         assert expense.account_id == authorized_user.default_account_id
 
+    def test_shared_expense_split_amount_sets_fixed_amount(self, service_with_split, mock_llm_parser):
+        """When LLM returns split_amount, expense.split_fixed_amount is set to that value."""
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 60000.0,
+            'category': 'Restaurants',
+            'payee': 'El Corral',
+            'account': None,
+            'memo': 'almuerzo, 36700 son por Juan',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+            'payer': 'user',
+            'split_amount': 36700,
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'almuerzo 60k, 36700 son por Juan')
+        assert result.expense_result.success is True
+        expense = result.expense_result.expense
+        assert expense.split_fixed_amount == Decimal('36700')
+
+    def test_shared_expense_split_amount_null_leaves_fixed_amount_none(self, service_with_split, mock_llm_parser):
+        """When split_amount is null in LLM response, split_fixed_amount remains None."""
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': 'Crepes',
+            'account': None,
+            'memo': 'almuerzo mitad con Juan',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': '1/2',
+            'payer': 'user',
+            'split_amount': None,
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'almuerzo mitad con Juan')
+        assert result.expense_result.success is True
+        assert result.expense_result.expense.split_fixed_amount is None
+
+    def test_shared_expense_missing_split_amount_leaves_fixed_amount_none(self, service_with_split, mock_llm_parser):
+        """When split_amount is absent from LLM response, split_fixed_amount remains None."""
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Restaurants',
+            'payee': 'Crepes',
+            'account': None,
+            'memo': 'almuerzo mitad con Juan',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': '1/2',
+            'payer': 'user',
+        }
+        result = service_with_split.process_message(TELEGRAM_ID, 'almuerzo mitad con Juan')
+        assert result.expense_result.success is True
+        assert result.expense_result.expense.split_fixed_amount is None
+
 
 # ---------------------------------------------------------------------------
 # _parse_proportion
@@ -1906,6 +1963,32 @@ class TestPrepareSharedExpense:
         from domain.exceptions import ExpenseParsingException
         with pytest.raises(ExpenseParsingException):
             service.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+
+    def test_split_amount_propagates_to_expense(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
+        """split_amount from LLM response is set as split_fixed_amount on the returned expense."""
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 60000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'memo': '36700 son por Juan', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': None, 'payer': 'user',
+            'split_amount': 36700,
+        }
+        result = service_with_split.prepare_shared_expense(TELEGRAM_ID, '60k almuerzo, 36700 son por Juan')
+        assert result['expense'].split_fixed_amount == Decimal('36700')
+
+    def test_split_amount_null_leaves_fixed_amount_none_in_prepare(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
+        """split_amount: null in LLM response leaves split_fixed_amount as None."""
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'mercado', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
+            'split_amount': None,
+        }
+        result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
+        assert result['expense'].split_fixed_amount is None
 
 
 # ---------------------------------------------------------------------------
