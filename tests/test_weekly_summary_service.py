@@ -329,18 +329,18 @@ class TestMarkSummarySent:
 class TestTimezoneBoundary:
     """Verify that generate_summary uses the user's timezone for date computation."""
 
-    def test_argentina_timezone_uses_local_date(self):
-        """A user in Argentina (UTC-3) on Monday 00:00 local = Sunday 03:00 UTC.
+    def test_bogota_timezone_uses_local_date(self):
+        """A user in Bogota (UTC-5) on Monday 00:00 local = Monday 05:00 UTC.
         The date computation should use the user's local date (Sunday), not the server's."""
         # We patch user_today to return the local Sunday date
         service, mock_repo, _ = _make_service(transactions=[])
         mock_repo.get_transactions.return_value = []
-        user = _make_user(timezone="America/Argentina/Buenos_Aires")
+        user = _make_user(timezone="America/Bogota")
 
         local_sunday = date(2026, 3, 15)  # a Sunday
         with patch("application.services.weekly_summary_service.user_today", return_value=local_sunday) as mock_today:
             summary = service.generate_summary(user)
-            mock_today.assert_called_once_with("America/Argentina/Buenos_Aires")
+            mock_today.assert_called_once_with("America/Bogota")
 
         # today=Sunday 2026-03-15 → this_monday=2026-03-09 → prev_monday=2026-03-02
         assert summary.week_start == date(2026, 3, 2)

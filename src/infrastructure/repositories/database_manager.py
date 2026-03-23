@@ -144,7 +144,7 @@ _MIGRATIONS = [
         7,
         "Add timezone column to user_configurations",
         """
-        ALTER TABLE user_configurations ADD COLUMN timezone TEXT DEFAULT 'America/Argentina/Buenos_Aires';
+        ALTER TABLE user_configurations ADD COLUMN timezone TEXT DEFAULT 'America/Bogota';
         """,
     ),
     # Version 8: Add last_weekly_summary_sent column to user_configurations

@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
+DEFAULT_TIMEZONE = "America/Bogota"
 
 
 def user_now(timezone_str: str = DEFAULT_TIMEZONE) -> datetime:

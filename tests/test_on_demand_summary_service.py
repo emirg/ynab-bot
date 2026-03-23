@@ -370,11 +370,11 @@ class TestGenerateSummary:
     def test_uses_user_timezone(self, mock_today):
         mock_today.return_value = date(2026, 3, 19)
         service, _, _ = _make_service()
-        user = _make_user(timezone="America/Argentina/Buenos_Aires")
+        user = _make_user(timezone="America/Bogota")
 
         service.generate_summary(user, "dia")
 
-        mock_today.assert_called_once_with("America/Argentina/Buenos_Aires")
+        mock_today.assert_called_once_with("America/Bogota")
 
     @patch("application.services.on_demand_summary_service.user_today")
     def test_get_repository_called_with_user_config(self, mock_today):

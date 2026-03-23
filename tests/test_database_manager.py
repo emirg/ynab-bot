@@ -66,7 +66,7 @@ def test_timezone_column_exists(tmp_path):
     cursor = conn.execute("PRAGMA table_info(user_configurations)")
     columns = {row[1]: row[4] for row in cursor.fetchall()}  # name -> default
     assert "timezone" in columns
-    assert columns["timezone"] == "'America/Argentina/Buenos_Aires'"
+    assert columns["timezone"] == "'America/Bogota'"
     db_manager.close()
 
 

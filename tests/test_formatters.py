@@ -363,7 +363,8 @@ class TestExpenseDateDisplay:
         assert 'Fecha:' not in msg
 
     def test_past_date_shows_date_line(self):
-        past = datetime(2026, 3, 15)
+        today = date(2026, 6, 1)
+        past = datetime(2026, 5, 15)
         expense = Expense(
             amount=Decimal('25000'), payee="McDonald's", memo='almuerzo',
             category_name='Restaurants', account_name='Nu Card',
@@ -371,11 +372,13 @@ class TestExpenseDateDisplay:
             date=past,
         )
         result = ExpenseResult.success_result(expense, 'txn-1')
-        msg = ExpenseResponseFormatter.format_success(result)
-        assert '📅 *Fecha:* 15/03/2026' in msg
+        with patch('presentation.telegram.formatters.user_today', return_value=today):
+            msg = ExpenseResponseFormatter.format_success(result)
+        assert '📅 *Fecha:* 15/05/2026' in msg
 
     def test_future_date_shows_date_line(self):
-        future = datetime.now() + timedelta(days=1)
+        today = date(2026, 6, 1)
+        future = datetime(2026, 6, 2)
         expense = Expense(
             amount=Decimal('10000'), payee='Uber', memo='uber',
             category_name='Transport', account_name='Nu Card',
@@ -383,7 +386,8 @@ class TestExpenseDateDisplay:
             date=future,
         )
         result = ExpenseResult.success_result(expense, 'txn-2')
-        msg = ExpenseResponseFormatter.format_success(result)
+        with patch('presentation.telegram.formatters.user_today', return_value=today):
+            msg = ExpenseResponseFormatter.format_success(result)
         assert '📅 *Fecha:*' in msg
         assert future.strftime('%d/%m/%Y') in msg
 
