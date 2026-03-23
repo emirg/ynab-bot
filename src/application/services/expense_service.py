@@ -845,7 +845,7 @@ class ExpenseService:
         return None
 
     def _enhance_with_learning(self, expense: Expense, categories: List[YNABCategory], telegram_user_id: int) -> Expense:
-        """Enhance expense with learning predictions if confidence is low"""
+        """Override LLM category with learning prediction only when confidence >= 0.95 (single-category payee). Lower confidence preserves the LLM's contextual decision."""
         # Try to get learning prediction
         category_list = [{'id': cat.id, 'name': cat.name} for cat in categories]
         prediction = self.learning_repository.predict_category(telegram_user_id, expense.payee, category_list)
@@ -853,17 +853,21 @@ class ExpenseService:
         if prediction:
             predicted_category_id, learning_confidence, mapping_count = prediction
 
-            # Always use learning prediction when it disagrees — user corrections are authoritative
             if predicted_category_id != expense.category_id:
-                logger.info(f"Using learning prediction for {expense.payee}: {predicted_category_id} (learning confidence: {learning_confidence:.2f}, count: {mapping_count})")
-                expense.category_id = predicted_category_id
-                expense.confidence = learning_confidence
-                expense.category_explanation = f"aprendido de tus ultimas {mapping_count} compras en {expense.payee}"
-
-                # Update category name
-                category = next((cat for cat in categories if cat.id == predicted_category_id), None)
-                if category:
-                    expense.category_name = category.name
+                if learning_confidence >= 0.95:
+                    # High confidence: single-category payee — learning overrides LLM
+                    logger.info(f"Learning override for {expense.payee}: {predicted_category_id} "
+                                f"(confidence: {learning_confidence:.2f}, count: {mapping_count})")
+                    expense.category_id = predicted_category_id
+                    expense.confidence = learning_confidence
+                    expense.category_explanation = f"aprendido de tus ultimas {mapping_count} compras en {expense.payee}"
+                    category = next((cat for cat in categories if cat.id == predicted_category_id), None)
+                    if category:
+                        expense.category_name = category.name
+                else:
+                    # Low confidence: multi-category payee — trust LLM, just log
+                    logger.info(f"Learning defers to LLM for {expense.payee}: learning={predicted_category_id} "
+                                f"(confidence: {learning_confidence:.2f}), LLM={expense.category_id}")
 
         return expense
 

@@ -345,27 +345,27 @@ class TestEnhanceWithLearning:
         assert result.confidence == 1.0
         assert "aprendido de tus ultimas 5 compras" in result.category_explanation
 
-    def test_low_confidence_enhanced(self, service, mock_learning_repository, sample_categories):
+    def test_low_confidence_defers_to_llm(self, service, mock_learning_repository, sample_categories):
+        # Confidence 0.8 < 0.95 threshold — learning should NOT override LLM
         mock_learning_repository.predict_category.return_value = ('cat-2', 0.8, 3)
         expense = Expense(
             amount=Decimal('1000'), payee='Test', memo='x',
             category_id='cat-1', confidence=0.3,
         )
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
-        assert result.category_id == 'cat-2'
-        assert result.confidence == 0.8
-        assert "aprendido de tus ultimas 3 compras" in result.category_explanation
+        assert result.category_id == 'cat-1'
+        assert result.category_explanation is None
 
-    def test_learning_always_wins_when_category_differs(self, service, mock_learning_repository, sample_categories):
-        # Even if learning confidence is lower than LLM, it wins when the category differs
+    def test_learning_does_not_override_when_category_differs_low_confidence(self, service, mock_learning_repository, sample_categories):
+        # Confidence 0.2 < 0.95 threshold — learning should NOT override LLM even if category differs
         mock_learning_repository.predict_category.return_value = ('cat-2', 0.2, 1)
         expense = Expense(
             amount=Decimal('1000'), payee='Test', memo='x',
             category_id='cat-1', confidence=0.5,
         )
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
-        assert result.category_id == 'cat-2'
-        assert "aprendido de tus ultimas 1 compras" in result.category_explanation
+        assert result.category_id == 'cat-1'
+        assert result.category_explanation is None
 
     def test_equal_confidence_learning_wins_regression(self, service, mock_learning_repository, sample_categories):
         # Regression: when LLM returns confidence 1.0 and learning also has 1.0 but a different
@@ -400,6 +400,61 @@ class TestEnhanceWithLearning:
         )
         result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
         assert result.category_id == 'cat-1'
+
+    def test_multi_category_payee_defers_to_llm(self, service, mock_learning_repository, sample_categories):
+        # Confidence 0.6 — payee has been used with multiple categories, trust LLM
+        mock_learning_repository.predict_category.return_value = ('cat-2', 0.6, 4)
+        expense = Expense(
+            amount=Decimal('1000'), payee='Mercadona', memo='x',
+            category_id='cat-1', confidence=0.85,
+        )
+
+        result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
+
+        assert result.category_id == 'cat-1'
+        assert result.confidence == 0.85
+        assert result.category_explanation is None
+
+    def test_single_category_payee_overrides_llm(self, service, mock_learning_repository, sample_categories):
+        # Confidence 1.0 — single-category payee, learning should override LLM
+        mock_learning_repository.predict_category.return_value = ('cat-2', 1.0, 7)
+        expense = Expense(
+            amount=Decimal('1000'), payee='Carrefour', memo='x',
+            category_id='cat-1', confidence=0.75,
+        )
+
+        result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
+
+        assert result.category_id == 'cat-2'
+        assert result.confidence == 1.0
+        assert "aprendido de tus ultimas 7 compras en Carrefour" in result.category_explanation
+
+    def test_threshold_boundary_below(self, service, mock_learning_repository, sample_categories):
+        # Confidence 0.94 — just below the 0.95 threshold, LLM category must be preserved
+        mock_learning_repository.predict_category.return_value = ('cat-2', 0.94, 6)
+        expense = Expense(
+            amount=Decimal('1000'), payee='MediaMarkt', memo='x',
+            category_id='cat-1', confidence=0.80,
+        )
+
+        result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
+
+        assert result.category_id == 'cat-1'
+        assert result.category_explanation is None
+
+    def test_threshold_boundary_at(self, service, mock_learning_repository, sample_categories):
+        # Confidence 0.95 — exactly at threshold, learning must override
+        mock_learning_repository.predict_category.return_value = ('cat-2', 0.95, 8)
+        expense = Expense(
+            amount=Decimal('1000'), payee='Zara', memo='x',
+            category_id='cat-1', confidence=0.80,
+        )
+
+        result = service._enhance_with_learning(expense, sample_categories, TELEGRAM_ID)
+
+        assert result.category_id == 'cat-2'
+        assert result.confidence == 0.95
+        assert "aprendido de tus ultimas 8 compras en Zara" in result.category_explanation
 
 
 class TestBuildCategoryExplanation:
