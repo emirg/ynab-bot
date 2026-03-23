@@ -306,6 +306,100 @@ class TestExpense:
         assert 'subtransactions' not in txn
 
 
+class TestSplitFixedAmount:
+    """Tests for Expense.split_fixed_amount field and its use in to_ynab_format()."""
+
+    SPLIT_CAT_ID = '660e8400-e29b-41d4-a716-446655440000'
+    REAL_CAT_ID = '550e8400-e29b-41d4-a716-446655440000'
+
+    def test_split_fixed_amount_default_is_none(self):
+        e = Expense(amount=Decimal('1000'), payee='T', memo='m')
+        assert e.split_fixed_amount is None
+
+    def test_user_paid_split_fixed_amount_user_share_and_split_share(self):
+        """User paid 60000 total; other person's fixed share is 36700.
+        Splitwise gets 36700, user gets (60000 - 36700) = 23300."""
+        e = Expense(
+            amount=Decimal('60000'), payee='Restaurante', memo='con Eli',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_fixed_amount=Decimal('36700'),
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        subs = result['transaction']['subtransactions']
+        assert len(subs) == 2
+        # user_share subtransaction: -(60000 - 36700) * 1000 = -23300000
+        assert subs[0]['amount'] == -23300000
+        assert subs[0]['category_id'] == self.REAL_CAT_ID
+        # split_share subtransaction: -36700 * 1000 = -36700000
+        assert subs[1]['amount'] == -36700000
+        assert subs[1]['category_id'] == self.SPLIT_CAT_ID
+        # Both subtransactions must sum to total amount in milliunits
+        assert subs[0]['amount'] + subs[1]['amount'] == -60000000
+
+    def test_other_paid_split_fixed_amount_user_debt(self):
+        """Other person paid 60000; other person's fixed share is 30000 (of 60000 total).
+        User's debt = total - 30000 = 30000. Splitwise inflow = 30000."""
+        e = Expense(
+            amount=Decimal('60000'), payee='Eli', memo='Eli pagó',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_fixed_amount=Decimal('30000'),
+            payer='other',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert txn['amount'] == 0
+        subs = txn['subtransactions']
+        assert len(subs) == 2
+        # others_share_milliunits = int(30000 * -1000) = -30000000
+        # user_debt_milliunits = int(60000 * -1000) - (-30000000) = -60000000 + 30000000 = -30000000
+        assert subs[0]['amount'] == -30000000
+        assert subs[0]['category_id'] == self.REAL_CAT_ID
+        # Splitwise inflow cancels user debt
+        assert subs[1]['amount'] == 30000000
+        assert subs[1]['category_id'] == self.SPLIT_CAT_ID
+        assert subs[0]['amount'] + subs[1]['amount'] == 0
+
+    def test_proportion_based_path_unchanged_when_split_fixed_amount_none(self):
+        """When split_fixed_amount is None, proportion-based logic is used (backward compat)."""
+        e = Expense(
+            amount=Decimal('60000'), payee='Test', memo='test',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_proportion=Decimal('0.5'),
+            split_fixed_amount=None,
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        subs = result['transaction']['subtransactions']
+        # 50/50 proportion: user_share = int(60000 * 0.5 * -1000) = -30000000
+        assert subs[0]['amount'] == -30000000
+        assert subs[1]['amount'] == -30000000
+
+    # Edge case: split_fixed_amount=0 is rejected by the service layer (parser and
+    # _apply_split_fields validate split_amount > 0), but we test domain behavior
+    # directly here to document the boundary condition at the model level.
+    def test_user_paid_split_fixed_amount_zero_nothing_to_splitwise(self):
+        """Edge case: split_fixed_amount=0 means user pays everything (nothing goes to Splitwise)."""
+        e = Expense(
+            amount=Decimal('60000'), payee='Test', memo='test',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_fixed_amount=Decimal('0'),
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        subs = result['transaction']['subtransactions']
+        assert len(subs) == 2
+        # split_share = int(0 * -1000) = 0 (nothing to Splitwise)
+        assert subs[1]['amount'] == 0
+        # user_share = -60000000 - 0 = -60000000
+        assert subs[0]['amount'] == -60000000
+
+
 class TestUUIDPattern:
 
     @pytest.mark.parametrize('uuid', [

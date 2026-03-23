@@ -474,6 +474,144 @@ class TestExpenseDateDisplay:
 
 
 # ---------------------------------------------------------------------------
+# split_fixed_amount display (Steps 4 — fixed-amount split formatting)
+# ---------------------------------------------------------------------------
+
+class TestExpenseFormatterFixedAmount:
+    """Tests for fixed-amount split display when split_fixed_amount is set."""
+
+    def test_format_success_user_paid_fixed_amount(self):
+        """User-paid split with fixed amount shows amounts without percentages."""
+        expense = Expense(
+            amount=Decimal('60000'), payee='Restaurante', memo='almuerzo con Juan',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA',
+            is_split=True, split_person='Juan',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Compartidos',
+            split_fixed_amount=Decimal('36700'),
+        )
+        result = ExpenseResult.success_result(expense, 'txn-fixed-1')
+        msg = ExpenseResponseFormatter.format_success(result)
+
+        assert 'Gasto compartido registrado' in msg
+        assert 'Juan' in msg
+        assert '$60,000' in msg
+        # Fixed amounts shown without percentage labels
+        assert 'Tu parte:' in msg
+        assert '$23,300' in msg
+        assert 'Juan:' in msg
+        assert '$36,700' in msg
+        # No percentage labels in fixed-amount mode
+        assert 'Tu parte (50%)' not in msg
+        assert 'Splitwise (50%)' not in msg
+        assert 'Splitwise (' not in msg
+
+    def test_format_success_other_paid_fixed_amount(self):
+        """Other-paid split with fixed amount shows user debt without percentage."""
+        expense = Expense(
+            amount=Decimal('60000'), payee='Supermercado', memo='Eli pagó',
+            category_name='Groceries', account_name='Nu Savings',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos con Eli',
+            payer='other',
+            split_fixed_amount=Decimal('25000'),
+        )
+        result = ExpenseResult.success_result(expense, 'txn-fixed-2')
+        msg = ExpenseResponseFormatter.format_success(result)
+
+        assert 'pagado por Eli' in msg
+        assert '$60,000' in msg
+        # user_share = 60000 - 25000 = 35000
+        assert 'Tu deuda:' in msg
+        assert '$35,000' in msg
+        # No percentage in fixed-amount mode
+        assert 'Tu deuda (50%)' not in msg
+        assert 'Tu deuda (' not in msg
+
+    def test_format_preview_user_paid_fixed_amount(self):
+        """Preview: user-paid split with fixed amount shows amounts without percentages."""
+        expense = Expense(
+            amount=Decimal('60000'), payee='Restaurante', memo='almuerzo con Juan',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA',
+            is_split=True, split_person='Juan',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Compartidos',
+            split_fixed_amount=Decimal('36700'),
+        )
+        result = ExpenseResult.success_result(expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+
+        assert 'Voy a registrar' in msg
+        assert '$60,000' in msg
+        assert 'Tu parte:' in msg
+        assert '$23,300' in msg
+        assert 'Juan:' in msg
+        assert '$36,700' in msg
+        assert 'Tu parte (50%)' not in msg
+        assert 'Splitwise (' not in msg
+
+    def test_format_preview_other_paid_fixed_amount(self):
+        """Preview: other-paid split with fixed amount shows user debt without percentage."""
+        expense = Expense(
+            amount=Decimal('60000'), payee='Supermercado', memo='Eli pagó',
+            category_name='Groceries', account_name='Nu Savings',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos con Eli',
+            payer='other',
+            split_fixed_amount=Decimal('25000'),
+        )
+        result = ExpenseResult.success_result(expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+
+        assert 'Voy a registrar' in msg
+        assert '$60,000' in msg
+        assert 'Tu deuda:' in msg
+        assert '$35,000' in msg
+        assert 'Tu deuda (50%)' not in msg
+        assert 'Tu deuda (' not in msg
+
+    def test_format_success_proportion_based_unchanged_when_no_fixed_amount(self):
+        """Proportion-based display is unchanged when split_fixed_amount is None."""
+        expense = Expense(
+            amount=Decimal('50000'), payee="McDonald's", memo='almuerzo mitad',
+            category_name='Restaurants', account_name='Nu Card',
+            confidence=0.85, category_explanation='sugerido por IA, confianza 85%',
+            is_split=True, split_person='Juan',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Compartidos',
+        )
+        result = ExpenseResult.success_result(expense, 'txn-pct')
+        msg = ExpenseResponseFormatter.format_success(result)
+
+        assert 'Tu parte (50%)' in msg
+        assert 'Splitwise (50%)' in msg
+        assert '$25,000' in msg
+
+    def test_format_preview_proportion_based_unchanged_when_no_fixed_amount(self):
+        """Proportion-based preview display is unchanged when split_fixed_amount is None."""
+        expense = Expense(
+            amount=Decimal('50000'), payee='Carulla', memo='Eli gastó por mí',
+            category_name='Groceries', account_name='Nu Savings',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos con Eli',
+            payer='other',
+        )
+        result = ExpenseResult.success_result(expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+
+        assert 'Tu deuda (50%)' in msg
+        assert 'Splitwise' not in msg
+
+
+# ---------------------------------------------------------------------------
 # ConfigResponseFormatter
 # ---------------------------------------------------------------------------
 

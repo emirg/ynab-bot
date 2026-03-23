@@ -352,6 +352,81 @@ class TestParseMessageSharedExpense:
         assert result['amount'] == 100000.0
 
 
+class TestSplitAmountValidation:
+    """Tests for split_amount field validation in shared_expense responses."""
+
+    def _shared_expense_base(self) -> dict:
+        return {
+            'intent': 'shared_expense',
+            'amount': 60000.0,
+            'category': 'Restaurants',
+            'payee': 'El Corral',
+            'account': None,
+            'memo': 'test',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+            'payer': 'user',
+        }
+
+    def test_valid_split_amount_is_preserved(self, parser, mock_openai_client):
+        """When LLM returns a valid positive split_amount, it passes through as float."""
+        payload = {**self._shared_expense_base(), 'split_amount': 36700}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('gasté 60000, 36700 son por Juan')
+        assert result is not None
+        assert result['split_amount'] == 36700.0
+
+    def test_split_amount_float_is_preserved(self, parser, mock_openai_client):
+        """Fractional split_amount values are accepted."""
+        payload = {**self._shared_expense_base(), 'split_amount': 36700.5}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['split_amount'] == 36700.5
+
+    def test_split_amount_null_is_accepted(self, parser, mock_openai_client):
+        """split_amount: null in LLM response is normalised to None."""
+        payload = {**self._shared_expense_base(), 'split_amount': None}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('almuerzo 60000 a medias con Juan')
+        assert result is not None
+        assert result['split_amount'] is None
+
+    def test_split_amount_missing_defaults_to_none(self, parser, mock_openai_client):
+        """When LLM omits split_amount entirely, the field is set to None."""
+        payload = self._shared_expense_base()
+        # no 'split_amount' key at all
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('almuerzo a medias')
+        assert result is not None
+        assert result['split_amount'] is None
+
+    def test_split_amount_negative_normalised_to_none(self, parser, mock_openai_client):
+        """split_amount: -100 is invalid and should be normalised to None."""
+        payload = {**self._shared_expense_base(), 'split_amount': -100}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['split_amount'] is None
+
+    def test_split_amount_zero_normalised_to_none(self, parser, mock_openai_client):
+        """split_amount: 0 is treated as invalid (not > 0) and normalised to None."""
+        payload = {**self._shared_expense_base(), 'split_amount': 0}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['split_amount'] is None
+
+    def test_split_amount_string_normalised_to_none(self, parser, mock_openai_client):
+        """split_amount: 'abc' is not a number and should be normalised to None."""
+        payload = {**self._shared_expense_base(), 'split_amount': 'abc'}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['split_amount'] is None
+
+
 class TestParseExpenseUnchanged:
     """Verify parse_expense() still works independently."""
 

@@ -252,12 +252,7 @@ class ExpenseService:
         if not expense:
             raise ExpenseParsingException(message, 0.0)
 
-        expense.is_split = True
-        expense.split_person = person
-        expense.split_proportion = proportion
-        expense.split_category_id = split_group.category_id
-        expense.split_category_name = split_group.category_name
-        expense.payer = payer
+        self._apply_split_fields(expense, parsed, split_group, proportion, payer)
 
         if payer == 'other':
             shared_account = self.split_config_repository.get_shared_account(telegram_user_id)
@@ -418,12 +413,7 @@ class ExpenseService:
         if not expense:
             raise ExpenseParsingException(message, 0.0)
 
-        expense.is_split = True
-        expense.split_person = person
-        expense.split_proportion = proportion
-        expense.split_category_id = split_group.category_id
-        expense.split_category_name = split_group.category_name
-        expense.payer = payer
+        self._apply_split_fields(expense, parsed, split_group, proportion, payer)
 
         if payer == 'other':
             # When the other person paid, use the shared tracking account
@@ -453,6 +443,33 @@ class ExpenseService:
 
         logger.info(f"Successfully processed shared expense: {expense.payee} ${expense.amount} with {person} (payer={payer})")
         return ExpenseResult.success_result(expense, transaction_id)
+
+    @staticmethod
+    def _apply_split_fields(expense: 'Expense', parsed: dict, split_group, proportion: Decimal, payer: str) -> None:
+        """Set all split-related fields on an expense from parsed LLM data and split group config.
+
+        Handles is_split, split_person, split_proportion, split_category_id, split_category_name,
+        payer, and split_fixed_amount (when split_amount is present in parsed data).
+        """
+        expense.is_split = True
+        expense.split_person = parsed.get('person', '').strip()
+        expense.split_proportion = proportion
+        expense.split_category_id = split_group.category_id
+        expense.split_category_name = split_group.category_name
+        expense.payer = payer
+
+        split_amount = parsed.get('split_amount')
+        if split_amount is not None:
+            try:
+                value = Decimal(str(split_amount))
+                if value > 0:
+                    expense.split_fixed_amount = value
+                    if parsed.get('proportion') is not None:
+                        logger.warning(
+                            "LLM returned both split_amount and proportion; using split_amount (fixed amount takes precedence)"
+                        )
+            except Exception:
+                pass
 
     @staticmethod
     def _parse_proportion(value) -> Decimal:

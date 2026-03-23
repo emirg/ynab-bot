@@ -31,6 +31,25 @@ class ExpenseResponseFormatter:
         return ""
 
     @staticmethod
+    def _compute_split_shares(expense) -> tuple:
+        """Compute (user_share, split_share, use_fixed) for a split expense.
+
+        Returns:
+            (user_share: int, split_share: int, use_fixed: bool)
+            use_fixed=True means amounts are exact; False means percentage-based.
+        """
+        # Amounts truncated to whole units for display (COP has no decimals in practice)
+        total = int(expense.amount)
+        if expense.split_fixed_amount is not None:
+            split_share = int(expense.split_fixed_amount)
+            user_share = total - split_share
+            return user_share, split_share, True
+        else:
+            user_share = int(expense.amount * expense.split_proportion)
+            split_share = total - user_share
+            return user_share, split_share, False
+
+    @staticmethod
     def format_success(result: ExpenseResult, user_tz: str = DEFAULT_TIMEZONE) -> str:
         """Format successful expense processing"""
         if not result.success or not result.expense:
@@ -41,31 +60,40 @@ class ExpenseResponseFormatter:
         date_line = ExpenseResponseFormatter._format_date_line(expense, user_tz)
 
         if expense.is_split and expense.payer == 'other':
-            user_pct = int(expense.split_proportion * 100)
-            user_share = int(expense.amount * expense.split_proportion)
+            user_share, _split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
+            if use_fixed:
+                debt_line = f"📊 *Tu deuda:* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
+            else:
+                user_pct = int(expense.split_proportion * 100)
+                debt_line = f"📊 *Tu deuda ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
             message = f"""
 ✅ *Gasto registrado (pagado por {expense.split_person})*
 
 💰 *Total del gasto:* ${expense.amount:,.0f}
 🤝 *Pagado por:* {expense.split_person}
-📊 *Tu deuda ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
+{debt_line}
 💳 *Cuenta compartida:* {expense.account_name or 'Cuenta por defecto'}
 🏪 *Lugar:* {expense.payee}{date_line}
 
 📝 *Memo:* {expense.memo}
             """
         elif expense.is_split:
-            user_pct = int(expense.split_proportion * 100)
-            split_pct = 100 - user_pct
-            user_share = int(expense.amount * expense.split_proportion)
-            split_share = int(expense.amount) - user_share
+            user_share, split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
+            if use_fixed:
+                user_line = f"📊 *Tu parte:* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
+                split_line = f"📊 *{expense.split_person}:* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}"
+            else:
+                user_pct = int(expense.split_proportion * 100)
+                split_pct = 100 - user_pct
+                user_line = f"📊 *Tu parte ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
+                split_line = f"📊 *Splitwise ({split_pct}%):* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}"
             message = f"""
 ✅ *Gasto compartido registrado*
 
 💰 *Total:* ${expense.amount:,.0f}
 🤝 *Compartido con:* {expense.split_person}
-📊 *Tu parte ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
-📊 *Splitwise ({split_pct}%):* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}
+{user_line}
+{split_line}
 🏪 *Lugar:* {expense.payee}{date_line}
 💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
 {confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
@@ -98,31 +126,40 @@ class ExpenseResponseFormatter:
         date_line = ExpenseResponseFormatter._format_date_line(expense, user_tz)
 
         if expense.is_split and expense.payer == 'other':
-            user_pct = int(expense.split_proportion * 100)
-            user_share = int(expense.amount * expense.split_proportion)
+            user_share, _split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
+            if use_fixed:
+                debt_line = f"📊 *Tu deuda:* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
+            else:
+                user_pct = int(expense.split_proportion * 100)
+                debt_line = f"📊 *Tu deuda ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
             message = f"""
 📋 *Voy a registrar:*
 
 💰 *Total del gasto:* ${expense.amount:,.0f}
 🤝 *Pagado por:* {expense.split_person}
-📊 *Tu deuda ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
+{debt_line}
 💳 *Cuenta compartida:* {expense.account_name or 'Cuenta por defecto'}
 🏪 *Lugar:* {expense.payee}{date_line}
 
 📝 *Memo:* {expense.memo}
             """
         elif expense.is_split:
-            user_pct = int(expense.split_proportion * 100)
-            split_pct = 100 - user_pct
-            user_share = int(expense.amount * expense.split_proportion)
-            split_share = int(expense.amount) - user_share
+            user_share, split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
+            if use_fixed:
+                user_line = f"📊 *Tu parte:* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
+                split_line = f"📊 *{expense.split_person}:* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}"
+            else:
+                user_pct = int(expense.split_proportion * 100)
+                split_pct = 100 - user_pct
+                user_line = f"📊 *Tu parte ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
+                split_line = f"📊 *Splitwise ({split_pct}%):* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}"
             message = f"""
 📋 *Voy a registrar:*
 
 💰 *Total:* ${expense.amount:,.0f}
 🤝 *Compartido con:* {expense.split_person}
-📊 *Tu parte ({user_pct}%):* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}
-📊 *Splitwise ({split_pct}%):* ${split_share:,.0f} → {expense.split_category_name or 'Gastos Compartidos'}
+{user_line}
+{split_line}
 🏪 *Lugar:* {expense.payee}{date_line}
 💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
 {confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
