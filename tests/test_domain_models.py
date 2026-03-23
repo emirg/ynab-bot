@@ -400,6 +400,47 @@ class TestSplitFixedAmount:
         assert subs[0]['amount'] == -60000000
 
 
+class TestZeroProportionFullDebt:
+    """Tests for split_proportion=0 (user paid 100% for someone else, like a loan)."""
+
+    SPLIT_CAT_ID = '660e8400-e29b-41d4-a716-446655440000'
+    REAL_CAT_ID = '550e8400-e29b-41d4-a716-446655440000'
+
+    def test_user_paid_zero_proportion_all_goes_to_splitwise(self):
+        """User paid 100k but proportion=0 means it's entirely for the other person.
+        user_share=0, split_share=full amount."""
+        e = Expense(
+            amount=Decimal('100000'), payee='Carulla', memo='por Eli',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_proportion=Decimal('0'),
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        subs = result['transaction']['subtransactions']
+        assert len(subs) == 2
+        assert subs[0]['amount'] == 0  # user keeps nothing
+        assert subs[1]['amount'] == -100000000  # all to splitwise
+        assert subs[0]['amount'] + subs[1]['amount'] == -100000000
+
+    def test_other_paid_zero_proportion_user_owes_nothing(self):
+        """Other person paid and proportion=0 means user owes nothing (other paid for themselves)."""
+        e = Expense(
+            amount=Decimal('50000'), payee='Restaurante', memo='Eli pagó',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_proportion=Decimal('0'),
+            payer='other',
+        )
+        result = e.to_ynab_format('budget-1', 'acc-1')
+        txn = result['transaction']
+        assert txn['amount'] == 0
+        subs = txn['subtransactions']
+        assert subs[0]['amount'] == 0  # user owes nothing
+        assert subs[1]['amount'] == 0  # no splitwise inflow
+
+
 class TestUUIDPattern:
 
     @pytest.mark.parametrize('uuid', [

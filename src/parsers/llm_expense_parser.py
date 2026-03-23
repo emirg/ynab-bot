@@ -275,7 +275,7 @@ Para GASTOS:
     "confidence": <0.0_a_1.0>
 }}
 
-Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó", "por mí", "me compró", "para mí"):
+Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó", "por mí", "me compró", "para mí", "por [persona]", "para [persona]", "le presté", "le compré"):
 {{
     "intent": "shared_expense",
     "amount": <número_decimal>,
@@ -305,6 +305,7 @@ REGLAS CRÍTICAS:
       - "mi parte es 1/3" → proportion: "1/3", split_amount: null
       - "2/3 son míos" → proportion: "2/3", split_amount: null
       - "por mí" / "me compró" / "para mí" + payer:other → proportion: "1", split_amount: null
+      - "por [persona]" / "para [persona]" / "le presté" / "le compré" + payer:user → proportion: "0", split_amount: null (100% es para la otra persona, el usuario no tiene parte)
       - Sin lenguaje de proporción → proportion: null (default 50/50)
 
    b) "split_amount": cuando el usuario especifica un MONTO FIJO para la OTRA PERSONA (ej: "36700 son por Juan", "la parte de Eli es 25000"). Devuelve ese monto en split_amount y pon proportion: null.
@@ -318,6 +319,9 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
 - "gasté 60000 en restaurante, 36700 son por Juan" → proportion: null, split_amount: 36700, payer: "user" (Juan debe 36700 fijo)
 - "almuerzo 50000 a medias con Eli" → proportion: "1/2", split_amount: null, payer: "user"
 - "Eli pagó 100k por mí" → proportion: "1", split_amount: null, payer: "other" (usuario debe el 100%)
+- "Gasté 100k en Carulla por Eli" → proportion: "0", split_amount: null, payer: "user" (100% es para Eli, préstamo)
+- "Le presté 50000 a Juan para farmacia" → proportion: "0", split_amount: null, payer: "user" (100% es para Juan)
+- "Pagué 80k en supermercado para María" → proportion: "0", split_amount: null, payer: "user" (100% es para María)
 """
 
     def _strip_markdown_code_blocks(self, content: str) -> str:
