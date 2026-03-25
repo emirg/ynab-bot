@@ -118,7 +118,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - **Framework**: pytest with fixtures in `tests/conftest.py`, coverage via pytest-cov
 - **Config**: `pytest.ini` scopes coverage to `src/domain`, `src/application`, `src/infrastructure`, and `src/presentation/telegram/formatters.py`
 - **Conventions**: Shared fixtures for domain models, mock repositories (`mock_ynab_factory`, `mock_oauth_service`, `mock_user_repository`, `mock_learning_repository`, `mock_split_config_repository`, `mock_llm_parser`, `mock_budget_query_service`), and temp files in `conftest.py`. Tests use `unittest.mock.MagicMock`. `conftest.py` adds `src/` to `sys.path`.
-- **Coverage**: ~1112 tests, ~92% coverage. Domain layer at 100%.
+- **Coverage**: Run `.venv/bin/pytest` for current counts. Domain layer target: 100%.
 
 ## Key Conventions
 
@@ -132,25 +132,7 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 - YNAB services use `YNABRepositoryFactory` (not a singleton repo) — always resolve per-user via `factory.get_repository(user_config)`
 - SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v9)
 
-## Development Workflow — Agent Pipeline
- 
-Feature development follows a structured multi-agent pipeline orchestrated by `ynab-lead-architect` (Opus). Each agent has a specific role, isolated context, and constrained tool access.
- 
-```
-Roadmap → Plan (architect + dba-advisor)
-       → Implement (plan-step-implementer, parallel per group)
-       → Test (test-writer if coverage dropped)
-       → Review (code-reviewer + architect)
-       → Merge (architect archives plan, updates roadmap)
-```
- 
-Agent definitions are in `.claude/agents/` (project-level, tracked in Git). Key design decisions:
- 
-- **Orchestrator uses Opus**, workers use Sonnet — balances quality with cost.
-- **Read-only agents** (`dba-advisor`, `code-reviewer`, `refactor-advisor`) cannot modify code, only advise.
-- **Failures route to `debugger`** before halting the pipeline — reduces human intervention.
-- **Each agent has its own context window** — verbose exploration in a agent doesn't pollute the main conversation.
-- **Plan-driven implementation** — `plan-step-implementer` executes exactly one step at a time from plans in `docs/plans/`, ensuring atomic, verifiable progress.
- 
-For the full agent reference (roles, tools, delegation protocols), see the individual `.md` files in `.claude/agents/`.
- 
+## Development Workflow
+
+Feature development follows a multi-agent pipeline. See `docs/ORCHESTRATION.md` for the full protocol and `CLAUDE.md` for agent routing. Agent definitions live in `.claude/agents/`.
+

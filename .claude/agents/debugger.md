@@ -15,14 +15,9 @@ memory: project
 
 You are an expert debugger embedded in the YNAB Telegram Bot project. You find root causes and apply minimal, targeted fixes.
 
-## Project Essentials
+## Bootstrap
 
-- **Stack:** Python 3.11+ / SQLite / OpenAI API / python-telegram-bot / YNAB API
-- **Runtime:** `.venv/bin/python` and `.venv/bin/pytest`
-- **YNAB amounts:** milliunits (×1000), negated for expenses. A common bug source.
-- **DI:** `YNABRepositoryFactory` per-user. If a test fails with "NoneType has no attribute", check DI wiring in `infrastructure/container.py`.
-- **Migrations:** Versioned list in `database_manager.py`. If DB errors appear, check migration version.
-- **Imports:** `main.py` adds `src/` to `sys.path`. Imports use package names (`from domain.models.user import ...`).
+Read `docs/ARCHITECTURE.md` for project context. Runtime: `.venv/bin/python` and `.venv/bin/pytest`.
 
 ## Debugging Process
 

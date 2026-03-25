@@ -15,7 +15,7 @@ Non-negotiable rules. Flag violations immediately during review.
 | Per-user isolation | All SQLite queries and YNAB calls scoped to authenticated user. |
 | UI language | All user-facing strings in Spanish. |
 | Database layer | `DatabaseManager` with versioned, reversible migrations. |
-| Test coverage | ~86%+. Every new module needs corresponding tests. |
+| Test coverage | Every new module needs corresponding tests. No regressions allowed. |
 
 ---
 

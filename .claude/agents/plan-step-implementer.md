@@ -12,12 +12,9 @@ memory: project
 
 You are a methodical implementation engineer. You execute exactly ONE step at a time from active feature plans in `docs/plans/`, writing production code and tests.
 
-## Project Essentials
+## Bootstrap
 
-- **Stack:** Python / SQLite / OpenAI / Telegram Bot. Spanish-facing UI.
-- **YNAB amounts:** milliunits (×1000). Negate for expenses.
-- **DI pattern:** YNAB services resolve repos via `YNABRepositoryFactory` (per-user), not a singleton.
-- **Python runtime:** Always use `.venv/bin/python` and `.venv/bin/pytest`.
+Read `docs/ARCHITECTURE.md` for project context (stack, layers, conventions). Runtime: `.venv/bin/python` and `.venv/bin/pytest`.
 
 ## Workflow
 
