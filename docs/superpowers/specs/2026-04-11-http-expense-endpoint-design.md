@@ -8,16 +8,17 @@ El objetivo es exponer la misma lógica de negocio que hoy usa Telegram sin reim
 
 ## Enfoque arquitectónico
 
-Se usará una capa HTTP nueva y separada del servidor actual de health/OAuth. El arranque seguirá centralizado en `main.py`, pero el nuevo tráfico HTTP no se mezclará con `src/infrastructure/health.py`.
+Se usará una capa HTTP nueva y separada a nivel de router/handler, pero servida en producción por el mismo servidor público de `src/infrastructure/health.py` para compatibilidad con Railway y su puerto único expuesto.
 
 Arquitectura elegida:
 
 - `main.py` seguirá iniciando el proceso principal y construyendo el `DIContainer`.
-- Un nuevo servidor HTTP dedicado expondrá rutas API bajo `/api/v1/`.
+- `src/presentation/http/server.py` contendrá el router puro de rutas API bajo `/api/v1/` y podrá ofrecer un transporte HTTP opcional para pruebas o reutilización futura.
+- `src/infrastructure/health.py` seguirá siendo el servidor público en `$PORT` y delegará `/api/v1/*` al router HTTP.
 - Un handler/controlador HTTP resolverá `ExpenseService` y `UserConfigService` desde el contenedor.
 - Toda lógica de negocio continuará en `ExpenseService`, respetando DI, aislamiento por usuario y `YNABRepositoryFactory`.
 
-Esto evita que `health.py` crezca con responsabilidades de API y deja una base limpia para futuros endpoints.
+Esto mantiene una base limpia para futuros endpoints sin romper el modelo de despliegue de Railway.
 
 ## Endpoint
 
@@ -164,12 +165,13 @@ Se deben mapear excepciones de dominio a `error_code` estables. No se deben devo
 ## Componentes propuestos
 
 - `src/presentation/http/` — nueva capa HTTP
-- `src/presentation/http/server.py` — arranque del servidor API
+- `src/presentation/http/server.py` — router puro de la API y transporte opcional
 - `src/presentation/http/handlers/expense_api_handler.py` — endpoint `POST /api/v1/expenses/text`
 - `src/presentation/http/auth.py` o equivalente — validación del bearer token
 - `src/presentation/http/serializers.py` o equivalente — serialización de respuestas JSON
 - `src/infrastructure/config/app_config.py` — nuevo env var para `HTTP_API_KEY`
-- `main.py` — wiring y arranque del nuevo servidor
+- `src/infrastructure/health.py` — delegación pública de `/api/v1/*`
+- `main.py` — wiring del router HTTP junto con el servidor público existente
 
 No se requieren migraciones de base de datos.
 

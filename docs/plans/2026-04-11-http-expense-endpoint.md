@@ -4,7 +4,7 @@
 
 **Goal:** Exponer un endpoint HTTP autenticado para registrar gastos por texto reutilizando el pipeline actual de `ExpenseService`, incluyendo preview opcional según la configuración de confirmación del usuario.
 
-**Architecture:** Se agregará una capa `presentation/http` separada del servidor de health/OAuth actual. El endpoint `POST /api/v1/expenses/text` validará API key, parseará JSON y delegará a `ExpenseService` y `UserConfigService` sin duplicar lógica de negocio. La implementación debe soportar `expense` y `shared_expense`, rechazar `query` y devolver respuestas JSON estables para `preview`, `committed` y `error`.
+**Architecture:** Se agregará una capa `presentation/http` separada a nivel de router/handler. El endpoint `POST /api/v1/expenses/text` validará API key, parseará JSON y delegará a `ExpenseService` y `UserConfigService` sin duplicar lógica de negocio. En producción, el servidor público existente de `health.py` servirá también `/api/v1/*` sobre el mismo `$PORT` para compatibilidad con Railway. La implementación debe soportar `expense` y `shared_expense`, rechazar `query` y devolver respuestas JSON estables para `preview`, `committed` y `error`.
 
 **Tech Stack:** Python stdlib HTTP server, DIContainer existente, `ExpenseService`, pytest, `unittest.mock`
 
@@ -166,7 +166,7 @@ git add src/presentation/http/handlers/__init__.py src/presentation/http/handler
 git commit -m "feat: add expense api handler"
 ```
 
-### Task 5: Implementar el servidor HTTP dedicado
+### Task 5: Implementar router HTTP y transporte opcional
 
 **Files:**
 - Create: `src/presentation/http/server.py`
@@ -174,7 +174,7 @@ git commit -m "feat: add expense api handler"
 
 **Step 1: Write the failing test**
 
-Agregar tests para el router/servidor que verifiquen:
+Agregar tests para el router/transporte que verifiquen:
 - `POST /api/v1/expenses/text` enruta al handler correcto
 - rutas desconocidas devuelven `404`
 - métodos no soportados devuelven `405` o `404` según la implementación elegida
@@ -186,7 +186,7 @@ Expected: FAIL porque el servidor no existe
 
 **Step 3: Write minimal implementation**
 
-Crear el servidor HTTP usando stdlib y registrarlo separado de `infrastructure/health.py`. Debe aceptar el contenedor por cierre o dependencia explícita.
+Crear el router HTTP usando stdlib/puras funciones y dejar listo un transporte opcional. La exposición pública final en Railway debe ocurrir desde `infrastructure/health.py` sobre el mismo `$PORT`.
 
 **Step 4: Run test to verify it passes**
 
@@ -200,7 +200,7 @@ git add src/presentation/http/server.py tests/test_http_server.py
 git commit -m "feat: add dedicated http api server"
 ```
 
-### Task 6: Integrar arranque en `main.py`
+### Task 6: Integrar wiring en `main.py` y servidor público
 
 **Files:**
 - Modify: `main.py`
@@ -212,16 +212,16 @@ git commit -m "feat: add dedicated http api server"
 Agregar tests que verifiquen que `main()`:
 - crea el contenedor
 - inicia el health server existente
-- inicia el nuevo servidor API HTTP con la misma configuración base
+- configura el router API HTTP para que quede disponible en el mismo servidor público
 
 **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/test_main.py -v`
-Expected: FAIL porque `main.py` todavía no inicia el nuevo servidor
+Expected: FAIL porque `main.py` todavía no configura el router HTTP para el servidor público
 
 **Step 3: Write minimal implementation**
 
-Actualizar `main.py` para arrancar el nuevo servidor HTTP sin romper health/OAuth. Documentar la arquitectura actualizada en `docs/ARCHITECTURE.md`.
+Actualizar `main.py` para configurar la API HTTP sin romper health/OAuth y mantener despliegue compatible con Railway. Documentar la arquitectura actualizada en `docs/ARCHITECTURE.md`.
 
 **Step 4: Run test to verify it passes**
 
@@ -232,7 +232,7 @@ Expected: PASS
 
 ```bash
 git add main.py docs/ARCHITECTURE.md tests/test_main.py
-git commit -m "feat: wire http expense api into main"
+git commit -m "feat: wire http expense api into public server"
 ```
 
 ### Task 7: Cubrir flujos de negocio end-to-end del endpoint

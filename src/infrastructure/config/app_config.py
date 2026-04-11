@@ -19,6 +19,7 @@ class AppConfig:
     ynab_client_secret: str
     ynab_redirect_uri: str
     token_encryption_key: str
+    http_api_key: str
     default_budget_id: Optional[str] = None
     database_path: str = 'data/users.db'
     log_level: str = 'INFO'
@@ -40,6 +41,7 @@ class AppConfig:
             ynab_client_secret=cls._require_env('YNAB_CLIENT_SECRET'),
             ynab_redirect_uri=cls._require_env('YNAB_REDIRECT_URI'),
             token_encryption_key=cls._require_env('TOKEN_ENCRYPTION_KEY'),
+            http_api_key=cls._require_env('HTTP_API_KEY'),
             default_budget_id=os.getenv('YNAB_BUDGET_ID'),
             database_path=os.getenv('DATABASE_PATH', 'data/users.db'),
             log_level=os.getenv('LOG_LEVEL', 'INFO')

@@ -20,6 +20,7 @@ def config():
         ynab_client_secret='test-secret',
         ynab_redirect_uri='https://example.com/oauth/callback',
         token_encryption_key='k',
+        http_api_key='http-key',
     )
 
 

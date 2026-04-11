@@ -24,6 +24,7 @@ def container(tmp_path):
         ynab_redirect_uri="http://localhost/cb",
         # A valid 32-byte url-safe base64 Fernet key (required by TokenEncryptor)
         token_encryption_key="aTULl7SBg8iYq9Kof_vgaC8GdG25-ryXic46AotyOQs=",
+        http_api_key="http-key",
         database_path=db_path,
     )
     return DIContainer(config)
