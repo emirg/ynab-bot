@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 from infrastructure.container import create_container
 from infrastructure.health import start_health_server, set_oauth_service, set_on_oauth_success
 from infrastructure.telegram_notifier import TelegramNotifier
+from presentation.http.server import configure_http_api
 from presentation.telegram.bot import YNABTelegramBot
 from presentation.telegram.keyboards import budget_keyboard_to_dict
 from presentation.telegram.formatters import GeneralResponseFormatter
@@ -40,6 +41,9 @@ def main():
         # Crear contenedor de dependencias
         container = create_container('config/.env')
         config = container.get_config()
+
+        # Configurar API HTTP en el mismo servidor público para Railway
+        configure_http_api(container)
 
         # Conectar OAuth service al health server
         set_oauth_service(container.get_oauth_service())

@@ -48,13 +48,19 @@ ynab-bot/
 │   ├── infrastructure/
 │   │   ├── config/app_config.py     # Loads config/.env
 │   │   ├── container.py             # Dependency injection (DIContainer)
-│   │   ├── health.py                # Health check + OAuth callback HTTP server
+│   │   ├── health.py                # Public HTTP server: health + OAuth callback + /api/v1/*
 │   │   ├── scheduler.py             # Weekly summary job scheduler
 │   │   ├── http_client.py           # Resilient HTTP client with retries
 │   │   ├── logging_config.py        # Structured logging setup
 │   │   ├── token_encryption.py      # Fernet encryption for tokens at rest
 │   │   ├── telegram_notifier.py     # Sync Telegram API wrapper (post-OAuth notifications)
 │   │   └── repositories/           # SQLite, YNAB API, YNABRepositoryFactory
+│   ├── presentation/http/
+│   │   ├── server.py                # Pure router + optional standalone HTTP transport
+│   │   ├── auth.py                  # Bearer auth validation
+│   │   ├── serializers.py           # JSON response serialization
+│   │   └── handlers/
+│   │       └── expense_api_handler.py # POST /api/v1/expenses/text
 │   ├── presentation/telegram/
 │   │   ├── bot.py                   # Handler registration
 │   │   ├── formatters.py           # Message formatting (expenses, queries, shared)
@@ -104,6 +110,7 @@ Edit `config/.env` with your tokens:
 | `YNAB_CLIENT_SECRET` | YNAB OAuth app client secret | Yes |
 | `YNAB_REDIRECT_URI` | OAuth callback URL (e.g. `https://your-domain.up.railway.app/oauth/callback`) | Yes |
 | `TOKEN_ENCRYPTION_KEY` | Fernet key for encrypting tokens at rest (see below) | Yes |
+| `HTTP_API_KEY` | Bearer token required for authenticated HTTP API endpoints | Yes |
 | `DATABASE_PATH` | Path to SQLite database (users + learning data) | No (default: `data/users.db`) |
 
 **Generate a Fernet encryption key:**
@@ -114,6 +121,46 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ### 4. Run
 ```bash
 python main.py     # Starts the bot
+```
+
+## HTTP API
+
+The service exposes an authenticated HTTP endpoint on the same public port/domain used by Railway health checks and the YNAB OAuth callback.
+
+### `POST /api/v1/expenses/text`
+
+Headers:
+
+```http
+Authorization: Bearer <HTTP_API_KEY>
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "telegram_user_id": 7321506689,
+  "text": "Gaste 25k en Carulla",
+  "force_commit": false
+}
+```
+
+Behavior:
+- If the user has `confirm_before_create=true` and `force_commit` is absent or `false`, the endpoint returns `status=preview` and does not create the transaction.
+- Otherwise it commits immediately and returns `status=committed`.
+- `query` intents are rejected with `422`.
+
+Example:
+
+```bash
+curl -X POST "https://<your-railway-domain>/api/v1/expenses/text" \
+  -H "Authorization: Bearer <HTTP_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "telegram_user_id": 7321506689,
+    "text": "Gaste 25k en Carulla"
+  }'
 ```
 
 ## 📱 Usage
@@ -286,7 +333,9 @@ pytest -k "test_predict_category"
 Layered architecture with dependency injection:
 
 ```
-main.py → DIContainer (infrastructure/container.py) → YNABTelegramBot (presentation/telegram/bot.py)
+main.py → DIContainer (infrastructure/container.py)
+        → public HTTP server on $PORT (health + OAuth + HTTP API)
+        → YNABTelegramBot (presentation/telegram/bot.py)
 ```
 
 **Message processing flow:**
@@ -315,7 +364,10 @@ The bot is configured for deployment on **Railway** with:
 
 - **Test-gating**: Tests run before every deploy; failures cancel the deployment (`railway.toml`)
 - **Health check**: Built-in HTTP server at `/` for Railway health probes
-- **OAuth callback**: Same HTTP server handles `/oauth/callback` for the YNAB OAuth flow
+- **OAuth callback**: Same public HTTP server handles `/oauth/callback` for the YNAB OAuth flow
+- **Authenticated API**: Same public HTTP server also exposes `POST /api/v1/expenses/text`
+
+To use the HTTP endpoint after deploy, set `HTTP_API_KEY` in Railway and call the same service domain at `/api/v1/expenses/text`.
 
 ### YNAB OAuth App Setup
 
@@ -323,3 +375,7 @@ The bot is configured for deployment on **Railway** with:
 2. Create a new OAuth Application
 3. Set the Redirect URI to `https://<your-railway-domain>/oauth/callback`
 4. Copy the Client ID and Client Secret to your environment variables
+
+## 🛠️ Development Workflow
+
+Feature development follows an AI-agnostic multi-agent pipeline. See [docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) for the universal protocol, and [CLAUDE.md](CLAUDE.md) or [GEMINI.md](GEMINI.md) for AI-specific routing and role mapping.

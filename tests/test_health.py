@@ -1,23 +1,38 @@
-import urllib.request
+import json
 from unittest.mock import MagicMock
 
 from infrastructure.health import (
-    start_health_server, set_healthy, set_oauth_service, set_on_oauth_success
+    route_health_request, set_healthy, set_oauth_service, set_on_oauth_success
 )
 from domain.models.user import UserConfiguration, UserStatus
+from presentation.http.server import set_expense_endpoint_handler
 
-_PORT = 18080
-start_health_server(_PORT)
+def _get(path="/", headers=None):
+    status, response_type, payload, _extra_headers = route_health_request(
+        method="GET",
+        path=path,
+        headers=headers or {},
+        body=b"",
+    )
+    if response_type == "html":
+        return status, payload.encode()
+    if response_type == "json":
+        return status, json.dumps(payload).encode()
+    return status, payload
 
 
-def _get(path="/"):
-    req = urllib.request.Request(f"http://127.0.0.1:{_PORT}{path}")
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return resp.status, resp.read()
-    except urllib.error.HTTPError as e:
-        with e:
-            return e.code, e.read()
+def _post(path="/", payload=None, headers=None):
+    status, response_type, response_payload, _extra_headers = route_health_request(
+        method="POST",
+        path=path,
+        headers=headers or {"Content-Type": "application/json"},
+        body=json.dumps(payload or {}).encode(),
+    )
+    if response_type == "html":
+        return status, response_payload.encode()
+    if response_type == "json":
+        return status, json.dumps(response_payload).encode()
+    return status, response_payload
 
 
 class TestHealthServer:
@@ -33,6 +48,27 @@ class TestHealthServer:
         assert status == 503
         assert body == b"unhealthy"
         set_healthy(True)
+
+    def test_api_route_delegates_on_same_public_server(self):
+        mock_handler = MagicMock()
+        mock_handler.handle_post.return_value = (
+            200,
+            {"status": "preview", "message": "ok"},
+        )
+        set_expense_endpoint_handler(mock_handler)
+
+        status, body = _post(
+            "/api/v1/expenses/text",
+            payload={"telegram_user_id": 123, "text": "Gaste 25k en Carulla"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer test",
+            },
+        )
+
+        assert status == 200
+        assert json.loads(body.decode())["status"] == "preview"
+        mock_handler.handle_post.assert_called_once()
 
 
 class TestOAuthCallback:

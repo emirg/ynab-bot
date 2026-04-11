@@ -5,7 +5,9 @@ YNAB Telegram Bot — a multi-user Telegram bot that logs expenses to YNAB (You 
 Layered architecture with dependency injection:
 
 ```
-main.py → health server (port $PORT) → DIContainer (infrastructure/container.py) → YNABTelegramBot (presentation/telegram/bot.py)
+main.py → DIContainer (infrastructure/container.py)
+        → health server (port $PORT)
+        → YNABTelegramBot (presentation/telegram/bot.py)
 ```
 
 ## Layers
@@ -13,6 +15,7 @@ main.py → health server (port $PORT) → DIContainer (infrastructure/container
 - **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`, `BudgetQueryResult`, `MessageResult`, `OnboardingStep`, `SplitGroup`, `SharedAccountConfig`, `WeeklySummary`, `OnDemandSummary`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, `time_utils` (timezone-aware date helpers), and custom exceptions. No external dependencies.
 - **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full prepare→commit pipeline (parse→enhance, then create→learn) and routes between expenses and budget queries via `process_message()`. Supports confirmation mode: when enabled, `prepare_expense()` returns a preview without committing, and `commit_expense()` finalizes after user confirmation. `BudgetQueryService` handles category balance, account balance, and budget summary queries. `UserConfigService` manages per-user YNAB budget/account configuration, timezone, and confirmation mode. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository and provides dashboard/forget/stats methods. `OnboardingService` derives the user's onboarding state from existing fields (no DB column). `SplitConfigService` manages split group configuration, person aliases, and shared account settings — validates against YNAB API before persisting. `WeeklySummaryService` fetches YNAB transactions for the past week and computes per-category spending totals. `OnDemandSummaryService` provides day/week/month spending summaries with category breakdowns.
 - **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v9), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (HTTP health check + OAuth callback endpoint, fires `on_oauth_success` callback after token exchange), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts), `scheduler.py` (weekly summary tick job, runs every 15 minutes, checks per-user timezone to fire on Monday 8am local time), `http_client.py` (resilient HTTP client with automatic retries for transient errors), `logging_config.py` (structured logging setup). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together.
+- **`src/presentation/http/`** — Dedicated HTTP API layer. `server.py` hosts the pure router for `/api/v1/*` and the optional standalone stdlib transport. In production on Railway, the public server in `health.py` delegates `/api/v1/*` to this router so health, OAuth callback, and API share the same public port. `handlers/expense_api_handler.py` validates auth and requests, reuses `ExpenseService` for preview/commit, and serializes JSON responses for future integrations.
 - **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers and the weekly summary scheduler job. Handlers: `GeneralHandler` (includes guided onboarding via `OnboardingService`), `ConfigHandler` (includes `/connect`, `/disconnect`, `/zona` for timezone), `ExpenseHandler` (handles text/voice/photo expenses, `/confirmacion on|off`, and confirmation callbacks), `LearningHandler` (includes `/aprendizaje`, `/olvidar`, `/deshacer`, `/editar`), `SplitConfigHandler` (`/splitwise` — split group CRUD, alias management, shared account config via inline keyboards with pagination), `SummaryHandler` (`/resumen` — on-demand spending summary), `AdminHandler`. `keyboards.py` provides shared inline keyboard builders (confirmation keyboard, budget/account selection, split config panels with pagination). Auth via `@require_authentication` and `@require_admin` decorators.
 
 ## Supporting Modules
@@ -93,6 +96,7 @@ Environment variables loaded from `config/.env` (see `config/.env.example`):
 - `TELEGRAM_BOT_TOKEN`, `OPENAI_API_KEY`, `ADMIN_IDS` (required)
 - `YNAB_CLIENT_ID`, `YNAB_CLIENT_SECRET`, `YNAB_REDIRECT_URI` (OAuth, required)
 - `TOKEN_ENCRYPTION_KEY` (Fernet key for encrypting OAuth tokens, required)
+- `HTTP_API_KEY` (required bearer token for internal HTTP API authentication)
 - `DATABASE_PATH` (default: `data/users.db`) — single SQLite database for users and learning data
 
 ## Deployment
@@ -111,7 +115,7 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 ```
 
-Health check server runs on `$PORT` (default 8080), serves `/` for Railway health checks and `/oauth/callback` for YNAB OAuth.
+Public HTTP server runs on `$PORT` (default 8080), serves `/` for Railway health checks, `/oauth/callback` for YNAB OAuth, and `POST /api/v1/expenses/text` for the authenticated expense API.
 
 ## Testing
 
@@ -134,5 +138,4 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 
 ## Development Workflow
 
-Feature development follows a multi-agent pipeline. See `docs/ORCHESTRATION.md` for the full protocol and `CLAUDE.md` for agent routing. Agent definitions live in `.claude/agents/`.
-
+Feature development follows an AI-agnostic multi-agent pipeline. See `docs/AI_WORKFLOW.md` for the universal protocol, and `CLAUDE.md` or `GEMINI.md` for AI-specific routing.
