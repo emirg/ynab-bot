@@ -38,13 +38,13 @@ class ExpenseAPIHandler:
 
             user = self.user_config_service.user_repository.find_by_telegram_id(telegram_user_id)
             if not user:
-                return self._error(404, "USER_NOT_FOUND", "No existe un usuario registrado con ese telegram_user_id.")
+                return self._error(404, "USER_NOT_FOUND", "No registered user exists for that telegram_user_id.")
 
             if not user.has_ynab_token() or not user.is_configured():
                 return self._error(
                     409,
                     "USER_NOT_CONFIGURED",
-                    "Tu cuenta aún no tiene presupuesto o cuenta por defecto configurados.",
+                    "The user does not have a configured budget or default account yet.",
                 )
 
             prepared, intent = self._prepare_expense(telegram_user_id, text)
@@ -72,33 +72,38 @@ class ExpenseAPIHandler:
             return self._error(
                 502,
                 "UPSTREAM_SERVICE_ERROR",
-                "Hubo un problema conectando con YNAB. Intenta de nuevo en unos segundos.",
+                "There was a problem connecting to YNAB. Try again in a few seconds.",
             )
         except ExpenseParsingException as exc:
-            return self._error(422, "EXPENSE_NOT_PROCESSABLE", exc.user_message)
+            logger.info("Expense could not be processed for HTTP request: %s", exc)
+            return self._error(
+                422,
+                "EXPENSE_NOT_PROCESSABLE",
+                "The expense message could not be processed.",
+            )
         except Exception:
             logger.exception("Unexpected error handling POST /api/v1/expenses/text")
-            return self._error(500, "INTERNAL_ERROR", "Ocurrió un error interno procesando la solicitud.")
+            return self._error(500, "INTERNAL_ERROR", "An internal error occurred while processing the request.")
 
     def _parse_request(self, body: bytes) -> dict:
         try:
             payload = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise HTTPRequestError(400, "INVALID_JSON", "El body no contiene JSON válido.") from exc
+            raise HTTPRequestError(400, "INVALID_JSON", "Request body does not contain valid JSON.") from exc
 
         if not isinstance(payload, dict):
-            raise HTTPRequestError(400, "INVALID_REQUEST", "El body debe ser un objeto JSON.")
+            raise HTTPRequestError(400, "INVALID_REQUEST", "Request body must be a JSON object.")
 
         telegram_user_id = payload.get("telegram_user_id")
         text = payload.get("text")
         force_commit = payload.get("force_commit", False)
 
         if not isinstance(telegram_user_id, int) or isinstance(telegram_user_id, bool):
-            raise HTTPRequestError(400, "INVALID_REQUEST", "telegram_user_id debe ser un entero.")
+            raise HTTPRequestError(400, "INVALID_REQUEST", "telegram_user_id must be an integer.")
         if not isinstance(text, str) or not text.strip():
-            raise HTTPRequestError(400, "INVALID_REQUEST", "text debe ser un string no vacío.")
+            raise HTTPRequestError(400, "INVALID_REQUEST", "text must be a non-empty string.")
         if not isinstance(force_commit, bool):
-            raise HTTPRequestError(400, "INVALID_REQUEST", "force_commit debe ser booleano.")
+            raise HTTPRequestError(400, "INVALID_REQUEST", "force_commit must be a boolean.")
 
         return {
             "telegram_user_id": telegram_user_id,
@@ -120,12 +125,15 @@ class ExpenseAPIHandler:
                 raise HTTPRequestError(
                     422,
                     "QUERY_NOT_SUPPORTED",
-                    "Este endpoint solo soporta registro de gastos, no consultas.",
+                    "This endpoint only supports expense logging, not queries.",
                 )
 
-            error_message = "No pude entender tu mensaje. Intenta con un formato como: almuerzo 25000"
+            error_message = "The expense message could not be processed."
             if result.expense_result and result.expense_result.error_message:
-                error_message = result.expense_result.error_message
+                logger.info(
+                    "Expense service returned a user-facing parsing error for HTTP request: %s",
+                    result.expense_result.error_message,
+                )
             raise HTTPRequestError(422, "EXPENSE_NOT_PROCESSABLE", error_message)
 
     def _commit_prepared_expense(self, telegram_user_id: int, prepared: dict, intent: str):
@@ -141,11 +149,11 @@ class ExpenseAPIHandler:
 
     @staticmethod
     def _build_preview_message(expense) -> str:
-        return f"Voy a registrar: {expense.payee} ${expense.amount:,.0f}."
+        return f"I am about to log: {expense.payee} ${expense.amount:,.0f}."
 
     @staticmethod
     def _build_committed_message(expense) -> str:
-        return f"Registrado: {expense.payee} ${expense.amount:,.0f}."
+        return f"Logged: {expense.payee} ${expense.amount:,.0f}."
 
     @staticmethod
     def _error(status_code: int, error_code: str, message: str) -> tuple[int, dict]:

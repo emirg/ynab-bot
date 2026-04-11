@@ -31,13 +31,13 @@ class TestSerializePreviewResponse:
         payload = serialize_preview_response(
             intent="expense",
             result=result,
-            message="Voy a registrar: Carulla $25.000 en Mercado.",
+            message="I am about to log: Carulla $25.000 in Mercado.",
         )
 
         assert payload == {
             "status": "preview",
             "intent": "expense",
-            "message": "Voy a registrar: Carulla $25.000 en Mercado.",
+            "message": "I am about to log: Carulla $25.000 in Mercado.",
             "requires_confirmation": True,
             "transaction_id": None,
             "expense": {
@@ -69,12 +69,12 @@ class TestSerializeCommittedResponse:
         payload = serialize_committed_response(
             intent="shared_expense",
             result=result,
-            message="Registrado: Carulla $25.000.",
+            message="Logged: Carulla $25.000.",
         )
 
         assert payload["status"] == "committed"
         assert payload["intent"] == "shared_expense"
-        assert payload["message"] == "Registrado: Carulla $25.000."
+        assert payload["message"] == "Logged: Carulla $25.000."
         assert payload["requires_confirmation"] is False
         assert payload["transaction_id"] == "ynab-tx-123"
         assert payload["expense"]["amount"] == "25000"
@@ -89,11 +89,11 @@ class TestSerializeErrorResponse:
     def test_serializes_error_payload(self):
         payload = serialize_error_response(
             error_code="USER_NOT_CONFIGURED",
-            message="Tu cuenta aún no tiene presupuesto o cuenta por defecto configurados.",
+            message="The user does not have a configured budget or default account yet.",
         )
 
         assert payload == {
             "status": "error",
             "error_code": "USER_NOT_CONFIGURED",
-            "message": "Tu cuenta aún no tiene presupuesto o cuenta por defecto configurados.",
+            "message": "The user does not have a configured budget or default account yet.",
         }

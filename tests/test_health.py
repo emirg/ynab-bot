@@ -75,7 +75,7 @@ class TestOAuthCallback:
     def test_missing_params_returns_400(self):
         status, body = _get("/oauth/callback")
         assert status == 400
-        assert b"faltantes" in body.lower() or "Parámetros".encode() in body
+        assert b"missing required request parameters" in body.lower()
 
     def test_no_oauth_service_returns_503(self):
         set_oauth_service(None)
@@ -95,7 +95,7 @@ class TestOAuthCallback:
         
         status, body = _get("/oauth/callback?code=abc&state=123.sig")
         assert status == 200
-        assert b"conectada" in body.lower()
+        assert b"account connected" in body.lower()
         mock_service.exchange_code_for_tokens.assert_called_once_with("abc", "123.sig")
         
         # Verify callback was called with correct telegram_id

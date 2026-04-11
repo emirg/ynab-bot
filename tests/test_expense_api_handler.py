@@ -66,6 +66,7 @@ class TestExpenseAPIHandlerValidation:
 
         assert status_code == 400
         assert payload["error_code"] == "INVALID_JSON"
+        assert payload["message"] == "Request body does not contain valid JSON."
 
     def test_returns_400_for_missing_required_fields(self):
         handler, _, _, _ = _build_handler(user=_configured_user())
@@ -74,6 +75,7 @@ class TestExpenseAPIHandlerValidation:
 
         assert status_code == 400
         assert payload["error_code"] == "INVALID_REQUEST"
+        assert payload["message"] == "telegram_user_id must be an integer."
 
     def test_returns_400_for_invalid_field_types(self):
         handler, _, _, _ = _build_handler(user=_configured_user())
@@ -85,6 +87,7 @@ class TestExpenseAPIHandlerValidation:
 
         assert status_code == 400
         assert payload["error_code"] == "INVALID_REQUEST"
+        assert payload["message"] == "telegram_user_id must be an integer."
 
     def test_returns_404_for_unknown_user(self):
         handler, _, _, _ = _build_handler(user=None)
@@ -96,6 +99,7 @@ class TestExpenseAPIHandlerValidation:
 
         assert status_code == 404
         assert payload["error_code"] == "USER_NOT_FOUND"
+        assert payload["message"] == "No registered user exists for that telegram_user_id."
 
     def test_returns_409_for_unconfigured_user(self):
         handler, _, _, _ = _build_handler(user=UserConfiguration(telegram_id=123, status=UserStatus.AUTHORIZED))
@@ -107,6 +111,7 @@ class TestExpenseAPIHandlerValidation:
 
         assert status_code == 409
         assert payload["error_code"] == "USER_NOT_CONFIGURED"
+        assert payload["message"] == "The user does not have a configured budget or default account yet."
 
 
 class TestExpenseAPIHandlerBusinessErrors:
@@ -126,6 +131,7 @@ class TestExpenseAPIHandlerBusinessErrors:
 
         assert status_code == 422
         assert payload["error_code"] == "EXPENSE_NOT_PROCESSABLE"
+        assert payload["message"] == "The expense message could not be processed."
 
     def test_returns_422_for_query_intent(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user())
@@ -140,6 +146,7 @@ class TestExpenseAPIHandlerBusinessErrors:
 
         assert status_code == 422
         assert payload["error_code"] == "QUERY_NOT_SUPPORTED"
+        assert payload["message"] == "This endpoint only supports expense logging, not queries."
 
     def test_returns_502_for_expected_ynab_error(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=False))
@@ -161,6 +168,7 @@ class TestExpenseAPIHandlerBusinessErrors:
 
         assert status_code == 502
         assert payload["error_code"] == "UPSTREAM_SERVICE_ERROR"
+        assert payload["message"] == "There was a problem connecting to YNAB. Try again in a few seconds."
 
     def test_returns_500_for_unexpected_error(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=False))
@@ -174,6 +182,7 @@ class TestExpenseAPIHandlerBusinessErrors:
 
         assert status_code == 500
         assert payload["error_code"] == "INTERNAL_ERROR"
+        assert payload["message"] == "An internal error occurred while processing the request."
 
 
 class TestExpenseAPIHandlerAuth:
@@ -187,6 +196,7 @@ class TestExpenseAPIHandlerAuth:
 
         assert status_code == 401
         assert payload["error_code"] == "INVALID_API_KEY"
+        assert payload["message"] == "Invalid authentication token."
 
 
 class TestExpenseAPIHandlerFlows:
@@ -212,6 +222,7 @@ class TestExpenseAPIHandlerFlows:
         assert payload["intent"] == "expense"
         assert payload["requires_confirmation"] is True
         assert payload["transaction_id"] is None
+        assert payload["message"] == "I am about to log: Carulla $25,000."
 
     def test_commits_when_confirmation_disabled(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=False))
@@ -235,6 +246,7 @@ class TestExpenseAPIHandlerFlows:
         assert status_code == 200
         assert payload["status"] == "committed"
         assert payload["transaction_id"] == "txn-1"
+        assert payload["message"] == "Logged: Carulla $25,000."
 
     def test_force_commit_overrides_confirmation(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=True))
@@ -258,6 +270,7 @@ class TestExpenseAPIHandlerFlows:
         assert status_code == 200
         assert payload["status"] == "committed"
         assert payload["transaction_id"] == "txn-42"
+        assert payload["message"] == "Logged: Carulla $25,000."
 
     def test_commits_shared_expense(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=False))
@@ -284,3 +297,4 @@ class TestExpenseAPIHandlerFlows:
         assert payload["status"] == "committed"
         assert payload["intent"] == "shared_expense"
         assert payload["transaction_id"] == "txn-shared-1"
+        assert payload["message"] == "Logged: Carulla $25,000."

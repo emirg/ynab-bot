@@ -36,6 +36,7 @@ class TestHTTPServer:
 
         assert status == 404
         assert body["error_code"] == "ROUTE_NOT_FOUND"
+        assert body["message"] == "The requested route does not exist."
         assert extra_headers == {}
 
     def test_get_on_post_only_route_returns_405(self):
@@ -50,4 +51,5 @@ class TestHTTPServer:
 
         assert status == 405
         assert body["error_code"] == "METHOD_NOT_ALLOWED"
+        assert body["message"] == "This endpoint only accepts POST requests."
         assert extra_headers == {"Allow": "POST"}

@@ -15,16 +15,16 @@ _on_oauth_success = None
 _SUCCESS_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>YNAB Bot</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:60px">
-<h1>Cuenta YNAB conectada</h1>
-<p>Ya puedes cerrar esta ventana y volver a Telegram.</p>
+<h1>YNAB account connected</h1>
+<p>You can now close this window and return to Telegram.</p>
 </body></html>"""
 
 _ERROR_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>YNAB Bot - Error</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:60px">
-<h1>Error al conectar</h1>
+<h1>Connection error</h1>
 <p>{error}</p>
-<p>Vuelve a intentar con /connect en Telegram.</p>
+<p>Try again with /connect in Telegram.</p>
 </body></html>"""
 
 
@@ -46,7 +46,7 @@ def route_health_request(method: str, path: str, headers: dict | None = None, bo
         return 404, "json", {
             "status": "error",
             "error_code": "ROUTE_NOT_FOUND",
-            "message": "La ruta solicitada no existe.",
+            "message": "The requested route does not exist.",
         }, {}
 
     if parsed.path == "/oauth/callback":
@@ -122,10 +122,10 @@ def _route_oauth_callback(parsed):
     state = params.get("state", [None])[0]
 
     if not code or not state:
-        return 400, "html", _ERROR_HTML.format(error="Parámetros faltantes en la solicitud."), {}
+        return 400, "html", _ERROR_HTML.format(error="Missing required request parameters."), {}
 
     if _oauth_service is None:
-        return 503, "html", _ERROR_HTML.format(error="Servicio OAuth no disponible."), {}
+        return 503, "html", _ERROR_HTML.format(error="OAuth service is unavailable."), {}
 
     try:
         user_config = _oauth_service.exchange_code_for_tokens(code, state)

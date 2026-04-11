@@ -28,21 +28,21 @@ class HTTPAPIRouter:
             return 404, {
                 "status": "error",
                 "error_code": "ROUTE_NOT_FOUND",
-                "message": "La ruta solicitada no existe.",
+                "message": "The requested route does not exist.",
             }, {}
 
         if method != "POST":
             return 405, {
                 "status": "error",
                 "error_code": "METHOD_NOT_ALLOWED",
-                "message": "Este endpoint solo acepta solicitudes POST.",
+                "message": "This endpoint only accepts POST requests.",
             }, {"Allow": "POST"}
 
         if self.endpoint_handler is None:
             return 503, {
                 "status": "error",
                 "error_code": "HANDLER_NOT_CONFIGURED",
-                "message": "El handler HTTP no está configurado.",
+                "message": "The HTTP handler is not configured.",
             }, {}
 
         status_code, payload = self.endpoint_handler.handle_post(headers, body)
