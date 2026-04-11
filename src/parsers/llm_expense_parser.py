@@ -8,14 +8,14 @@ from dotenv import load_dotenv
 
 from domain.time_utils import user_now, DEFAULT_TIMEZONE
 
-# Cargar variables de entorno
+# Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 
 class LLMExpenseParser:
-    """Parser inteligente de gastos usando OpenAI GPT"""
+    """Expense parser powered by OpenAI GPT."""
     
     def __init__(self, ynab_categories: list = None, ynab_accounts: list = None):
         self.api_key = os.getenv('OPENAI_API_KEY')
@@ -26,7 +26,7 @@ class LLMExpenseParser:
         self.ynab_categories = ynab_categories or []
         self.ynab_accounts = ynab_accounts or []
         
-        # El prompt se genera dinámicamente con las categorías y cuentas reales
+        # The prompt is generated dynamically from the current categories and accounts
         self.base_system_prompt = """
 Eres un asistente especializado en parsear mensajes de gastos en español colombiano para una aplicación de presupuesto.
 
@@ -95,17 +95,17 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
 """
     
     def update_categories(self, categories: list):
-        """Actualiza la lista de categorías YNAB disponibles"""
+        """Update the available YNAB category list."""
         self.ynab_categories = categories
-        logger.info(f"Actualizadas {len(categories)} categorías YNAB para LLM")
+        logger.info(f"Updated {len(categories)} YNAB categories for the LLM")
     
     def update_accounts(self, accounts: list):
-        """Actualiza la lista de cuentas YNAB disponibles"""
+        """Update the available YNAB account list."""
         self.ynab_accounts = accounts
-        logger.info(f"Actualizadas {len(accounts)} cuentas YNAB para LLM")
+        logger.info(f"Updated {len(accounts)} YNAB accounts for the LLM")
     
     def _get_date_context(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
-        """Genera el contexto de fecha actual para inyectar en los prompts del LLM."""
+        """Build the current date context injected into LLM prompts."""
         now = user_now(timezone_str)
         dias_semana = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
         dia_semana = dias_semana[now.weekday()]
@@ -123,11 +123,11 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         )
 
     def _generate_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> str:
-        """Genera el prompt del sistema con las categorías y cuentas actuales"""
-        # Sección de categorías
+        """Build the system prompt with the current categories and accounts."""
+        # Category section
         if self.ynab_categories:
             categories_text = "CATEGORÍAS DISPONIBLES EN TU PRESUPUESTO YNAB:\n"
-            for i, category in enumerate(self.ynab_categories[:100], 1):  # Aumentado a 100
+            for i, category in enumerate(self.ynab_categories[:100], 1):  # Expanded to 100
                 categories_text += f"- {category['name']}\n"
             
             if len(self.ynab_categories) > 100:
@@ -142,7 +142,7 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
 - Salud: medicina, doctor, farmacia, hospital, droguería
 - Ropa: vestimenta, zapatos, clothing, ropa"""
         
-        # Sección de cuentas
+        # Account section
         if self.ynab_accounts:
             accounts_text = "CUENTAS DISPONIBLES EN TU PRESUPUESTO YNAB:\n"
             for account in self.ynab_accounts:
@@ -178,8 +178,8 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         )
 
     def _generate_receipt_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> str:
-        """Genera el prompt del sistema específico para analizar imágenes de recibos"""
-        # Reutilizar lógica de categorías
+        """Build the system prompt used to analyze receipt images."""
+        # Reuse category prompt logic
         if self.ynab_categories:
             categories_text = "CATEGORÍAS DISPONIBLES EN TU PRESUPUESTO YNAB:\n"
             for category in self.ynab_categories[:100]:
@@ -188,7 +188,7 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         else:
             categories_text = "No hay categorías configuradas. Usa categorías generales."
 
-        # Reutilizar lógica de cuentas
+        # Reuse account prompt logic
         if self.ynab_accounts:
             accounts_text = "CUENTAS DISPONIBLES:\n"
             for account in self.ynab_accounts:
@@ -246,7 +246,7 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
 """
 
     def _generate_message_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> str:
-        """Genera el prompt del sistema para clasificar intent y parsear mensajes"""
+        """Build the system prompt for intent classification and message parsing."""
         categories_text = "No hay categorías disponibles."
         if self.ynab_categories:
             categories_text = "CATEGORÍAS DISPONIBLES:\n"
@@ -363,22 +363,22 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
 """
 
     def _strip_markdown_code_blocks(self, content: str) -> str:
-        """Elimina bloques de código Markdown si existen"""
+        """Strip Markdown code fences when present."""
         content = content.strip()
         if content.startswith("```"):
-            # Eliminar la primera línea (```json o ```)
+            # Remove the opening fence line (```json or ```)
             lines = content.split("\n")
             if len(lines) > 2:
-                # Filtrar las líneas que empiezan con ```
+                # Drop any remaining fence lines
                 content = "\n".join([line for line in lines if not line.strip().startswith("```")])
         return content.strip()
 
     def parse_message(self, message: str, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
-        Clasifica el intent del mensaje y retorna la estructura correspondiente.
+        Classify the message intent and return the corresponding structure.
 
         Returns:
-            Dict con intent "expense" o "query", o None si falla
+            Dict with intent "expense", "shared_expense", or "query", or None on failure
         """
         try:
             system_prompt = self._generate_message_system_prompt(timezone_str, learning_hints=learning_hints)
@@ -400,47 +400,47 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                 result = json.loads(content)
 
                 if 'intent' not in result or 'confidence' not in result:
-                    logger.error(f"Respuesta sin intent o confidence: {result}")
+                    logger.error(f"Response missing intent or confidence: {result}")
                     return None
 
                 if not isinstance(result['confidence'], (int, float)) or not (0 <= result['confidence'] <= 1):
-                    logger.error(f"Confianza inválida: {result['confidence']}")
+                    logger.error(f"Invalid confidence value: {result['confidence']}")
                     return None
 
                 result['confidence'] = float(result['confidence'])
 
                 if result['intent'] == 'query':
                     if 'query_type' not in result:
-                        logger.error(f"Query sin query_type: {result}")
+                        logger.error(f"Query response missing query_type: {result}")
                         return None
                     if result['query_type'] not in ('category_balance', 'account_balance', 'budget_summary'):
-                        logger.error(f"query_type inválido: {result['query_type']}")
+                        logger.error(f"Invalid query_type: {result['query_type']}")
                         return None
                 elif result['intent'] == 'expense':
                     required = ['amount', 'category', 'payee', 'memo']
                     if not all(f in result for f in required):
-                        logger.error(f"Expense sin campos requeridos: {result}")
+                        logger.error(f"Expense response missing required fields: {result}")
                         return None
                     if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
-                        logger.error(f"Cantidad inválida: {result['amount']}")
+                        logger.error(f"Invalid amount: {result['amount']}")
                         return None
                     result['amount'] = float(result['amount'])
                 elif result['intent'] == 'shared_expense':
                     required = ['amount', 'category', 'payee', 'memo', 'person']
                     if not all(f in result for f in required):
-                        logger.error(f"Shared expense sin campos requeridos: {result}")
+                        logger.error(f"Shared expense response missing required fields: {result}")
                         return None
                     if not result.get('person') or not str(result['person']).strip():
-                        logger.error(f"Shared expense sin persona: {result}")
+                        logger.error(f"Shared expense response missing person: {result}")
                         return None
                     if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
-                        logger.error(f"Cantidad inválida: {result['amount']}")
+                        logger.error(f"Invalid amount: {result['amount']}")
                         return None
                     result['amount'] = float(result['amount'])
                     # Validate and normalise payer field (defaults to 'user')
                     payer = result.get('payer', 'user')
                     if payer not in ('user', 'other'):
-                        logger.warning(f"payer inválido '{payer}', usando 'user'")
+                        logger.warning(f"Invalid payer '{payer}', defaulting to 'user'")
                         payer = 'user'
                     result['payer'] = payer
                     # Validate and normalise split_amount field
@@ -449,37 +449,37 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                         if isinstance(split_amount, (int, float)) and split_amount > 0:
                             result['split_amount'] = float(split_amount)
                         else:
-                            logger.warning(f"split_amount inválido '{split_amount}', ignorando")
+                            logger.warning(f"Invalid split_amount '{split_amount}', ignoring it")
                             result['split_amount'] = None
                     else:
                         result['split_amount'] = None
                 else:
-                    logger.error(f"Intent desconocido: {result['intent']}")
+                    logger.error(f"Unknown intent: {result['intent']}")
                     return None
 
                 return result
 
             except json.JSONDecodeError as e:
-                logger.error(f"Error parseando JSON de OpenAI: {content}, Error: {e}")
+                logger.error(f"Error parsing OpenAI JSON response: {content}, Error: {e}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error llamando a OpenAI API: {e}")
+            logger.error(f"Error calling the OpenAI API: {e}")
             return None
 
     def parse_expense(self, message: str, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
-        Parsea un mensaje usando OpenAI GPT
+        Parse an expense message with OpenAI GPT.
 
         Args:
-            message: Mensaje del usuario sobre un gasto
+            message: User message describing an expense
             timezone_str: IANA timezone string for date context
 
         Returns:
-            Dict con información del gasto o None si falla
+            Dict with expense information, or None on failure
         """
         try:
-            # Generar prompt dinámico con categorías actuales
+            # Build a dynamic prompt with the current categories
             system_prompt = self._generate_system_prompt(timezone_str, learning_hints=learning_hints)
             
             response = self.client.chat.completions.create(
@@ -488,58 +488,58 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message}
                 ],
-                temperature=0.1,  # Baja temperatura para respuestas más consistentes
+                temperature=0.1,  # Lower temperature for more consistent responses
                 max_tokens=200
             )
             
-            # Extraer el contenido de la respuesta
+            # Extract the response content
             content = response.choices[0].message.content.strip()
             content = self._strip_markdown_code_blocks(content)
             
-            # Parsear el JSON
+            # Parse the JSON payload
             try:
                 result = json.loads(content)
                 
-                # Validar que tenga los campos requeridos
+                # Validate required fields
                 required_fields = ['amount', 'category', 'payee', 'memo', 'confidence']
                 if not all(field in result for field in required_fields):
-                    logger.error(f"Respuesta de OpenAI falta campos requeridos: {result}")
+                    logger.error(f"OpenAI response missing required fields: {result}")
                     return None
                 
-                # Validar tipos
+                # Validate types
                 if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
-                    logger.error(f"Cantidad inválida: {result['amount']}")
+                    logger.error(f"Invalid amount: {result['amount']}")
                     return None
                 
                 if not isinstance(result['confidence'], (int, float)) or not (0 <= result['confidence'] <= 1):
-                    logger.error(f"Confianza inválida: {result['confidence']}")
+                    logger.error(f"Invalid confidence value: {result['confidence']}")
                     return None
                 
-                # Convertir a float para consistencia
+                # Normalize numeric types for consistency
                 result['amount'] = float(result['amount'])
                 result['confidence'] = float(result['confidence'])
                 
-                logger.debug(f"Parseo exitoso con LLM: {message} → {result}")
+                logger.debug(f"LLM parsed message successfully: {message} -> {result}")
                 return result
                 
             except json.JSONDecodeError as e:
-                logger.error(f"Error parseando JSON de OpenAI: {content}, Error: {e}")
+                logger.error(f"Error parsing OpenAI JSON response: {content}, Error: {e}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error llamando a OpenAI API: {e}")
+            logger.error(f"Error calling the OpenAI API: {e}")
             return None
 
     def parse_receipt_image(self, image_base64: str, caption: str = None, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
-        Analiza una imagen de un recibo en base64 usando OpenAI GPT-4o-mini Vision.
+        Analyze a base64-encoded receipt image with OpenAI GPT-4o-mini Vision.
 
         Args:
-            image_base64: Imagen del recibo codificada en base64.
-            caption: Texto opcional que acompaña a la imagen.
+            image_base64: Base64-encoded receipt image.
+            caption: Optional text provided alongside the image.
 
         Returns:
-            Dict con información del gasto o None si falla.
+            Dict with expense information, or None on failure.
         """
         try:
             system_prompt = self._generate_receipt_system_prompt(timezone_str, learning_hints=learning_hints)
@@ -581,15 +581,15 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
 
                 required_fields = ['amount', 'category', 'payee', 'memo', 'confidence']
                 if not all(field in result for field in required_fields):
-                    logger.error(f"Respuesta de Vision falta campos requeridos: {result}")
+                    logger.error(f"Vision response missing required fields: {result}")
                     return None
 
                 if not isinstance(result['amount'], (int, float)) or result['amount'] <= 0:
-                    logger.error(f"Cantidad inválida de Vision: {result['amount']}")
+                    logger.error(f"Invalid amount from Vision: {result['amount']}")
                     return None
 
                 if not isinstance(result['confidence'], (int, float)) or not (0 <= result['confidence'] <= 1):
-                    logger.error(f"Confianza inválida de Vision: {result['confidence']}")
+                    logger.error(f"Invalid confidence value from Vision: {result['confidence']}")
                     return None
 
                 result['amount'] = float(result['amount'])
@@ -598,15 +598,15 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                 return result
 
             except json.JSONDecodeError as e:
-                logger.error(f"Error parseando JSON de Vision: {content}, Error: {e}")
+                logger.error(f"Error parsing Vision JSON response: {content}, Error: {e}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error llamando a OpenAI Vision API: {e}")
+            logger.error(f"Error calling the OpenAI Vision API: {e}")
             return None
     
     def test_parsing(self):
-        """Método para probar el parser con casos de ejemplo"""
+        """Run a simple parser smoke test with sample messages."""
         test_cases = [
             "Almorcé en McDonald's, me gasté como 25 lucas",
             "Uber al aeropuerto 80k",
@@ -618,7 +618,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             "Compré ropa en Zara por 120k"
         ]
         
-        print("🧪 Probando LLM Expense Parser:\n")
+        print("Running LLM expense parser smoke test:\n")
         
         for i, test_case in enumerate(test_cases, 1):
             print(f"Test {i}: '{test_case}'")
@@ -630,7 +630,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                 print(f"     🏷️ Categoría: {result['category']}")
                 print(f"     🏪 Lugar: {result['payee']}")
             else:
-                print(f"  ❌ No se pudo parsear o baja confianza")
+                print("  Could not parse the message or confidence was too low")
             
             print()
 
@@ -641,4 +641,4 @@ if __name__ == "__main__":
         parser.test_parsing()
     except Exception as e:
         print(f"Error: {e}")
-        print("Asegúrate de configurar OPENAI_API_KEY en tu archivo .env")
+        print("Make sure OPENAI_API_KEY is configured in your .env file")

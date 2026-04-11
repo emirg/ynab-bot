@@ -1,6 +1,6 @@
 """
-Módulo de Speech-to-Text usando OpenAI Whisper
-Convierte mensajes de audio de Telegram a texto para procesamiento de gastos
+Speech-to-text module powered by OpenAI Whisper.
+Converts Telegram audio messages into text for expense processing.
 """
 
 import os
@@ -10,118 +10,118 @@ from typing import Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Cargar variables de entorno desde config/
+# Load environment variables from config/
 config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env')
 load_dotenv(config_path)
 
-# Configurar logging
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class SpeechToTextProcessor:
-    """Procesador de speech-to-text usando OpenAI Whisper"""
+    """Speech-to-text processor powered by OpenAI Whisper."""
     
     def __init__(self):
-        """Inicializar el procesador con la API key de OpenAI"""
+        """Initialize the processor with the OpenAI API key."""
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
-            raise ValueError("OPENAI_API_KEY no encontrada en variables de entorno")
+            raise ValueError("OPENAI_API_KEY not found in environment variables")
         
         self.client = OpenAI(api_key=api_key)
-        logger.info("Speech-to-Text processor inicializado con OpenAI Whisper")
+        logger.info("Speech-to-text processor initialized with OpenAI Whisper")
     
     def transcribe_audio(self, audio_file_path: str, language: str = "es") -> Optional[str]:
         """
-        Transcribe un archivo de audio a texto usando Whisper
+        Transcribe an audio file to text with Whisper.
         
         Args:
-            audio_file_path: Ruta al archivo de audio
-            language: Código de idioma (por defecto 'es' para español)
+            audio_file_path: Path to the audio file
+            language: Language code (defaults to 'es' for Spanish)
             
         Returns:
-            Texto transcrito o None si hay error
+            Transcribed text, or None if an error occurs
         """
         try:
-            logger.debug(f"Transcribiendo audio: {audio_file_path}")
+            logger.debug(f"Transcribing audio file: {audio_file_path}")
             
-            # Verificar tamaño del archivo
+            # Check the file size
             file_size = os.path.getsize(audio_file_path)
-            logger.info(f"📊 Tamaño del archivo: {file_size / 1024:.1f} KB")
+            logger.info(f"Audio file size: {file_size / 1024:.1f} KB")
             
-            # Limite de 25MB para Whisper
+            # Whisper accepts files up to 25 MB
             if file_size > 25 * 1024 * 1024:
-                logger.error("❌ Archivo de audio demasiado grande (>25MB)")
+                logger.error("Audio file is too large (>25 MB)")
                 return None
             
             with open(audio_file_path, "rb") as audio_file:
-                # Usar Whisper para transcribir con timeout personalizado
+                # Use Whisper to transcribe the audio with a domain-specific prompt
                 transcript = self.client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     language=language,
                     response_format="text",
-                    # Agregar prompt para mejorar transcripción de gastos
+                    # Improve transcription quality for expense-related audio
                     prompt="Transcribir mensaje sobre gastos en pesos colombianos. Incluye cantidades, lugares y cuentas bancarias."
                 )
             
-            # Whisper devuelve el texto directamente cuando response_format="text"
+            # Whisper returns the raw text directly when response_format="text"
             transcribed_text = transcript.strip()
             
             if transcribed_text:
-                logger.debug(f"Transcripción exitosa: '{transcribed_text}'")
+                logger.debug(f"Successful transcription: '{transcribed_text}'")
                 return transcribed_text
             else:
-                logger.warning("⚠️ Transcripción vacía")
+                logger.warning("Received an empty transcription")
                 return None
                 
         except Exception as e:
             error_msg = str(e).lower()
             if "timeout" in error_msg or "timed out" in error_msg:
-                logger.error("❌ Timeout transcribiendo audio - intenta con un audio más corto")
+                logger.error("Audio transcription timed out; try a shorter recording")
                 return "timeout_error"
             elif "rate_limit" in error_msg:
-                logger.error("❌ Límite de API alcanzado - espera un momento")
+                logger.error("API rate limit reached during audio transcription")
                 return "rate_limit_error"
             else:
-                logger.error(f"❌ Error transcribiendo audio: {e}")
+                logger.error(f"Error transcribing audio: {e}")
                 return None
     
     def process_telegram_audio(self, audio_file_path: str) -> Optional[str]:
         """
-        Procesa un archivo de audio de Telegram y devuelve el texto transcrito
+        Process a Telegram audio file and return the transcribed text.
         
         Args:
-            audio_file_path: Ruta al archivo de audio descargado de Telegram
+            audio_file_path: Path to the audio file downloaded from Telegram
             
         Returns:
-            Texto transcrito optimizado para procesamiento de gastos
+            Transcribed text optimized for expense processing
         """
-        # Transcribir el audio
+        # Transcribe the audio first
         transcribed_text = self.transcribe_audio(audio_file_path, language="es")
         
         if not transcribed_text:
             return None
         
-        # Limpiar y optimizar el texto para procesamiento de gastos
+        # Clean and normalize the result for expense processing
         cleaned_text = self._clean_transcription(transcribed_text)
         
-        logger.debug(f"Texto limpio: '{cleaned_text}'")
+        logger.debug(f"Cleaned transcription: '{cleaned_text}'")
         return cleaned_text
     
     def _clean_transcription(self, text: str) -> str:
         """
-        Limpia y optimiza la transcripción para mejor procesamiento
+        Clean and normalize a transcription for downstream processing.
         
         Args:
-            text: Texto transcrito original
+            text: Original transcribed text
             
         Returns:
-            Texto limpio y optimizado
+            Cleaned and normalized text
         """
-        # Remover espacios extra y normalizar
+        # Remove extra whitespace and normalize the text
         cleaned = text.strip()
         
-        # Convertir números comunes hablados a formato numérico
+        # Convert common spoken number patterns into numeric-friendly text
         replacements = {
             "mil": "000",
             "lucas": "000",
@@ -137,21 +137,21 @@ class SpeechToTextProcessor:
         for old, new in replacements.items():
             cleaned = cleaned.replace(old, new)
         
-        # Limpiar espacios múltiples
+        # Collapse repeated whitespace
         cleaned = " ".join(cleaned.split())
         
         return cleaned
 
-# Función de utilidad para testing
+# Utility helper for manual testing
 def test_speech_to_text():
-    """Función de prueba para el módulo de speech-to-text"""
+    """Run a simple smoke test for the speech-to-text module."""
     try:
         processor = SpeechToTextProcessor()
-        print("✅ Speech-to-Text processor inicializado correctamente")
-        print("🎤 Listo para procesar mensajes de audio de Telegram")
+        print("Speech-to-text processor initialized successfully")
+        print("Ready to process Telegram audio messages")
         return True
     except Exception as e:
-        print(f"❌ Error inicializando Speech-to-Text: {e}")
+        print(f"Error initializing speech-to-text processor: {e}")
         return False
 
 if __name__ == "__main__":

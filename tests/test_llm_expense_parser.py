@@ -453,9 +453,9 @@ class TestParseReceiptImage:
             'account': 'Nu Card',
             'memo': '[10/03] Almuerzo combo hamburguesa',
             'confidence': 0.95,
-            'required_fields_check': True  # Solo para que no falle validación si cambio algo
+            'required_fields_check': True  # Just to avoid validation errors if I change something
         })
-        # Limpiar campos extras para coincidir con required_fields
+        # Remove extra fields so the payload matches required_fields exactly
         response_dict = json.loads(response)
         if 'required_fields_check' in response_dict: del response_dict['required_fields_check']
         
@@ -468,7 +468,7 @@ class TestParseReceiptImage:
         assert result['payee'] == 'El Corral'
         assert result['confidence'] == 0.95
         
-        # Verificar llamada a OpenAI
+        # Verify OpenAI call
         call_args = mock_openai_client.chat.completions.create.call_args
         kwargs = call_args.kwargs
         assert kwargs['model'] == 'gpt-4o-mini'
@@ -488,7 +488,7 @@ class TestParseReceiptImage:
         _mock_response(mock_openai_client, response)
 
         result = parser.parse_receipt_image('base64_not_receipt')
-        assert result is None  # Porque amount <= 0 falla validación
+        assert result is None  # Because amount <= 0 fails validation
 
     def test_parse_receipt_image_api_error(self, parser, mock_openai_client):
         mock_openai_client.chat.completions.create.side_effect = Exception('Vision API error')

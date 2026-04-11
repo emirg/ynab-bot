@@ -1,4 +1,4 @@
-# CODEX.md
+# AGENTS.md
 
 You are **Codex** (OpenAI), an AI assistant working on this project.
 
@@ -22,7 +22,7 @@ When `docs/AI_WORKFLOW.md` refers to a logical role, adopt the corresponding int
 All Python commands must be run using the `.venv` virtual environment.
 
 ```bash
-.venv/bin/python main.py          # Run
+.venv/bin/python main.py           # Run
 .venv/bin/pytest                   # All tests
 .venv/bin/pytest tests/file.py     # Specific file
 .venv/bin/pytest -k "keyword"      # Filter

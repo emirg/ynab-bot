@@ -322,7 +322,7 @@ class TestWeeklySummaryMetadata:
         assert summary.week_end == we
 
     def test_no_category_name_defaults_to_sin_categoria(self):
-        """Transactions without a category_name key should use 'Sin categoría'."""
+        """Transactions without a category_name key should use 'Sin categoría' as the internal fallback label."""
         txns = [{"amount": -100_000}]  # no category_name key
         summary = WeeklySummary.from_transactions(
             current_week_txns=txns,
