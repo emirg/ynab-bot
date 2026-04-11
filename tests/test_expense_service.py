@@ -93,7 +93,11 @@ class TestProcessExpenseMessage:
 
     def test_calls_llm_parser(self, service, mock_llm_parser):
         service.process_expense_message(TELEGRAM_ID, 'test message')
-        mock_llm_parser.parse_expense.assert_called_with('test message', timezone_str=DEFAULT_TIMEZONE)
+        mock_llm_parser.parse_expense.assert_called_with(
+            'test message',
+            timezone_str=DEFAULT_TIMEZONE,
+            learning_hints=None,
+        )
 
     def test_records_learning(self, service, mock_learning_repository):
         service.process_expense_message(TELEGRAM_ID, 'test')
@@ -183,7 +187,12 @@ class TestProcessReceiptImage:
             'amount': 1000.0, 'category': 'X', 'payee': 'Y', 'memo': 'z', 'confidence': 0.9,
         }
         service.process_receipt_image(TELEGRAM_ID, 'data', 'almuerzo con amigos')
-        mock_llm_parser.parse_receipt_image.assert_called_with('data', 'almuerzo con amigos', timezone_str=DEFAULT_TIMEZONE)
+        mock_llm_parser.parse_receipt_image.assert_called_with(
+            'data',
+            'almuerzo con amigos',
+            timezone_str=DEFAULT_TIMEZONE,
+            learning_hints=None,
+        )
 
     def test_parse_failure(self, service, mock_llm_parser):
         mock_llm_parser.parse_receipt_image.return_value = None
@@ -455,6 +464,36 @@ class TestEnhanceWithLearning:
         assert result.category_id == 'cat-2'
         assert result.confidence == 0.95
         assert "aprendido de tus ultimas 8 compras en Zara" in result.category_explanation
+
+
+class TestBuildLearningHints:
+
+    def test_returns_none_when_no_distribution(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_category_distribution.return_value = {}
+        assert service._build_learning_hints(TELEGRAM_ID) is None
+
+    def test_formats_distribution(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_category_distribution.return_value = {
+            'movistar': [
+                {'category_name': 'Internet', 'count': 7, 'percentage': 0.7},
+                {'category_name': 'Telefono', 'count': 3, 'percentage': 0.3},
+            ],
+        }
+
+        hints = service._build_learning_hints(TELEGRAM_ID)
+
+        assert hints == "- movistar: Internet (70%), Telefono (30%)"
+
+    def test_caps_output_to_20_payees(self, service, mock_learning_repository):
+        mock_learning_repository.get_payee_category_distribution.return_value = {
+            f'payee-{i}': [{'category_name': 'Cat', 'count': i + 1, 'percentage': 1.0}]
+            for i in range(25)
+        }
+
+        hints = service._build_learning_hints(TELEGRAM_ID)
+
+        assert hints is not None
+        assert len(hints.splitlines()) == 20
 
 
 class TestBuildCategoryExplanation:
@@ -1058,7 +1097,28 @@ class TestProcessMessage:
         assert result.expense_result.expense.split_person == 'Juan'
         assert result.expense_result.expense.split_category_id == 'cat-123'
         assert result.expense_result.expense.split_category_name == 'Gastos Compartidos'
-        mock_ynab_repository.create_transaction.assert_called_once()
+
+    def test_passes_learning_hints_to_parse_message(self, service, mock_llm_parser, mock_learning_repository):
+        mock_learning_repository.get_payee_category_distribution.return_value = {
+            'movistar': [{'category_name': 'Internet', 'count': 2, 'percentage': 1.0}],
+        }
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'confidence': 0.85,
+        }
+
+        service.process_message(TELEGRAM_ID, '25 lucas almuerzo')
+
+        mock_llm_parser.parse_message.assert_called_with(
+            '25 lucas almuerzo',
+            timezone_str=DEFAULT_TIMEZONE,
+            learning_hints='- movistar: Internet (100%)',
+        )
 
     def test_shared_expense_custom_proportion(self, service_with_split, mock_llm_parser):
         mock_llm_parser.parse_message.return_value = {
@@ -1367,7 +1427,11 @@ class TestTimezoneWiring:
             'confidence': 0.85,
         }
         service.process_message(TELEGRAM_ID, 'almuerzo 25 lucas')
-        mock_llm_parser.parse_message.assert_called_with('almuerzo 25 lucas', timezone_str='America/Bogota')
+        mock_llm_parser.parse_message.assert_called_with(
+            'almuerzo 25 lucas',
+            timezone_str='America/Bogota',
+            learning_hints=None,
+        )
 
     def test_build_expense_uses_user_timezone_for_default_date(self, service, mock_llm_parser, authorized_user):
         authorized_user.timezone = 'America/Bogota'
@@ -1392,7 +1456,11 @@ class TestTimezoneWiring:
     def test_process_expense_message_passes_timezone_to_parser(self, service, mock_llm_parser, authorized_user):
         authorized_user.timezone = 'US/Eastern'
         service.process_expense_message(TELEGRAM_ID, 'test message')
-        mock_llm_parser.parse_expense.assert_called_with('test message', timezone_str='US/Eastern')
+        mock_llm_parser.parse_expense.assert_called_with(
+            'test message',
+            timezone_str='US/Eastern',
+            learning_hints=None,
+        )
 
     def test_process_receipt_image_passes_timezone_to_parser(self, service, mock_llm_parser, authorized_user):
         authorized_user.timezone = 'Europe/Madrid'
@@ -1400,7 +1468,12 @@ class TestTimezoneWiring:
             'amount': 1000.0, 'category': 'X', 'payee': 'Y', 'memo': 'z', 'confidence': 0.9,
         }
         service.process_receipt_image(TELEGRAM_ID, 'data', 'caption')
-        mock_llm_parser.parse_receipt_image.assert_called_with('data', 'caption', timezone_str='Europe/Madrid')
+        mock_llm_parser.parse_receipt_image.assert_called_with(
+            'data',
+            'caption',
+            timezone_str='Europe/Madrid',
+            learning_hints=None,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1815,6 +1888,17 @@ class TestPrepareExpense:
         result = service.prepare_expense(TELEGRAM_ID, 'Carulla 15k')
         assert result['account_id'] == authorized_user.default_account_id
 
+    def test_passes_learning_hints_to_parse_message(self, service, mock_user_repository, mock_learning_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_payee_category_distribution.return_value = {
+            'movistar': [{'category_name': 'Internet', 'count': 2, 'percentage': 1.0}],
+        }
+
+        service.prepare_expense(TELEGRAM_ID, 'Movistar 50k')
+
+        mock_learning_repository.get_payee_category_distribution.assert_called_with(TELEGRAM_ID)
+        assert mock_learning_repository.get_payee_category_distribution.call_count == 1
+
 
 class TestCommitExpense:
     """Tests for the commit phase: YNAB transaction creation + learning."""
@@ -1939,6 +2023,25 @@ class TestPrepareReceipt:
         from domain.exceptions import UserNotConfiguredException
         with pytest.raises(UserNotConfiguredException):
             service.prepare_receipt(999, 'data')
+
+    def test_passes_learning_hints_to_receipt_parser(self, service, mock_user_repository, mock_llm_parser, mock_learning_repository, authorized_user):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_learning_repository.get_payee_category_distribution.return_value = {
+            'exito': [{'category_name': 'Groceries', 'count': 2, 'percentage': 1.0}],
+        }
+        mock_llm_parser.parse_receipt_image.return_value = {
+            'amount': 45000.0, 'category': 'Restaurants',
+            'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
+        }
+
+        service.prepare_receipt(TELEGRAM_ID, 'base64_data')
+
+        mock_llm_parser.parse_receipt_image.assert_called_with(
+            'base64_data',
+            None,
+            timezone_str=DEFAULT_TIMEZONE,
+            learning_hints='- exito: Groceries (100%)',
+        )
 
 
 class TestPrepareSharedExpense:

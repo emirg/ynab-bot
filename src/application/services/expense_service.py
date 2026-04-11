@@ -81,7 +81,8 @@ class ExpenseService:
 
             user_tz = user_config.timezone
 
-            parsed = self.llm_parser.parse_message(message, timezone_str=user_tz)
+            learning_hints = self._build_learning_hints(telegram_user_id)
+            parsed = self.llm_parser.parse_message(message, timezone_str=user_tz, learning_hints=learning_hints)
             if not parsed:
                 raise ExpenseParsingException(message, 0.0)
 
@@ -151,7 +152,8 @@ class ExpenseService:
 
         user_tz = user_config.timezone
 
-        parsed = self.llm_parser.parse_message(message, timezone_str=user_tz)
+        learning_hints = self._build_learning_hints(telegram_user_id)
+        parsed = self.llm_parser.parse_message(message, timezone_str=user_tz, learning_hints=learning_hints)
         if not parsed:
             raise ExpenseParsingException(message, 0.0)
 
@@ -236,7 +238,8 @@ class ExpenseService:
 
         user_tz = user_config.timezone
 
-        parsed = self.llm_parser.parse_message(message, timezone_str=user_tz)
+        learning_hints = self._build_learning_hints(telegram_user_id)
+        parsed = self.llm_parser.parse_message(message, timezone_str=user_tz, learning_hints=learning_hints)
         if not parsed:
             raise ExpenseParsingException(message, 0.0)
 
@@ -336,7 +339,13 @@ class ExpenseService:
 
         user_tz = user_config.timezone
 
-        parsed = self.llm_parser.parse_receipt_image(image_base64, caption, timezone_str=user_tz)
+        learning_hints = self._build_learning_hints(telegram_user_id)
+        parsed = self.llm_parser.parse_receipt_image(
+            image_base64,
+            caption,
+            timezone_str=user_tz,
+            learning_hints=learning_hints,
+        )
         if not parsed:
             raise ImageProcessingException("No se pudo analizar el recibo. Asegúrate de que la imagen sea legible.")
 
@@ -563,7 +572,13 @@ class ExpenseService:
 
             user_tz = user_config.timezone
 
-            parsed = self.llm_parser.parse_receipt_image(image_base64, caption, timezone_str=user_tz)
+            learning_hints = self._build_learning_hints(telegram_user_id)
+            parsed = self.llm_parser.parse_receipt_image(
+                image_base64,
+                caption,
+                timezone_str=user_tz,
+                learning_hints=learning_hints,
+            )
             if not parsed:
                 return ExpenseResult.error_result("No se pudo analizar el recibo. Asegúrate de que la imagen sea legible.")
 
@@ -627,7 +642,12 @@ class ExpenseService:
             user_tz = user_config.timezone
 
             # 5. Parse expense message
-            expense = self._parse_expense_message(message, categories, user_tz=user_tz)
+            expense = self._parse_expense_message(
+                message,
+                categories,
+                user_tz=user_tz,
+                telegram_user_id=telegram_user_id,
+            )
             if not expense:
                 raise ExpenseParsingException(message, 0.0)
 
@@ -738,10 +758,43 @@ class ExpenseService:
         except Exception as e:
             logger.error(f"Failed to update LLM parser data: {e}")
 
-    def _parse_expense_message(self, message: str, categories: List[YNABCategory], user_tz: str = DEFAULT_TIMEZONE) -> Optional[Expense]:
+    def _build_learning_hints(self, telegram_user_id: int) -> Optional[str]:
+        """Build a compact learning hints string for LLM prompts."""
+        distribution = self.learning_repository.get_payee_category_distribution(telegram_user_id)
+        if not distribution:
+            return None
+
+        sorted_payees = sorted(
+            distribution.items(),
+            key=lambda item: sum(entry['count'] for entry in item[1]),
+            reverse=True,
+        )[:20]
+
+        lines = []
+        for payee, categories_list in sorted_payees:
+            parts = ", ".join(
+                f"{entry['category_name']} ({round(entry['percentage'] * 100)}%)"
+                for entry in categories_list
+            )
+            lines.append(f"- {payee}: {parts}")
+
+        return "\n".join(lines)
+
+    def _parse_expense_message(
+        self,
+        message: str,
+        categories: List[YNABCategory],
+        user_tz: str = DEFAULT_TIMEZONE,
+        telegram_user_id: Optional[int] = None,
+    ) -> Optional[Expense]:
         """Parse expense message using LLM parser"""
         try:
-            result = self.llm_parser.parse_expense(message, timezone_str=user_tz)
+            learning_hints = self._build_learning_hints(telegram_user_id) if telegram_user_id is not None else None
+            result = self.llm_parser.parse_expense(
+                message,
+                timezone_str=user_tz,
+                learning_hints=learning_hints,
+            )
             if not result:
                 return None
             return self._build_expense_from_parsed(result, message, categories, parser_source='llm', user_tz=user_tz)

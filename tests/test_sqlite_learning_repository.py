@@ -481,3 +481,97 @@ class TestDeleteRecentTransaction:
         # Other user's transaction must still exist
         other_transactions = repo.get_recent_transactions(other_user_id)
         assert any(t['ynab_transaction_id'] == 'txn-other-user' for t in other_transactions)
+
+
+# ---------------------------------------------------------------------------
+# Payee category distribution
+# ---------------------------------------------------------------------------
+
+class TestGetPayeeCategoryDistribution:
+
+    def test_no_data_returns_empty_dict(self, repo):
+        result = repo.get_payee_category_distribution(TELEGRAM_ID)
+        assert result == {}
+
+    def test_single_category_payee_with_enough_uses(self, repo):
+        expense = Expense(
+            amount=Decimal('10000'), payee='Carulla', memo='x',
+            category_id='cat-groceries', category_name='Groceries',
+        )
+        for _ in range(3):
+            repo.record_successful_transaction(TELEGRAM_ID, expense)
+
+        result = repo.get_payee_category_distribution(TELEGRAM_ID)
+
+        assert 'carulla' in result
+        assert result['carulla'][0]['category_name'] == 'Groceries'
+        assert result['carulla'][0]['count'] == 3
+        assert result['carulla'][0]['percentage'] == pytest.approx(1.0)
+
+    def test_multi_category_payee(self, repo):
+        expense_a = Expense(
+            amount=Decimal('5000'), payee='Exito', memo='x',
+            category_id='cat-groceries', category_name='Groceries',
+        )
+        expense_b = Expense(
+            amount=Decimal('5000'), payee='Exito', memo='x',
+            category_id='cat-household', category_name='Household',
+        )
+        for _ in range(7):
+            repo.record_successful_transaction(TELEGRAM_ID, expense_a)
+        for _ in range(3):
+            repo.record_successful_transaction(TELEGRAM_ID, expense_b)
+
+        result = repo.get_payee_category_distribution(TELEGRAM_ID)
+
+        assert 'exito' in result
+        assert result['exito'][0]['category_name'] == 'Groceries'
+        assert result['exito'][0]['count'] == 7
+        assert result['exito'][0]['percentage'] == pytest.approx(0.7)
+        assert result['exito'][1]['category_name'] == 'Household'
+        assert result['exito'][1]['count'] == 3
+        assert result['exito'][1]['percentage'] == pytest.approx(0.3)
+
+    def test_payees_with_insufficient_uses_excluded(self, repo):
+        single_use = Expense(
+            amount=Decimal('1000'), payee='Rappi', memo='x',
+            category_id='cat-delivery', category_name='Delivery',
+        )
+        double_use = Expense(
+            amount=Decimal('1000'), payee='Carulla', memo='x',
+            category_id='cat-groceries', category_name='Groceries',
+        )
+        repo.record_successful_transaction(TELEGRAM_ID, single_use)
+        for _ in range(2):
+            repo.record_successful_transaction(TELEGRAM_ID, double_use)
+
+        result = repo.get_payee_category_distribution(TELEGRAM_ID)
+
+        assert 'rappi' not in result
+        assert 'carulla' in result
+
+    def test_per_user_isolation(self, repo, db_manager):
+        other_user_id = 999999999
+        user_repo = SQLiteUserRepository(db_manager)
+        user_repo.save(UserConfiguration(telegram_id=other_user_id, status=UserStatus.AUTHORIZED))
+
+        expense_a = Expense(
+            amount=Decimal('20000'), payee='Carulla', memo='x',
+            category_id='cat-groceries', category_name='Groceries',
+        )
+        expense_b = Expense(
+            amount=Decimal('15000'), payee='Rappi', memo='x',
+            category_id='cat-delivery', category_name='Delivery',
+        )
+        for _ in range(3):
+            repo.record_successful_transaction(TELEGRAM_ID, expense_a)
+        for _ in range(2):
+            repo.record_successful_transaction(other_user_id, expense_b)
+
+        result_a = repo.get_payee_category_distribution(TELEGRAM_ID)
+        result_b = repo.get_payee_category_distribution(other_user_id)
+
+        assert 'carulla' in result_a
+        assert 'rappi' not in result_a
+        assert 'rappi' in result_b
+        assert 'carulla' not in result_b

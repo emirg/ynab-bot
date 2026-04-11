@@ -618,6 +618,54 @@ class TestDateFieldPassthrough:
         assert result['date'] is None
 
 
+class TestLearningHintsInPrompt:
+    """Tests that learning_hints are injected into or omitted from prompts correctly."""
+
+    def test_message_system_prompt_includes_hints_when_provided(self, parser):
+        hints = "- Movistar: Internet (70%), Telefono (30%)"
+        prompt = parser._generate_message_system_prompt(learning_hints=hints)
+        assert "HISTORIAL DE CATEGORIZACIÓN" in prompt
+        assert hints in prompt
+
+    def test_message_system_prompt_omits_hints_when_none(self, parser):
+        prompt = parser._generate_message_system_prompt()
+        assert "HISTORIAL DE CATEGORIZACIÓN" not in prompt
+
+    def test_base_system_prompt_includes_hints_when_provided(self, parser):
+        hints = "- McDonald's: Meal delivery (100%)"
+        prompt = parser._generate_system_prompt(learning_hints=hints)
+        assert "HISTORIAL DE CATEGORIZACIÓN" in prompt
+        assert hints in prompt
+
+    def test_receipt_system_prompt_includes_hints_when_provided(self, parser):
+        hints = "- Movistar: Internet (70%)"
+        prompt = parser._generate_receipt_system_prompt(learning_hints=hints)
+        assert "HISTORIAL DE CATEGORIZACIÓN" in prompt
+        assert hints in prompt
+
+    def test_receipt_system_prompt_omits_hints_when_none(self, parser):
+        prompt = parser._generate_receipt_system_prompt()
+        assert "HISTORIAL DE CATEGORIZACIÓN" not in prompt
+
+    def test_parse_message_passes_hints_to_system_prompt(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+
+        hints = "- McDonald's: Restaurants (80%), Groceries (20%)"
+        parser.parse_message('25 lucas almuerzo', learning_hints=hints)
+
+        system_prompt = mock_openai_client.chat.completions.create.call_args.kwargs['messages'][0]['content']
+        assert hints in system_prompt
+
+
 class TestDateContext:
     """Verify that date context is injected into prompts."""
 

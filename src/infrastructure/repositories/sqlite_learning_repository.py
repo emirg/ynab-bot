@@ -286,3 +286,44 @@ class SQLiteLearningRepository(LearningRepository):
         )
         conn.commit()
         return cursor.rowcount > 0
+
+    def get_payee_category_distribution(self, telegram_id: int) -> Dict[str, List[Dict]]:
+        """Get the full category distribution for all known payees of a user."""
+        conn = self._db.get_connection()
+        cursor = conn.execute(
+            """
+            SELECT normalized_payee, category_name, count
+            FROM payee_category_mappings
+            WHERE telegram_id = ?
+            ORDER BY normalized_payee, count DESC
+            """,
+            (telegram_id,),
+        )
+        rows = cursor.fetchall()
+
+        grouped: Dict[str, List[Dict]] = {}
+        for row in rows:
+            payee = row["normalized_payee"]
+            grouped.setdefault(payee, []).append(
+                {
+                    "category_name": row["category_name"],
+                    "count": row["count"],
+                }
+            )
+
+        result: Dict[str, List[Dict]] = {}
+        for payee, entries in grouped.items():
+            total = sum(entry["count"] for entry in entries)
+            if total < 2:
+                continue
+
+            result[payee] = [
+                {
+                    "category_name": entry["category_name"],
+                    "count": entry["count"],
+                    "percentage": entry["count"] / total,
+                }
+                for entry in entries
+            ]
+
+        return result

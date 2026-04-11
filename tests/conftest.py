@@ -170,6 +170,7 @@ def mock_learning_repository():
     repo.predict_category.return_value = None
     repo.record_successful_transaction.return_value = None
     repo.add_recent_transaction.return_value = None
+    repo.get_payee_category_distribution.return_value = {}
     repo.get_learning_statistics.return_value = {
         'total_transactions': 10,
         'learned_associations': 5,

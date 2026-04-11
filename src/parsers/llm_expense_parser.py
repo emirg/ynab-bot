@@ -42,6 +42,8 @@ FORMATO DE MONEDA:
 
 {accounts_section}
 
+{learning_hints_section}
+
 {date_context}
 
 RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
@@ -120,7 +122,7 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
             "- Si no hay mención de fecha, devuelve date: null."
         )
 
-    def _generate_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
+    def _generate_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> str:
         """Genera el prompt del sistema con las categorías y cuentas actuales"""
         # Sección de categorías
         if self.ynab_categories:
@@ -156,14 +158,26 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
 - Busca menciones de cuentas/tarjetas en el mensaje
 - Ejemplos: 'con mi rappi card', 'usando bancolombia', 'en efectivo'
 - Si no detectas cuenta específica, usa account: null"""
+
+        if learning_hints and learning_hints.strip():
+            learning_hints_text = (
+                "HISTORIAL DE CATEGORIZACIÓN DEL USUARIO:\n"
+                "Estos son los patrones de categorización previos del usuario. Úsalos como contexto adicional,\n"
+                "pero PRIORIZA las pistas del mensaje actual (ej: si dice \"internet\", elige la categoría de internet\n"
+                "aunque el historial muestre otra categoría como más frecuente).\n\n"
+                f"{learning_hints}"
+            )
+        else:
+            learning_hints_text = ""
         
         return self.base_system_prompt.format(
             categories_section=categories_text,
             accounts_section=accounts_text,
+            learning_hints_section=learning_hints_text,
             date_context=self._get_date_context(timezone_str),
         )
 
-    def _generate_receipt_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
+    def _generate_receipt_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> str:
         """Genera el prompt del sistema específico para analizar imágenes de recibos"""
         # Reutilizar lógica de categorías
         if self.ynab_categories:
@@ -182,13 +196,24 @@ EJEMPLOS INCORRECTOS (NO HACER ESTO):
         else:
             accounts_text = "No hay cuentas configuradas."
 
+        if learning_hints and learning_hints.strip():
+            learning_hints_section = (
+                "\nHISTORIAL DE CATEGORIZACIÓN DEL USUARIO:\n"
+                "Estos son los patrones de categorización previos del usuario. Úsalos como contexto adicional,\n"
+                "pero PRIORIZA las pistas del recibo actual (ej: si el recibo es de una tienda de internet,\n"
+                "elige la categoría de internet aunque el historial muestre otra categoría como más frecuente).\n\n"
+                f"{learning_hints}"
+            )
+        else:
+            learning_hints_section = ""
+
         return f"""Eres un experto en analizar recibos, facturas y tickets de venta en español colombiano.
 Tu tarea es extraer la información de un gasto a partir de una IMAGEN de un recibo.
 
 {categories_text}
 
 {accounts_text}
-
+{learning_hints_section}
 INSTRUCCIONES ESPECÍFICAS PARA RECIBOS:
 1. **Monto Total**: Extrae el valor total pagado (incluyendo impuestos y propinas si están en el total).
 2. **Lugar/Payee**: Identifica el nombre del establecimiento (ej: "Éxito", "Restaurante El Corral", "Gasolinera Terpel").
@@ -220,7 +245,7 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
 - No inventes datos. Si algo no es claro, usa lo más probable o baja el confidence.
 """
 
-    def _generate_message_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE) -> str:
+    def _generate_message_system_prompt(self, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> str:
         """Genera el prompt del sistema para clasificar intent y parsear mensajes"""
         categories_text = "No hay categorías disponibles."
         if self.ynab_categories:
@@ -238,6 +263,17 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
             
             accounts_text += "\nSi el usuario pregunta por una cuenta, usa el NOMBRE EXACTO de esta lista."
 
+        if learning_hints and learning_hints.strip():
+            learning_hints_section = (
+                "HISTORIAL DE CATEGORIZACIÓN DEL USUARIO:\n"
+                "Estos son los patrones de categorización previos del usuario. Úsalos como contexto adicional,\n"
+                "pero PRIORIZA las pistas del mensaje actual (ej: si dice \"internet\", elige la categoría de internet\n"
+                "aunque el historial muestre otra categoría como más frecuente).\n\n"
+                f"{learning_hints}"
+            )
+        else:
+            learning_hints_section = ""
+
         return f"""Eres un asistente que clasifica mensajes de usuarios de una app de presupuesto en español colombiano.
 
 Debes determinar si el mensaje es un GASTO o una CONSULTA sobre el presupuesto.
@@ -250,6 +286,8 @@ GASTOS: mensajes que reportan un gasto realizado. Contienen un monto y un lugar/
 {categories_text}
 
 {accounts_text}
+
+{learning_hints_section}
 
 {self._get_date_context(timezone_str)}
 
@@ -335,7 +373,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                 content = "\n".join([line for line in lines if not line.strip().startswith("```")])
         return content.strip()
 
-    def parse_message(self, message: str, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
+    def parse_message(self, message: str, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
         Clasifica el intent del mensaje y retorna la estructura correspondiente.
 
@@ -343,7 +381,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             Dict con intent "expense" o "query", o None si falla
         """
         try:
-            system_prompt = self._generate_message_system_prompt(timezone_str)
+            system_prompt = self._generate_message_system_prompt(timezone_str, learning_hints=learning_hints)
 
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -429,7 +467,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             logger.error(f"Error llamando a OpenAI API: {e}")
             return None
 
-    def parse_expense(self, message: str, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
+    def parse_expense(self, message: str, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
         Parsea un mensaje usando OpenAI GPT
 
@@ -442,7 +480,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
         """
         try:
             # Generar prompt dinámico con categorías actuales
-            system_prompt = self._generate_system_prompt(timezone_str)
+            system_prompt = self._generate_system_prompt(timezone_str, learning_hints=learning_hints)
             
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -492,7 +530,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             logger.error(f"Error llamando a OpenAI API: {e}")
             return None
 
-    def parse_receipt_image(self, image_base64: str, caption: str = None, timezone_str: str = DEFAULT_TIMEZONE) -> Optional[Dict]:
+    def parse_receipt_image(self, image_base64: str, caption: str = None, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
         Analiza una imagen de un recibo en base64 usando OpenAI GPT-4o-mini Vision.
 
@@ -504,7 +542,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             Dict con información del gasto o None si falla.
         """
         try:
-            system_prompt = self._generate_receipt_system_prompt(timezone_str)
+            system_prompt = self._generate_receipt_system_prompt(timezone_str, learning_hints=learning_hints)
 
             user_content = [
                 {
