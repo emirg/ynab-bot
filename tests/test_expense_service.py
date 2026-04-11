@@ -1,6 +1,6 @@
 """Tests for ExpenseService."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -529,8 +529,7 @@ class TestUndoLastTransaction:
 
     # Helper: build a recent-transaction dict that is within the 5-minute window
     def _recent_txn(self, minutes_ago=1, has_ynab_id=True, is_today=True):
-        from datetime import datetime, timedelta
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         timestamp = (now - timedelta(minutes=minutes_ago)).isoformat()
         return {
             'payee': 'McDonalds',
@@ -616,9 +615,8 @@ class TestUndoLastTransaction:
         self, service, mock_user_repository, mock_learning_repository, authorized_user,
     ):
         """Transaction older than 5 minutes and from a past day should fail."""
-        from datetime import datetime, timedelta
         # 10 minutes ago yesterday - outside both windows
-        past = (datetime.utcnow() - timedelta(days=1, minutes=10)).isoformat()
+        past = (datetime.now(timezone.utc) - timedelta(days=1, minutes=10)).isoformat()
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = [{
             'payee': 'McDonalds',
@@ -745,8 +743,7 @@ class TestEditLastTransaction:
     """Tests for ExpenseService.edit_last_transaction()."""
 
     def _recent_txn(self, minutes_ago=1, has_ynab_id=True):
-        from datetime import datetime, timedelta
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         timestamp = (now - timedelta(minutes=minutes_ago)).isoformat()
         return {
             'payee': 'McDonalds',
@@ -951,8 +948,7 @@ class TestEditLastTransaction:
     def test_transaction_too_old_returns_time_window_error(
         self, service, mock_user_repository, mock_learning_repository, authorized_user,
     ):
-        from datetime import datetime, timedelta
-        past = (datetime.utcnow() - timedelta(days=1, minutes=10)).isoformat()
+        past = (datetime.now(timezone.utc) - timedelta(days=1, minutes=10)).isoformat()
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = [{
             'payee': 'McDonalds',

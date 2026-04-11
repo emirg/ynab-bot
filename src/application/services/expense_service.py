@@ -1,7 +1,7 @@
 import logging
 import re
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
@@ -960,10 +960,10 @@ class ExpenseService:
         except (ValueError, TypeError):
             return False
 
-        # 5-minute check (compare naive UTC datetimes)
-        now_utc = datetime.utcnow()
-        txn_naive = txn_dt.replace(tzinfo=None) if txn_dt.tzinfo else txn_dt
-        within_5_min = (now_utc - txn_naive) <= timedelta(minutes=5)
+        # 5-minute check in UTC using timezone-aware datetimes.
+        now_utc = datetime.now(timezone.utc)
+        txn_utc = txn_dt.replace(tzinfo=timezone.utc) if not txn_dt.tzinfo else txn_dt.astimezone(timezone.utc)
+        within_5_min = (now_utc - txn_utc) <= timedelta(minutes=5)
 
         # Same-day check in user's timezone
         is_today = False

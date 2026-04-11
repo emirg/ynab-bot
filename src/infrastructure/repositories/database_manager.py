@@ -196,6 +196,13 @@ class DatabaseManager:
             self._conn.close()
             self._conn = None
 
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            # Best-effort cleanup during GC/interpreter shutdown.
+            pass
+
     # ------------------------------------------------------------------
     # Migration system
     # ------------------------------------------------------------------
