@@ -2,11 +2,12 @@
 
 ## Objective & Context
 - **Status:** [Draft / In Progress / Completed]
-- **Goal:** [1-2 sentences: What are we building/refactoring]
-- **Why:** [Core problem being solved]
+- **Source Spec:** `docs/specs/[YYYY-MM-DD-feature-name].md`
+- **Goal:** [1-2 sentences: What this implementation delivers]
+- **Approach:** [Short technical summary derived from the approved spec]
 
 ## Affected Components
-<!-- Every file that will be created or modified, for quick impact assessment -->
+<!-- Only list the files or subsystems that matter for safe execution -->
 - `path/to/file.py` — [what changes]
 
 ## Prerequisites (Manual)
@@ -23,6 +24,7 @@ GROUPING RULES:
 - Two steps that modify the SAME FILE must be in different groups (sequential).
 - DBA consultations go in their own group BEFORE the steps they inform.
 - If a feature has no parallelizable steps, use a single group with all steps sequential.
+- The PLAN must not restate the full product behavior from the SPEC. Only include implementation detail needed to execute safely.
 -->
 
 ### Group 1
@@ -47,8 +49,9 @@ GROUPING RULES:
 - **Tests:** `path/to/test_wiring.py` — [Specific scenario to cover]
 
 ## Constraints & Architecture
-- [Security rules, specific validations, or hard dependencies]
-- [Do not repeat ARCHITECTURE.md, only reference it or add feature-specific deviations]
+- [Hard constraints from the approved SPEC]
+- [Relevant architectural invariants or ADR references]
+- [Security rules, migration notes, compatibility requirements]
 
 ## Verification
 - [ ] [Manual test step 1]

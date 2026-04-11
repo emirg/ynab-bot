@@ -138,4 +138,9 @@ Public HTTP server runs on `$PORT` (default 8080), serves `/` for Railway health
 
 ## Development Workflow
 
-Feature development follows an AI-agnostic multi-agent pipeline. See `docs/AI_WORKFLOW.md` for the universal protocol, and `CLAUDE.md` or `GEMINI.md` for AI-specific routing.
+Feature development follows a staged documentation and execution workflow:
+
+- `docs/DOCUMENTATION_WORKFLOW.md` defines the `SPEC -> PLAN -> IMPLEMENT -> ADR` lifecycle
+- `docs/AI_WORKFLOW.md` defines how approved work is executed, reviewed, and handed off
+
+AI-specific routing remains in `CLAUDE.md`, `GEMINI.md`, and `AGENTS.md`.

@@ -378,4 +378,10 @@ To use the HTTP endpoint after deploy, set `HTTP_API_KEY` in Railway and call th
 
 ## 🛠️ Development Workflow
 
-Feature development follows an AI-agnostic multi-agent pipeline. See [docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) for the universal protocol, and [CLAUDE.md](CLAUDE.md) or [GEMINI.md](GEMINI.md) for AI-specific routing and role mapping.
+Feature work is documented and executed in stages:
+
+- `SPEC` in `docs/specs/` defines what to build
+- `PLAN` in `docs/plans/` defines how to build it
+- `ADR` in `docs/adrs/` records significant architectural decisions
+
+See [docs/DOCUMENTATION_WORKFLOW.md](docs/DOCUMENTATION_WORKFLOW.md) for the documentation lifecycle, [docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) for the execution pipeline, and [CLAUDE.md](CLAUDE.md) or [GEMINI.md](GEMINI.md) for AI-specific routing and role mapping.

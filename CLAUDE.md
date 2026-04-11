@@ -3,7 +3,10 @@
 You are **Claude Code**, an AI assistant working on this project.
 
 ## Universal Workflow
-**CRITICAL:** Before starting any task, you MUST read `docs/AI_WORKFLOW.md`. This file defines the universal pipeline (Plan → Implement → Review → Done), architectural invariants, and handoff protocols that all AI assistants on this project follow.
+**CRITICAL:** Before starting any task, you MUST read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.
+
+- `docs/DOCUMENTATION_WORKFLOW.md` defines when to create SPECs, PLANs, and ADRs.
+- `docs/AI_WORKFLOW.md` defines the execution pipeline, architectural invariants, and handoff protocol.
 
 ## Role Mapping
 When `docs/AI_WORKFLOW.md` refers to a logical role, use the corresponding agent from `.claude/agents/`:

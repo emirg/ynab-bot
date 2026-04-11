@@ -1,6 +1,8 @@
 # AI Workflow & Orchestration Protocol
 
-This document defines the universal pipeline for feature implementation. The active AI assistant (Orchestrator) reads this when the user triggers pipeline work ("implement", "build this", "plan next milestone", or approves a plan).
+This document defines the execution pipeline for approved work. The active AI assistant (Orchestrator) reads this when the user triggers pipeline work ("implement", "build this", "plan next milestone", or approves a plan).
+
+Documentation lifecycle rules live in `docs/DOCUMENTATION_WORKFLOW.md`.
 
 ---
 
@@ -34,16 +36,26 @@ Non-negotiable rules. Flag violations immediately during review.
 
 ---
 
-## Pipeline: Plan → Implement → Review → Done
+## Pipeline: Spec → Plan → Implement → Review → Done
+
+Before implementation starts, the assistant must follow `docs/DOCUMENTATION_WORKFLOW.md`:
+
+1. Confirm there is an approved SPEC in `docs/specs/`
+2. Produce or refine a PLAN in `docs/plans/` from that SPEC
+3. Implement only after the PLAN is implementation-ready
+4. Write an ADR in `docs/adrs/` if a significant architectural decision is made or finalized
 
 ### 1. Plan
 
-Use the **Lead Architect** role to draft a plan:
+Use the **Lead Architect** role to confirm or create the required documentation:
+
+- For a new feature or refactor: draft or refine the SPEC first using `docs/specs/_TEMPLATE.md`
+- For implementation-ready work: draft the PLAN from the approved SPEC using `docs/plans/_TEMPLATE.md`
 
 - For a milestone: "Plan the next milestone from ROADMAP.md."
 - For a specific feature: "Plan the feature '<feature name>' from ROADMAP.md."
 
-The architect produces a plan in `docs/plans/<feature>.md` using `docs/plans/_TEMPLATE.md`. If DB changes are involved, the plan must flag that the **Database Advisor** role must be consulted before implementation.
+The architect must ensure the PLAN references its source SPEC. If DB changes are involved, the plan must flag that the **Database Advisor** role must be consulted before implementation.
 
 ### 2. Implement
 
@@ -66,6 +78,7 @@ When all groups are complete:
 
 1. **Use the Code Reviewer role:**
    - Review the implementation of `docs/plans/<feature>.md`.
+   - Confirm the implementation still matches the source SPEC.
    - **Modified files**: [list]
    - **Feature context**: [summary]
    - **Key invariants to check**: milliunits, DI via factory, Spanish UI, per-user isolation.
@@ -86,14 +99,15 @@ When all groups are complete:
 Once review passes:
 1. Move the plan to `docs/plans/archive/`.
 2. Update `ROADMAP.md` to mark the feature as complete.
-3. If all features in a milestone are done, mark the milestone as complete.
-4. Update `docs/wip_state.md` to reflect current state.
+3. Write or update the ADR if the feature introduced a significant architectural decision.
+4. If all features in a milestone are done, mark the milestone as complete.
+5. Update `docs/wip_state.md` to reflect current state.
 
 ---
 
 ## Model Equality & Autonomy
 
-1. **Active Leadership:** The AI assistant currently in session is the **Lead Orchestrator**. It has full authority and responsibility to execute the entire pipeline (Plan → Implement → Review → Done).
+1. **Active Leadership:** The AI assistant currently in session is the **Lead Orchestrator**. It has full authority and responsibility to execute the entire pipeline (Spec → Plan → Implement → Review → Done).
 2. **Role Adoption:** If an AI lacks a multi-agent sub-system, it MUST adopt the logical roles itself (e.g., "I am now acting as **Step Implementer**").
 3. **No Hierarchy:** No AI model is "secondary". Every model must strive for the same high standards of architecture, testing, and documentation.
 
