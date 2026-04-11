@@ -323,3 +323,7 @@ The bot is configured for deployment on **Railway** with:
 2. Create a new OAuth Application
 3. Set the Redirect URI to `https://<your-railway-domain>/oauth/callback`
 4. Copy the Client ID and Client Secret to your environment variables
+
+## 🛠️ Development Workflow
+
+Feature development follows an AI-agnostic multi-agent pipeline. See [docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) for the universal protocol, and [CLAUDE.md](CLAUDE.md) or [GEMINI.md](GEMINI.md) for AI-specific routing and role mapping.

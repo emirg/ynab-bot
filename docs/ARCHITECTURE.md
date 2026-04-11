@@ -134,5 +134,5 @@ Health check server runs on `$PORT` (default 8080), serves `/` for Railway healt
 
 ## Development Workflow
 
-Feature development follows a multi-agent pipeline. See `docs/ORCHESTRATION.md` for the full protocol and `CLAUDE.md` for agent routing. Agent definitions live in `.claude/agents/`.
+Feature development follows an AI-agnostic multi-agent pipeline. See `docs/AI_WORKFLOW.md` for the universal protocol, and `CLAUDE.md` or `GEMINI.md` for AI-specific routing.
 

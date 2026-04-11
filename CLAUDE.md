@@ -1,42 +1,25 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+You are **Claude Code**, an AI assistant working on this project.
 
-## Context & Rules
-- **Project:** YNAB Telegram Bot (Python/SQLite/OpenAI). Spanish UI.
-- **Roadmap:** READ `ROADMAP.md` for planned features.
-- **Architecture:** READ `docs/ARCHITECTURE.md` for layers, data flow, conventions, and OAuth.
-- **YNAB Units:** Amounts are in milliunits (×1000). Negate for expenses.
-- **Dependency Injection:** YNAB services use `YNABRepositoryFactory` (per-user, not singleton).
+## Universal Workflow
+**CRITICAL:** Before starting any task, you MUST read `docs/AI_WORKFLOW.md`. This file defines the universal pipeline (Plan → Implement → Review → Done), architectural invariants, and handoff protocols that all AI assistants on this project follow.
 
-## Session Initialization
-At the start of every session, read `docs/wip_state.md` and continue from where the last session left off.
+## Role Mapping
+When `docs/AI_WORKFLOW.md` refers to a logical role, use the corresponding agent from `.claude/agents/`:
 
-## Plans
-- Use `docs/plans/_TEMPLATE.md` for feature planning.
-- Save active plans to `docs/plans/`, archive completed ones to `docs/plans/archive/`.
-
-## Orchestration
-
-When the user triggers pipeline work ("implement", "build this", "plan next milestone", or approves a plan), READ `docs/ORCHESTRATION.md` for the full protocol.
-
-Agent definitions live in `.claude/agents/`. **Do not modify agent files** without explicit user approval.
-
-**Quick routing:**
-
-| Situation | Agent |
+| Logical Role | Claude Agent |
 |---|---|
-| Feature plan from roadmap | `ynab-lead-architect` |
-| Architectural review | `ynab-lead-architect` |
-| DB changes (pre-implementation) | `dba-advisor` |
-| Implementing a plan step | `plan-step-implementer` |
-| Code review after implementation | `code-reviewer` |
-| Missing tests or coverage drop | `test-writer` |
-| Test failure during implementation | `debugger` |
-| Cleanup / refactor request | `refactor-advisor` |
+| **Lead Architect** | `ynab-lead-architect` |
+| **Database Advisor** | `dba-advisor` |
+| **Step Implementer** | `plan-step-implementer` |
+| **Code Reviewer** | `code-reviewer` |
+| **Test Writer** | `test-writer` |
+| **Debugger** | `debugger` |
+| **Refactor Advisor** | `refactor-advisor` |
 
 ## Commands
-All Python commands use the `.venv` virtual environment.
+All Python commands must be run using the `.venv` virtual environment.
 
 ```bash
 .venv/bin/python main.py          # Run
@@ -46,10 +29,4 @@ All Python commands use the `.venv` virtual environment.
 ```
 
 ## Handoff Protocol
-On "prepare handoff", "save state", or approaching rate limit — stop coding and overwrite `docs/wip_state.md`:
-- **Last worker:** Claude Code
-- **Current Objective:** [1-2 lines, reference active plan if applicable]
-- **Last Action:** [Specific]
-- **Modified Files:** [List or "None"]
-- **Current State / Blocker:** [Exact error or remaining logic]
-- **Next Step:** [Exact technical instruction to resume]
+When the user triggers a handoff, overwrite `docs/wip_state.md` following the strict structure defined in `docs/AI_WORKFLOW.md`.
