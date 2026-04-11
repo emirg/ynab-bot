@@ -56,3 +56,16 @@ class LearningRepository(ABC):
     def delete_recent_transaction(self, telegram_id: int, ynab_transaction_id: str) -> bool:
         """Delete a recent transaction by ynab_transaction_id for a specific user. Returns True if deleted."""
         pass
+
+    @abstractmethod
+    def get_payee_category_distribution(self, telegram_id: int) -> Dict[str, List[Dict]]:
+        """Get the full category distribution for all known payees of a user.
+
+        Returns a dict keyed by normalized_payee. Each value is a list of dicts:
+            {"category_name": str, "count": int, "percentage": float}
+        sorted by count descending.
+
+        Only payees with a total usage count >= 2 are included (single-use payees
+        are excluded to avoid noise in the distribution).
+        """
+        pass
