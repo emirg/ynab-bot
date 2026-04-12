@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 _KEYWORDS = {"monto", "comercio", "categoria", "cuenta"}
 
 
+def _normalize_keyword(token: str) -> str:
+    return token.lower().strip().replace("í", "i")
+
+
 def _parse_amount(token: str) -> Decimal:
     """Parse an amount string supporting plain numbers, mil/lucas/k suffix, and comma decimals.
 
@@ -121,9 +125,10 @@ class LearningHandler(BaseHandler):
                     parsed[current_keyword] = " ".join(value_tokens)
 
             for token in args:
-                if token.lower() in _KEYWORDS:
+                normalized_token = _normalize_keyword(token)
+                if normalized_token in _KEYWORDS:
                     _flush()
-                    current_keyword = token.lower()
+                    current_keyword = normalized_token
                     value_tokens = []
                 elif current_keyword is not None:
                     # For monto, only take the first token

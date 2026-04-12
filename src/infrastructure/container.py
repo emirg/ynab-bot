@@ -152,6 +152,7 @@ class DIContainer:
                 advisor_auth_repository=self.get(AdvisorAuthRepository),
                 user_repository=self.get(UserRepository),
                 learning_repository=self.get(LearningRepository),
+                ynab_factory=self.get(YNABRepositoryFactory),
             )
         )
 

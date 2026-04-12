@@ -49,7 +49,7 @@ _ADVISOR_APP_HTML = """<!DOCTYPE html>
       const rows = [
         ['Usuario', payload.user.display_name],
         ['YNAB', payload.ynab_connected ? 'Conectado' : 'Pendiente'],
-        ['Presupuesto', payload.budget_id || 'Pendiente'],
+        ['Presupuesto', payload.budget_name || payload.budget_id || 'Pendiente'],
         ['Cuenta por defecto', payload.default_account_name || 'Pendiente'],
         ['Onboarding', payload.onboarding_state]
       ];

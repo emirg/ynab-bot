@@ -5,7 +5,7 @@ import pytest
 
 from application.services.advisor_access_service import AdvisorAccessService
 from domain.models.advisor_auth import AdvisorLaunchToken, AdvisorSession
-from domain.models.user import UserConfiguration, UserStatus
+from domain.models.user import UserConfiguration, UserStatus, YNABBudget
 from infrastructure.config.app_config import AppConfig
 
 
@@ -27,11 +27,18 @@ def service():
     advisor_repo = MagicMock()
     user_repo = MagicMock()
     learning_repo = MagicMock()
-    return AdvisorAccessService(_config(), advisor_repo, user_repo, learning_repo), advisor_repo, user_repo, learning_repo
+    ynab_factory = MagicMock()
+    return (
+        AdvisorAccessService(_config(), advisor_repo, user_repo, learning_repo, ynab_factory),
+        advisor_repo,
+        user_repo,
+        learning_repo,
+        ynab_factory,
+    )
 
 
 def test_create_launch_url_persists_hashed_launch_token(service):
-    advisor_service, advisor_repo, _, _ = service
+    advisor_service, advisor_repo, _, _, _ = service
 
     url = advisor_service.create_launch_url(123)
 
@@ -43,7 +50,7 @@ def test_create_launch_url_persists_hashed_launch_token(service):
 
 
 def test_exchange_launch_token_creates_session(service):
-    advisor_service, advisor_repo, _, _ = service
+    advisor_service, advisor_repo, _, _, _ = service
     launch = AdvisorLaunchToken(
         telegram_id=123,
         token_hash="hash",
@@ -61,7 +68,7 @@ def test_exchange_launch_token_creates_session(service):
 
 
 def test_get_session_telegram_id_deletes_expired_session(service):
-    advisor_service, advisor_repo, _, _ = service
+    advisor_service, advisor_repo, _, _, _ = service
     advisor_repo.find_session.return_value = AdvisorSession(
         telegram_id=123,
         token_hash="hashed",
@@ -74,7 +81,7 @@ def test_get_session_telegram_id_deletes_expired_session(service):
 
 
 def test_bootstrap_payload_reports_ready_when_recent_activity_exists(service):
-    advisor_service, _, user_repo, learning_repo = service
+    advisor_service, _, user_repo, learning_repo, ynab_factory = service
     user_repo.find_by_telegram_id.return_value = UserConfiguration(
         telegram_id=123,
         status=UserStatus.AUTHORIZED,
@@ -85,15 +92,19 @@ def test_bootstrap_payload_reports_ready_when_recent_activity_exists(service):
         ynab_access_token="token",
     )
     learning_repo.get_recent_transactions.return_value = [{"payee": "Carulla"}]
+    ynab_repo = MagicMock()
+    ynab_repo.get_budgets.return_value = [YNABBudget(id="budget-1", name="Mi presupuesto", currency_format={})]
+    ynab_factory.get_repository.return_value = ynab_repo
 
     payload = advisor_service.get_bootstrap_payload(123)
 
     assert payload["advisor_state"] == "ready"
     assert payload["user"]["display_name"] == "Test"
+    assert payload["budget_name"] == "Mi presupuesto"
 
 
 def test_bootstrap_payload_reports_needs_budget_when_missing(service):
-    advisor_service, _, user_repo, _ = service
+    advisor_service, _, user_repo, _, _ = service
     user_repo.find_by_telegram_id.return_value = UserConfiguration(
         telegram_id=123,
         status=UserStatus.AUTHORIZED,

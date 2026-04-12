@@ -207,6 +207,19 @@ async def test_handle_edit_command_edit_category(handler, update, context):
 
 
 @pytest.mark.anyio
+async def test_handle_edit_command_edit_category_with_accent(handler, update, context):
+    """Edit category should also accept the accented Spanish keyword."""
+    context.args = ['categoría', 'Restaurantes']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'payee': 'McDonalds',
+        'changes': {'category': {'old': 'Comida rapida', 'new': 'Restaurantes'}},
+    }
+    await handler.handle_edit_command(update, context)
+    call_kwargs = handler.expense_service.edit_last_transaction.call_args
+    assert call_kwargs[0][4] == 'Restaurantes'
+
+
+@pytest.mark.anyio
 async def test_handle_edit_command_edit_account(handler, update, context):
     """Edit account (cuenta)."""
     context.args = ['cuenta', 'Tarjeta', 'de', 'credito']

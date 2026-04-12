@@ -11,6 +11,7 @@ from domain.repositories.advisor_auth_repository import AdvisorAuthRepository
 from domain.repositories.learning_repository import LearningRepository
 from domain.repositories.user_repository import UserRepository
 from infrastructure.config.app_config import AppConfig
+from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 
 _LAUNCH_TOKEN_TTL_SECONDS = 600
 _SESSION_TTL_SECONDS = 24 * 60 * 60
@@ -23,11 +24,13 @@ class AdvisorAccessService:
         advisor_auth_repository: AdvisorAuthRepository,
         user_repository: UserRepository,
         learning_repository: LearningRepository,
+        ynab_factory: YNABRepositoryFactory,
     ):
         self._config = config
         self._advisor_auth_repository = advisor_auth_repository
         self._user_repository = user_repository
         self._learning_repository = learning_repository
+        self._ynab_factory = ynab_factory
 
     @staticmethod
     def _hash_token(raw_token: str) -> str:
@@ -102,6 +105,7 @@ class AdvisorAccessService:
             },
             "ynab_connected": user.has_ynab_token(),
             "budget_id": user.budget_id,
+            "budget_name": self._resolve_budget_name(user),
             "default_account_id": user.default_account_id,
             "default_account_name": user.default_account_name,
         }
@@ -124,3 +128,15 @@ class AdvisorAccessService:
             return "needs_account"
         recent = self._learning_repository.get_recent_transactions(telegram_user_id, limit=1)
         return "ready" if recent else "empty"
+
+    def _resolve_budget_name(self, user) -> str | None:
+        if not user.budget_id or not user.has_ynab_token():
+            return None
+
+        try:
+            ynab_repo = self._ynab_factory.get_repository(user)
+            budgets = ynab_repo.get_budgets()
+            budget = next((item for item in budgets if item.id == user.budget_id), None)
+            return budget.name if budget else None
+        except Exception:
+            return None
