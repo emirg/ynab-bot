@@ -2,7 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
-- **Source Spec:** `docs/specs/2026-04-12-financial-advisor-phase3-dashboard.md`
+- **Source Spec:** `docs/specs/archive/2026-04-12-financial-advisor-phase3-dashboard.md`
 - **Goal:** Deliver the first useful advisor dashboard on top of the completed advisor session/auth baseline.
 - **Approach:** Add an advisor-specific dashboard service and API, then replace the placeholder advisor page with a month-first read-only dashboard rendered by the existing server-served HTML/JS flow.
 
