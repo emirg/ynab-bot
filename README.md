@@ -123,6 +123,61 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 python main.py     # Starts the bot
 ```
 
+## Local Development
+
+Daily local development no longer needs to compete with the Railway Telegram polling instance.
+
+Detailed documentation lives in `docs/dev/`.
+Postman artifacts for the current HTTP surface live in `docs/dev/postman/`.
+
+### Default local profile: HTTP-only dev mode
+
+```bash
+cp config/.env.dev.example config/.env.dev
+docker compose up app-dev
+```
+
+This starts the public HTTP server and the existing HTTP API in `http-dev` mode:
+- Telegram polling is disabled
+- SQLite remains the default local database
+- OpenAI and YNAB integrations are stubbed by default
+- Dev-only routes are enabled under `/dev/*` only because `ENABLE_DEV_ROUTES=true` is set in the local env/profile
+- Ports are bound to `127.0.0.1`, not the whole network
+
+### Local dev harness
+
+Bootstrap a local user:
+
+```bash
+.venv/bin/python scripts/dev/bootstrap_user.py
+```
+
+Send a synthetic command or expense message:
+
+```bash
+.venv/bin/python scripts/dev/send_message.py "/start"
+.venv/bin/python scripts/dev/send_message.py "Gaste 25k en Carulla"
+```
+
+The dev harness reuses the current service layer and returns JSON responses from `/dev/messages/text`.
+If you prefer an API client instead of curl or helper scripts, import the committed Postman bundle documented in `docs/dev/postman.md`.
+
+### Optional profiles
+
+Run local Postgres for migration or integration work:
+
+```bash
+docker compose --profile postgres up postgres
+```
+
+Run HTTP mode with live OpenAI/YNAB integrations:
+
+```bash
+docker compose --profile live-integrations up app-live
+```
+
+For that profile, fill in the live credentials in `config/.env.dev`.
+
 ## HTTP API
 
 The service exposes an authenticated HTTP endpoint on the same public port/domain used by Railway health checks and the YNAB OAuth callback.

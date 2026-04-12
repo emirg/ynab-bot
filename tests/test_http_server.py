@@ -53,3 +53,19 @@ class TestHTTPServer:
         assert body["error_code"] == "METHOD_NOT_ALLOWED"
         assert body["message"] == "This endpoint only accepts POST requests."
         assert extra_headers == {"Allow": "POST"}
+
+    def test_dev_route_dispatches_when_handler_present(self):
+        dev_handler = MagicMock()
+        dev_handler.handle_post.return_value = (200, {"status": "ok", "kind": "command"})
+        router = HTTPAPIRouter(MagicMock(), dev_handler)
+
+        status, body, extra_headers = router.route(
+            method="POST",
+            path="/dev/bootstrap",
+            headers={"Authorization": "Bearer dev-api-key"},
+            body=b"{}",
+        )
+
+        assert status == 200
+        assert body["kind"] == "command"
+        assert extra_headers == {}

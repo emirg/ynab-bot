@@ -274,3 +274,4 @@ docs/wip_state.md
 .claude/
 !.claude/skills/
 !.claude/agents/
+config/.env.dev

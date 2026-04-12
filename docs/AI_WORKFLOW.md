@@ -115,7 +115,7 @@ Once review passes:
 
 ## Role Definitions (AI-Specific Mapping)
 
-Each AI assistant maps these logical roles to their own specific capabilities (sub-agents, skills, or specialized prompts). See `CLAUDE.md`, `GEMINI.md`, or `CODEX.md` for the specific mapping.
+Each AI assistant maps these logical roles to their own specific capabilities (sub-agents, skills, or specialized prompts). See `CLAUDE.md`, `GEMINI.md`, or `AGENTS.md` for the specific mapping.
 
 | Logical Role | Responsibility |
 |---|---|

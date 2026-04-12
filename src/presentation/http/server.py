@@ -3,11 +3,13 @@ import logging
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from presentation.http.dev_api_handler import DevAPIHandler
 from presentation.http.handlers.expense_api_handler import ExpenseAPIHandler
 
 logger = logging.getLogger(__name__)
 
 _expense_endpoint_handler = None
+_dev_endpoint_handler = None
 
 
 def set_expense_endpoint_handler(handler):
@@ -15,15 +17,24 @@ def set_expense_endpoint_handler(handler):
     _expense_endpoint_handler = handler
 
 
+def set_dev_endpoint_handler(handler):
+    global _dev_endpoint_handler
+    _dev_endpoint_handler = handler
+
+
 def get_http_api_router():
-    return HTTPAPIRouter(_expense_endpoint_handler)
+    return HTTPAPIRouter(_expense_endpoint_handler, _dev_endpoint_handler)
 
 
 class HTTPAPIRouter:
-    def __init__(self, endpoint_handler):
+    def __init__(self, endpoint_handler, dev_endpoint_handler=None):
         self.endpoint_handler = endpoint_handler
+        self.dev_endpoint_handler = dev_endpoint_handler
 
     def route(self, method: str, path: str, headers: dict, body: bytes) -> tuple[int, dict, dict]:
+        if path.startswith("/dev/"):
+            return self._route_dev(method, path, headers, body)
+
         if path != "/api/v1/expenses/text":
             return 404, {
                 "status": "error",
@@ -46,6 +57,24 @@ class HTTPAPIRouter:
             }, {}
 
         status_code, payload = self.endpoint_handler.handle_post(headers, body)
+        return status_code, payload, {}
+
+    def _route_dev(self, method: str, path: str, headers: dict, body: bytes) -> tuple[int, dict, dict]:
+        if method != "POST":
+            return 405, {
+                "status": "error",
+                "error_code": "METHOD_NOT_ALLOWED",
+                "message": "This endpoint only accepts POST requests.",
+            }, {"Allow": "POST"}
+
+        if self.dev_endpoint_handler is None:
+            return 404, {
+                "status": "error",
+                "error_code": "ROUTE_NOT_FOUND",
+                "message": "The requested route does not exist.",
+            }, {}
+
+        status_code, payload = self.dev_endpoint_handler.handle_post(path, headers, body)
         return status_code, payload, {}
 
 
@@ -89,3 +118,7 @@ def start_http_api_server(port: int = 8081):
 
 def configure_http_api(container):
     set_expense_endpoint_handler(ExpenseAPIHandler(container))
+    if container.get_config().dev_routes_enabled:
+        set_dev_endpoint_handler(DevAPIHandler(container))
+    else:
+        set_dev_endpoint_handler(None)

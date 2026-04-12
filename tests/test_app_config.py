@@ -103,7 +103,9 @@ class TestFromEnv:
     def _clear_env(self, monkeypatch):
         for var in ('TELEGRAM_BOT_TOKEN', 'OPENAI_API_KEY', 'ADMIN_IDS',
                      'YNAB_CLIENT_ID', 'YNAB_CLIENT_SECRET', 'YNAB_REDIRECT_URI',
-                     'TOKEN_ENCRYPTION_KEY', 'HTTP_API_KEY', 'YNAB_ACCESS_TOKEN'):
+                     'TOKEN_ENCRYPTION_KEY', 'HTTP_API_KEY', 'YNAB_ACCESS_TOKEN',
+                     'APP_MODE', 'EXTERNAL_MODE', 'DEV_API_KEY', 'ENABLE_DEV_ROUTES',
+                     'RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'):
             monkeypatch.delenv(var, raising=False)
 
     def test_loads_from_env(self, monkeypatch, tmp_path):
@@ -149,4 +151,67 @@ class TestFromEnv:
             'TOKEN_ENCRYPTION_KEY=k\n'
         )
         with pytest.raises(ConfigurationException, match='HTTP_API_KEY'):
+            AppConfig.from_env(str(env_file))
+
+    def test_http_dev_mode_allows_stub_defaults(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
+        env_file = tmp_path / '.env'
+        env_file.write_text(
+            'APP_MODE=http-dev\n'
+            'EXTERNAL_MODE=stub\n'
+            'ENABLE_DEV_ROUTES=true\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
+            'DEV_API_KEY=dev-only-secret\n'
+        )
+        config = AppConfig.from_env(str(env_file))
+        assert config.app_mode == 'http-dev'
+        assert config.external_mode == 'stub'
+        assert config.http_api_key == 'dev-http-key'
+        assert config.dev_api_key == 'dev-only-secret'
+        assert config.dev_routes_enabled is True
+        assert config.telegram_enabled is False
+
+    def test_http_dev_mode_requires_dev_api_key(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
+        env_file = tmp_path / '.env'
+        env_file.write_text(
+            'APP_MODE=http-dev\n'
+            'EXTERNAL_MODE=stub\n'
+            'ENABLE_DEV_ROUTES=true\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
+        )
+        with pytest.raises(ConfigurationException, match='DEV_API_KEY'):
+            AppConfig.from_env(str(env_file))
+
+    def test_enable_dev_routes_requires_http_dev_mode(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
+        env_file = tmp_path / '.env'
+        env_file.write_text(
+            'APP_MODE=full\n'
+            'EXTERNAL_MODE=live\n'
+            'ENABLE_DEV_ROUTES=true\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
+            'HTTP_API_KEY=http-key\n'
+            'TELEGRAM_BOT_TOKEN=tg-token\n'
+            'OPENAI_API_KEY=openai-key\n'
+            'ADMIN_IDS=111\n'
+            'YNAB_CLIENT_ID=cid\n'
+            'YNAB_CLIENT_SECRET=cs\n'
+            'YNAB_REDIRECT_URI=http://localhost/cb\n'
+        )
+        with pytest.raises(ConfigurationException, match='ENABLE_DEV_ROUTES'):
+            AppConfig.from_env(str(env_file))
+
+    def test_http_dev_mode_rejected_on_railway(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
+        monkeypatch.setenv('RAILWAY_ENVIRONMENT', 'production')
+        env_file = tmp_path / '.env'
+        env_file.write_text(
+            'APP_MODE=http-dev\n'
+            'EXTERNAL_MODE=stub\n'
+            'ENABLE_DEV_ROUTES=true\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
+            'DEV_API_KEY=dev-only-secret\n'
+        )
+        with pytest.raises(ConfigurationException, match='not allowed on Railway'):
             AppConfig.from_env(str(env_file))

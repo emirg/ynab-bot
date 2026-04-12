@@ -32,5 +32,10 @@ All Python commands must be run using the `.venv` virtual environment.
 .venv/bin/pytest -k "test_predict_category" # Keyword filter
 ```
 
+## Shared Skills
+Reusable cross-agent skills live in `.agents/skills/`.
+
+Use them selectively instead of duplicating autoskills summaries in this file. Current shared skills cover testing, Python design patterns, Pydantic, performance, security, code execution, and Railway operations.
+
 ## Handoff Protocol
-When the user triggers a handoff, generate the exact Markdown content for `docs/wip_state.md` following the strict structure defined in `docs/AI_WORKFLOW.md`.
+When the user triggers a handoff, generate the exact Markdown content for `docs/wip_state.md` following the strict structure defined in `docs/AI_WORKFLOW.md`. State clearly that the last worker was **Gemini CLI**.

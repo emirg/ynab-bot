@@ -31,5 +31,10 @@ All Python commands must be run using the `.venv` virtual environment.
 .venv/bin/pytest -k "keyword"      # Filter
 ```
 
+## Shared Skills
+Reusable cross-agent skills live in `.agents/skills/`.
+
+Keep this file concise: do not paste autoskills-generated inventories here. Refer agents to the skill directory and load only the specific `SKILL.md` files needed for the task.
+
 ## Handoff Protocol
 When the user triggers a handoff, overwrite `docs/wip_state.md` following the strict structure defined in `docs/AI_WORKFLOW.md`. State clearly that the last worker was **Codex**.

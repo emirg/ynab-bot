@@ -32,7 +32,7 @@ def route_health_request(method: str, path: str, headers: dict | None = None, bo
     headers = headers or {}
     parsed = urlparse(path)
 
-    if parsed.path.startswith("/api/v1/"):
+    if parsed.path.startswith("/api/v1/") or parsed.path.startswith("/dev/"):
         router = get_http_api_router()
         status, payload, extra_headers = router.route(
             method=method,
