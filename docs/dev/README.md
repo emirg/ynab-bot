@@ -12,6 +12,7 @@ The current preferred workflow is `HTTP-first` local development:
 Related docs:
 
 - `docs/dev/http-dev-harness.md` — local `/dev/*` endpoints and helper scripts
+- `docs/dev/postman.md` — Postman collection, environments, and request order
 - `README.md` — project overview and high-level commands
 - `docs/ARCHITECTURE.md` — runtime architecture
 
@@ -160,6 +161,8 @@ docker compose up app-dev
 .venv/bin/python scripts/dev/send_message.py "/status" --dev-api-key "$DEV_API_KEY"
 .venv/bin/python scripts/dev/send_message.py "Gaste 25k en Carulla" --dev-api-key "$DEV_API_KEY"
 ```
+
+You can also import the committed Postman bundle from `docs/dev/postman/` and run the same flows interactively.
 
 4. Run tests from the virtual environment:
 

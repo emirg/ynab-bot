@@ -128,6 +128,7 @@ python main.py     # Starts the bot
 Daily local development no longer needs to compete with the Railway Telegram polling instance.
 
 Detailed documentation lives in `docs/dev/`.
+Postman artifacts for the current HTTP surface live in `docs/dev/postman/`.
 
 ### Default local profile: HTTP-only dev mode
 
@@ -159,6 +160,7 @@ Send a synthetic command or expense message:
 ```
 
 The dev harness reuses the current service layer and returns JSON responses from `/dev/messages/text`.
+If you prefer an API client instead of curl or helper scripts, import the committed Postman bundle documented in `docs/dev/postman.md`.
 
 ### Optional profiles
 

@@ -1,0 +1,1184 @@
+{
+  "info": {
+    "_postman_id": "8c1880b1-e61c-4e56-9b5b-f2a2728c8f11",
+    "name": "YNAB Bot DevEx",
+    "description": "Postman collection for the current HTTP API and local dev harness. Production API requests use HTTP_API_KEY. Local dev harness requests use DEV_API_KEY and only work in APP_MODE=http-dev with ENABLE_DEV_ROUTES=true.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "http_api_key",
+      "value": "replace-me"
+    },
+    {
+      "key": "dev_api_key",
+      "value": "replace-me"
+    },
+    {
+      "key": "telegram_user_id",
+      "value": "42"
+    },
+    {
+      "key": "expense_text",
+      "value": "Gaste 25k en Carulla"
+    },
+    {
+      "key": "query_text",
+      "value": "Cuanto he gastado este mes?"
+    },
+    {
+      "key": "command_text",
+      "value": "/status"
+    }
+  ],
+  "item": [
+    {
+      "name": "Production API",
+      "description": "Authenticated API requests intended for the real HTTP surface under /api/v1/*.",
+      "item": [
+        {
+          "name": "Log Expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{http_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"{{expense_text}}\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/expenses/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "text"
+              ]
+            },
+            "description": "Main authenticated expense endpoint. Returns preview when the user requires confirmation and force_commit=false, otherwise returns committed."
+          },
+          "response": [
+            {
+              "name": "Committed Expense",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{http_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"text\": \"Gaste 25k en Carulla\",\n  \"force_commit\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/expenses/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "expenses",
+                    "text"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"committed\",\n  \"intent\": \"expense\",\n  \"message\": \"Logged: Carulla $25,000.\",\n  \"requires_confirmation\": false,\n  \"transaction_id\": \"dev-txn-123\",\n  \"expense\": {\n    \"payee\": \"Carulla\",\n    \"amount\": \"25000\",\n    \"category_name\": \"Mercado\",\n    \"account_name\": \"Nu Card\",\n    \"date\": \"2026-04-11\",\n    \"memo\": null,\n    \"is_split\": false,\n    \"split_person\": null,\n    \"split_proportion\": null,\n    \"split_fixed_amount\": null,\n    \"split_category_name\": null,\n    \"payer\": null\n  }\n}"
+            },
+            {
+              "name": "Preview Expense",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{http_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"text\": \"Gaste 25k en Carulla\",\n  \"force_commit\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/expenses/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "expenses",
+                    "text"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"preview\",\n  \"intent\": \"expense\",\n  \"message\": \"I am about to log: Carulla $25,000.\",\n  \"requires_confirmation\": true,\n  \"transaction_id\": \"dev-txn-123\",\n  \"expense\": {\n    \"payee\": \"Carulla\",\n    \"amount\": \"25000\",\n    \"category_name\": \"Mercado\",\n    \"account_name\": \"Nu Card\",\n    \"date\": \"2026-04-11\",\n    \"memo\": null,\n    \"is_split\": false,\n    \"split_person\": null,\n    \"split_proportion\": null,\n    \"split_fixed_amount\": null,\n    \"split_category_name\": null,\n    \"payer\": null\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Log Expense Force Commit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{http_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"{{expense_text}}\",\n  \"force_commit\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/expenses/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "text"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Query Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{http_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"{{query_text}}\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/expenses/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "text"
+              ]
+            },
+            "description": "This endpoint does not support query intents and should return 422 QUERY_NOT_SUPPORTED or EXPENSE_NOT_PROCESSABLE depending on parsing path."
+          },
+          "response": [
+            {
+              "name": "Query Not Supported",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{http_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"text\": \"Cuanto he gastado este mes?\",\n  \"force_commit\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/expenses/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "expenses",
+                    "text"
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"error\",\n  \"error_code\": \"QUERY_NOT_SUPPORTED\",\n  \"message\": \"This endpoint only supports expense logging, not queries.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Missing or Invalid HTTP API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer wrong-key",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"{{expense_text}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/expenses/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "text"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Unauthorized",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer wrong-key",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"text\": \"Gaste 25k en Carulla\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/expenses/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "expenses",
+                    "text"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"error\",\n  \"error_code\": \"INVALID_API_KEY\",\n  \"message\": \"Invalid API key.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Invalid Request Body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{http_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": \"not-an-int\",\n  \"text\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/expenses/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "expenses",
+                "text"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Invalid Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{http_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": \"not-an-int\",\n  \"text\": \"\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/expenses/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "expenses",
+                    "text"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"error\",\n  \"error_code\": \"INVALID_REQUEST\",\n  \"message\": \"telegram_user_id must be an integer.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Local Dev Harness",
+      "description": "Local-only workflows for APP_MODE=http-dev with ENABLE_DEV_ROUTES=true.",
+      "item": [
+        {
+          "name": "Bootstrap Local User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"first_name\": \"Dev\",\n  \"username\": \"devuser\",\n  \"ynab_connected\": true,\n  \"configured\": true,\n  \"confirmation_mode\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/bootstrap",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "bootstrap"
+              ]
+            },
+            "description": "Creates or updates a local authorized user and can simulate configured YNAB state."
+          },
+          "response": [
+            {
+              "name": "Bootstrap OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{dev_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"first_name\": \"Dev\",\n  \"username\": \"devuser\",\n  \"ynab_connected\": true,\n  \"configured\": true,\n  \"confirmation_mode\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/dev/bootstrap",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "dev",
+                    "bootstrap"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\",\n  \"telegram_user_id\": 42,\n  \"onboarding_step\": \"complete\",\n  \"user_status\": {\n    \"configured\": true,\n    \"budget_id\": \"budget-dev-main\",\n    \"budget_name\": \"Dev Budget\",\n    \"default_account_id\": \"acc-dev-nu\",\n    \"default_account_name\": \"Nu Card\",\n    \"ynab_connected\": true,\n    \"message\": \"Usuario completamente configurado\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Simulate Command /status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"{{command_text}}\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Command OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{dev_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"text\": \"/status\",\n  \"force_commit\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/dev/messages/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "dev",
+                    "messages",
+                    "text"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\",\n  \"kind\": \"command\",\n  \"command\": \"/status\",\n  \"message\": \"Estado actual del usuario...\",\n  \"user_status\": {\n    \"configured\": true,\n    \"ynab_connected\": true,\n    \"budget_name\": \"Dev Budget\",\n    \"default_account_name\": \"Nu Card\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Simulate Command /start",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"/start\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Command /budgets",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"/budgets\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Command /accounts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"/accounts\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Command /resumen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"/resumen mes\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Expense Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"{{expense_text}}\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            },
+            "description": "If confirmation_mode=false, this usually commits immediately. If confirmation_mode=true, it returns status=preview unless force_commit=true."
+          },
+          "response": [
+            {
+              "name": "Committed Message",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{dev_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"text\": \"Gaste 25k en Carulla\",\n  \"force_commit\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/dev/messages/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "dev",
+                    "messages",
+                    "text"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\",\n  \"kind\": \"message\",\n  \"intent\": \"expense\",\n  \"message\": \"Gasto registrado...\",\n  \"transaction_id\": \"dev-txn-123\"\n}"
+            },
+            {
+              "name": "Preview Message",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{dev_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42,\n  \"text\": \"Gaste 25k en Carulla\",\n  \"force_commit\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/dev/messages/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "dev",
+                    "messages",
+                    "text"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"preview\",\n  \"kind\": \"message\",\n  \"intent\": \"expense\",\n  \"message\": \"Vista previa del gasto...\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Simulate Expense Force Commit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}},\n  \"text\": \"{{expense_text}}\",\n  \"force_commit\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Invalid DEV API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer wrong-key",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": {{telegram_user_id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/bootstrap",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "bootstrap"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Unauthorized",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer wrong-key",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 42\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/dev/bootstrap",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "dev",
+                    "bootstrap"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"error\",\n  \"error_code\": \"INVALID_API_KEY\",\n  \"message\": \"Invalid API key.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "User Not Found",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{dev_api_key}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telegram_user_id\": 999999,\n  \"text\": \"Gaste 25k en Carulla\",\n  \"force_commit\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/dev/messages/text",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "messages",
+                "text"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "User Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{dev_api_key}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"telegram_user_id\": 999999,\n  \"text\": \"Gaste 25k en Carulla\",\n  \"force_commit\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}/dev/messages/text",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "dev",
+                    "messages",
+                    "text"
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "body": "{\n  \"status\": \"error\",\n  \"error_code\": \"USER_NOT_FOUND\",\n  \"message\": \"No registered user exists for that telegram_user_id.\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
