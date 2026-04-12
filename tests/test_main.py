@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import main
+from infrastructure.config.app_config import AppConfig
 
 
 class TestMain:
@@ -40,3 +41,45 @@ class TestMain:
         mock_telegram_notifier.assert_called_once_with("tg-token")
         mock_bot_cls.assert_called_once_with(container)
         bot.run.assert_called_once_with()
+
+    @patch.dict("os.environ", {"PORT": "8080", "APP_HOLD_OPEN": "0"}, clear=False)
+    @patch("main.YNABTelegramBot")
+    @patch("main.TelegramNotifier")
+    @patch("main.configure_http_api")
+    @patch("main.set_on_oauth_success")
+    @patch("main.set_oauth_service")
+    @patch("main.create_container")
+    @patch("main.start_health_server")
+    def test_http_dev_mode_skips_bot_polling(
+        self,
+        mock_start_health_server,
+        mock_create_container,
+        mock_set_oauth_service,
+        mock_set_on_oauth_success,
+        mock_configure_http_api,
+        mock_telegram_notifier,
+        mock_bot_cls,
+    ):
+        config = AppConfig(
+            telegram_token=None,
+            openai_key=None,
+            admin_ids=[1],
+            ynab_client_id=None,
+            ynab_client_secret=None,
+            ynab_redirect_uri=None,
+            token_encryption_key="k",
+            http_api_key="dev-http-key",
+            app_mode="http-dev",
+            external_mode="stub",
+        )
+        container = MagicMock()
+        container.get_config.return_value = config
+        mock_create_container.return_value = container
+
+        main.main()
+
+        mock_start_health_server.assert_called_once_with(8080)
+        mock_configure_http_api.assert_called_once_with(container)
+        mock_set_oauth_service.assert_called_once_with(None)
+        mock_bot_cls.assert_not_called()
+        mock_telegram_notifier.assert_not_called()

@@ -45,14 +45,20 @@ def main():
         # Expose the HTTP API on the same public server used by Railway.
         configure_http_api(container)
 
-        # Attach the OAuth service to the public server.
-        set_oauth_service(container.get_oauth_service())
+        # Attach the OAuth service to the public server when live integrations are enabled.
+        if config.use_live_integrations:
+            set_oauth_service(container.get_oauth_service())
+        else:
+            set_oauth_service(None)
 
         # Configure the Telegram notifier for post-OAuth events.
-        notifier = TelegramNotifier(config.telegram_token)
+        notifier = TelegramNotifier(config.telegram_token) if config.telegram_token else None
         
         def on_oauth_success(telegram_user_id: int):
             """Handle the post-OAuth flow after a user connects YNAB successfully."""
+            if notifier is None:
+                logger.info("Skipping post-OAuth Telegram notification in non-Telegram mode")
+                return
             try:
                 logger.info("Processing post-OAuth notification for user %s", telegram_user_id)
                 
@@ -81,12 +87,21 @@ def main():
         # Register the callback on the public server.
         set_on_oauth_success(on_oauth_success)
 
-        # Create and initialize the bot.
-        bot = YNABTelegramBot(container)
-        
-        # Run the bot.
-        bot.run()
-        
+        if config.telegram_enabled:
+            # Create and initialize the bot.
+            bot = YNABTelegramBot(container)
+            bot.run()
+        else:
+            logger.info(
+                "Application started in %s mode with Telegram polling disabled",
+                config.app_mode,
+            )
+            threading_event = os.environ.get("APP_HOLD_OPEN", "1")
+            if threading_event != "0":
+                import time
+                while True:
+                    time.sleep(3600)
+
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
         print("\nBot stopped by user")

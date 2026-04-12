@@ -2,6 +2,11 @@ import logging
 from typing import TypeVar, Callable, Dict, Any, Type
 
 from infrastructure.config.app_config import AppConfig
+from infrastructure.dev.stubbed_integrations import (
+    StubLLMExpenseParser,
+    StubYNABOAuthService,
+    StubYNABRepositoryFactory,
+)
 from infrastructure.repositories.database_manager import DatabaseManager
 from infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
 from infrastructure.repositories.sqlite_learning_repository import SQLiteLearningRepository
@@ -72,24 +77,19 @@ class DIContainer:
         # OAuth service
         self.register_singleton(
             YNABOAuthService,
-            lambda: YNABOAuthService(
-                config=self.config,
-                user_repository=self.get(SQLiteUserRepository)
-            )
+            self._create_oauth_service
         )
 
         # YNAB repository factory (per-user)
         self.register_singleton(
             YNABRepositoryFactory,
-            lambda: YNABRepositoryFactory(
-                oauth_service=self.get(YNABOAuthService)
-            )
+            self._create_ynab_factory
         )
 
         # Register parsers as singletons
         self.register_singleton(
             LLMExpenseParser,
-            lambda: LLMExpenseParser()
+            self._create_llm_parser
         )
 
         # Register optional speech processor
@@ -175,11 +175,37 @@ class DIContainer:
 
     def _create_speech_processor_safely(self) -> SpeechToTextProcessor:
         """Create speech processor with error handling"""
+        if not self.config.use_live_integrations:
+            logger.info("Speech processor disabled in stub integration mode")
+            return None
         try:
             return SpeechToTextProcessor()
         except Exception as e:
             logger.warning(f"Speech processor not available: {e}")
             return None
+
+    def _create_oauth_service(self):
+        if self.config.use_live_integrations:
+            return YNABOAuthService(
+                config=self.config,
+                user_repository=self.get(SQLiteUserRepository)
+            )
+        return StubYNABOAuthService(
+            config=self.config,
+            user_repository=self.get(SQLiteUserRepository),
+        )
+
+    def _create_ynab_factory(self):
+        if self.config.use_live_integrations:
+            return YNABRepositoryFactory(
+                oauth_service=self.get(YNABOAuthService)
+            )
+        return StubYNABRepositoryFactory()
+
+    def _create_llm_parser(self):
+        if self.config.use_live_integrations:
+            return LLMExpenseParser()
+        return StubLLMExpenseParser()
 
     def register_singleton(self, interface: Type[T], factory: Callable[[], T]):
         """Register a singleton service"""

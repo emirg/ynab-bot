@@ -5,7 +5,7 @@ from infrastructure.health import (
     route_health_request, set_healthy, set_oauth_service, set_on_oauth_success
 )
 from domain.models.user import UserConfiguration, UserStatus
-from presentation.http.server import set_expense_endpoint_handler
+from presentation.http.server import set_dev_endpoint_handler, set_expense_endpoint_handler
 
 def _get(path="/", headers=None):
     status, response_type, payload, _extra_headers = route_health_request(
@@ -69,6 +69,28 @@ class TestHealthServer:
         assert status == 200
         assert json.loads(body.decode())["status"] == "preview"
         mock_handler.handle_post.assert_called_once()
+
+    def test_dev_route_delegates_when_enabled(self):
+        mock_handler = MagicMock()
+        mock_handler.handle_post.return_value = (
+            200,
+            {"status": "ok", "kind": "command"},
+        )
+        set_dev_endpoint_handler(mock_handler)
+
+        status, body = _post(
+            "/dev/bootstrap",
+            payload={"telegram_user_id": 123},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer dev-api-key",
+            },
+        )
+
+        assert status == 200
+        assert json.loads(body.decode())["kind"] == "command"
+        mock_handler.handle_post.assert_called_once()
+        set_dev_endpoint_handler(None)
 
 
 class TestOAuthCallback:
