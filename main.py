@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 
 # Import the layered architecture.
 from infrastructure.container import create_container
-from infrastructure.health import start_health_server, set_oauth_service, set_on_oauth_success
+from infrastructure.health import start_health_server, set_advisor_page_handler, set_oauth_service, set_on_oauth_success
 from infrastructure.telegram_notifier import TelegramNotifier
+from presentation.http.handlers.advisor_page_handler import AdvisorPageHandler
 from presentation.http.server import configure_http_api
 from presentation.telegram.bot import YNABTelegramBot
 from presentation.telegram.keyboards import budget_keyboard_to_dict
@@ -43,6 +44,7 @@ def main():
 
         # Expose the HTTP API on the same public server used by Railway.
         configure_http_api(container)
+        set_advisor_page_handler(AdvisorPageHandler(container))
 
         # Attach the OAuth service to the public server when live integrations are enabled.
         if config.use_live_integrations:

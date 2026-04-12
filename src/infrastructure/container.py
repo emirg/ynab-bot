@@ -1,6 +1,7 @@
 import logging
 from typing import TypeVar, Callable, Dict, Any, Type
 
+from application.services.advisor_access_service import AdvisorAccessService
 from infrastructure.config.app_config import AppConfig
 from infrastructure.dev.stubbed_integrations import (
     StubLLMExpenseParser,
@@ -8,6 +9,7 @@ from infrastructure.dev.stubbed_integrations import (
     StubYNABRepositoryFactory,
 )
 from infrastructure.repositories.postgres_learning_repository import PostgresLearningRepository
+from infrastructure.repositories.postgres_advisor_auth_repository import PostgresAdvisorAuthRepository
 from infrastructure.repositories.postgres_manager import PostgresDatabaseManager
 from infrastructure.repositories.postgres_split_config_repository import PostgresSplitConfigRepository
 from infrastructure.repositories.postgres_user_repository import PostgresUserRepository
@@ -22,6 +24,7 @@ from application.services.split_config_service import SplitConfigService
 from application.services.oauth_service import YNABOAuthService
 from application.services.weekly_summary_service import WeeklySummaryService
 from application.services.on_demand_summary_service import OnDemandSummaryService
+from domain.repositories.advisor_auth_repository import AdvisorAuthRepository
 from domain.repositories.learning_repository import LearningRepository
 from domain.repositories.split_config_repository import SplitConfigRepository
 from domain.repositories.user_repository import UserRepository
@@ -142,6 +145,16 @@ class DIContainer:
             )
         )
 
+        self.register_transient(
+            AdvisorAccessService,
+            lambda: AdvisorAccessService(
+                config=self.get_config(),
+                advisor_auth_repository=self.get(AdvisorAuthRepository),
+                user_repository=self.get(UserRepository),
+                learning_repository=self.get(LearningRepository),
+            )
+        )
+
         # Register authentication service as singleton
         self.register_singleton(
             AuthorizationService,
@@ -184,6 +197,14 @@ class DIContainer:
         self.register_singleton(
             SplitConfigRepository,
             lambda: self.get(PostgresSplitConfigRepository)
+        )
+        self.register_singleton(
+            PostgresAdvisorAuthRepository,
+            lambda: PostgresAdvisorAuthRepository(self.get(PostgresDatabaseManager))
+        )
+        self.register_singleton(
+            AdvisorAuthRepository,
+            lambda: self.get(PostgresAdvisorAuthRepository)
         )
 
     def _create_speech_processor_safely(self) -> SpeechToTextProcessor:
@@ -313,6 +334,9 @@ class DIContainer:
 
     def get_on_demand_summary_service(self):
         return self.get(OnDemandSummaryService)
+
+    def get_advisor_access_service(self):
+        return self.get(AdvisorAccessService)
 
 
 def create_container(config_path: str = 'config/.env') -> DIContainer:
