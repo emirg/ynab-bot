@@ -663,6 +663,27 @@ class TestUndoLastTransaction:
         assert 'error' not in result
         assert result['payee'] == 'Carulla'
 
+    def test_postgres_datetime_timestamp_is_allowed(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.delete_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [{
+            'payee': 'Carulla',
+            'amount': -50000,
+            'category_name': 'Groceries',
+            'category_id': 'cat-1',
+            'ynab_transaction_id': 'txn-pg-1',
+            'timestamp': datetime.now(timezone.utc) - timedelta(minutes=1),
+        }]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result is not None
+        assert 'error' not in result
+        assert result['payee'] == 'Carulla'
+
     def test_ynab_delete_fails_returns_error(
         self, service, mock_user_repository, mock_learning_repository,
         mock_ynab_repository, authorized_user,

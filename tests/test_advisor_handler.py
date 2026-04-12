@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from telegram import Update, User, Message
+from telegram import InlineKeyboardMarkup, Update, User, Message
 from telegram.ext import ContextTypes
 
 from domain.models.onboarding import OnboardingStep
@@ -51,7 +51,11 @@ async def test_handle_analisis_command_returns_launch_link(handler, container, u
     await handler.handle_analisis_command(update, context)
 
     update.message.reply_text.assert_called_once()
-    assert "Abrir advisor" in update.message.reply_text.call_args.args[0]
+    args, kwargs = update.message.reply_text.call_args
+    assert "botón" in args[0]
+    assert kwargs["disable_web_page_preview"] is True
+    assert isinstance(kwargs["reply_markup"], InlineKeyboardMarkup)
+    assert kwargs["reply_markup"].inline_keyboard[0][0].url == "https://bot.example.com/advisor/launch?token=abc"
 
 
 @pytest.mark.anyio

@@ -1,6 +1,6 @@
 import logging
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from domain.models.onboarding import OnboardingStep
@@ -27,12 +27,16 @@ class AdvisorHandler(BaseHandler):
                 return
 
             launch_url = self._advisor_access_service.create_launch_url(user_id)
-            await self.send_message(
-                update,
+            reply_markup = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Abrir advisor", url=launch_url)]]
+            )
+            await update.message.reply_text(
                 "📊 *Advisor financiero*\n\n"
-                "Tu acceso web ya está listo. Abre este enlace para entrar al advisor:\n\n"
-                f"[Abrir advisor]({launch_url})\n\n"
+                "Tu acceso web ya está listo. Usa el botón para entrar al advisor.\n\n"
                 "_El enlace es personal y vence pronto por seguridad._",
+                parse_mode='Markdown',
+                reply_markup=reply_markup,
+                disable_web_page_preview=True,
             )
             self.log_handler_success("AdvisorHandler.handle_analisis_command", update)
         except Exception as exc:

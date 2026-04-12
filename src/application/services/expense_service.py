@@ -936,14 +936,17 @@ class ExpenseService:
 
         Both checks use the 'timestamp' key returned by get_recent_transactions.
         """
-        timestamp_str = transaction.get('timestamp')
-        if not timestamp_str:
+        timestamp_value = transaction.get('timestamp')
+        if not timestamp_value:
             return False
 
-        try:
-            txn_dt = datetime.fromisoformat(timestamp_str)
-        except (ValueError, TypeError):
-            return False
+        if isinstance(timestamp_value, datetime):
+            txn_dt = timestamp_value
+        else:
+            try:
+                txn_dt = datetime.fromisoformat(timestamp_value)
+            except (ValueError, TypeError):
+                return False
 
         # 5-minute check in UTC using timezone-aware datetimes.
         now_utc = datetime.now(timezone.utc)
