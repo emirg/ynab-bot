@@ -59,7 +59,7 @@ Soportar gastos compartidos que hizo otra persona en nombre del usuario:
 - **Ejemplo**: "Juan compró un almuerzo por 50000 en restaurantes" → Tu deuda ($25.000) entra a la categoría Restaurantes, y Juan te "presta" los $25.000 (Inflow en categoría Splitwise).
 - Esto debe registrarse usando la cuenta "Shared Transactions" tracking account configurada en la etapa 2.1.
 
-## Milestone 3: Robustez & Calidad de Vida
+## Milestone 3: Robustez & Calidad de Vida [COMPLETADO]
 
 ### 3.1 — Editar/Eliminar Último Gasto [COMPLETADO]
 

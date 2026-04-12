@@ -7,10 +7,9 @@ Intelligent bot for logging YNAB expenses with AI and speech-to-text.
 import sys
 import os
 
-# Add the src directory to the path before local imports.
-src_path = os.path.join(os.path.dirname(__file__), 'src')
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
+from project_bootstrap import ensure_src_path
+
+ensure_src_path()
 
 # Configure structured logging (JSON on Railway, plain text locally).
 from infrastructure.logging_config import setup_logging

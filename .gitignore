@@ -275,3 +275,5 @@ docs/wip_state.md
 !.claude/skills/
 !.claude/agents/
 config/.env.dev
+# Added by code-review-graph
+.code-review-graph/
