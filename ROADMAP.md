@@ -145,3 +145,13 @@ Se completó la base técnica para el futuro advisor web sin romper el bot actua
 - Runbook documentado para cutover y rollback en Railway
 - El servidor HTTP público actual sigue siendo el entrypoint protegido
 - El endpoint autenticado de gastos HTTP y los flujos de Telegram siguen funcionando sobre la nueva base
+
+### E.7 — Financial Advisor Phase 2 Access/Auth [COMPLETADO]
+
+Se completó la primera entrada autenticada al advisor web sobre la base PostgreSQL:
+
+- Comando `/analisis` desde Telegram para abrir el advisor
+- Link one-time de acceso emitido desde Telegram
+- Sesión por usuario en servidor con cookie HTTP-only
+- Landing page autenticada del advisor
+- Bootstrap/logout del advisor en el mismo servidor HTTP público actual

@@ -3,8 +3,8 @@
 ## Metadata
 - **Status:** Accepted
 - **Date:** 2026-04-12
-- **Related Spec:** `docs/specs/2026-04-12-financial-advisor-phase2-access-auth.md`
-- **Related Plan:** `docs/plans/2026-04-12-financial-advisor-phase2-access-auth.md`
+- **Related Spec:** `docs/specs/archive/2026-04-12-financial-advisor-phase2-access-auth.md`
+- **Related Plan:** `docs/plans/archive/2026-04-12-financial-advisor-phase2-access-auth.md`
 
 ## Context
 The financial advisor is a web-first analysis surface, but the project already has a trusted identity source and entry channel: Telegram. After Phase 1, the current public HTTP server and PostgreSQL runtime are stable, but there is still no per-user web authentication model for advisor access.
@@ -36,8 +36,8 @@ Launch tokens and session tokens are stored hashed at rest.
 
 ## References
 - `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
-- `docs/specs/2026-04-12-financial-advisor-phase2-access-auth.md`
+- `docs/specs/archive/2026-04-12-financial-advisor-phase2-access-auth.md`
 - `docs/plans/archive/2026-03-21-phase1-foundations.md`
-- `docs/plans/2026-04-12-financial-advisor-phase2-access-auth.md`
+- `docs/plans/archive/2026-04-12-financial-advisor-phase2-access-auth.md`
 - `docs/adrs/2026-04-12-financial-advisor-architecture-baseline.md`
 - `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`

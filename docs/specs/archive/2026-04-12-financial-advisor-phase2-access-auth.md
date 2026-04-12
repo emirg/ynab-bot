@@ -1,7 +1,7 @@
 # Spec: Financial Advisor Phase 2 Access and Authentication
 
 ## Metadata
-- **Status:** Approved
+- **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** Future Financial Advisor milestone
 - **Related Spec:** `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
@@ -70,3 +70,8 @@ This phase introduces a Telegram launch command, a one-time advisor launch link,
 - [ ] `POST /api/v1/advisor/logout` clears the session cookie and invalidates the session.
 - [ ] Launch tokens and advisor sessions are stored safely in PostgreSQL.
 - [ ] Existing health, OAuth callback, Telegram, and expense API behavior remain covered and unchanged.
+
+## Completion Notes
+- Implemented on the PostgreSQL runtime baseline.
+- `/analisis`, advisor launch/session flow, landing page, bootstrap, and logout are all in place.
+- Follow-up work should treat this as the stable auth/access baseline for dashboard and read-model work.
