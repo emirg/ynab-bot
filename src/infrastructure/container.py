@@ -7,10 +7,10 @@ from infrastructure.dev.stubbed_integrations import (
     StubYNABOAuthService,
     StubYNABRepositoryFactory,
 )
-from infrastructure.repositories.database_manager import DatabaseManager
-from infrastructure.repositories.sqlite_user_repository import SQLiteUserRepository
-from infrastructure.repositories.sqlite_learning_repository import SQLiteLearningRepository
-from infrastructure.repositories.sqlite_split_config_repository import SQLiteSplitConfigRepository
+from infrastructure.repositories.postgres_learning_repository import PostgresLearningRepository
+from infrastructure.repositories.postgres_manager import PostgresDatabaseManager
+from infrastructure.repositories.postgres_split_config_repository import PostgresSplitConfigRepository
+from infrastructure.repositories.postgres_user_repository import PostgresUserRepository
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 from infrastructure.token_encryption import TokenEncryptor
 from application.services.expense_service import ExpenseService
@@ -52,42 +52,7 @@ class DIContainer:
             lambda: TokenEncryptor(self.config.token_encryption_key)
         )
 
-        # Database manager (shared connection for all repositories)
-        self.register_singleton(
-            DatabaseManager,
-            lambda: DatabaseManager(self.config.database_absolute_path)
-        )
-
-        # Register repositories as singletons
-        self.register_singleton(
-            SQLiteUserRepository,
-            lambda: SQLiteUserRepository(
-                self.get(DatabaseManager),
-                self.get(TokenEncryptor)
-            )
-        )
-        self.register_singleton(
-            UserRepository,
-            lambda: self.get(SQLiteUserRepository)
-        )
-
-        self.register_singleton(
-            SQLiteLearningRepository,
-            lambda: SQLiteLearningRepository(self.get(DatabaseManager))
-        )
-        self.register_singleton(
-            LearningRepository,
-            lambda: self.get(SQLiteLearningRepository)
-        )
-
-        self.register_singleton(
-            SQLiteSplitConfigRepository,
-            lambda: SQLiteSplitConfigRepository(self.get(DatabaseManager))
-        )
-        self.register_singleton(
-            SplitConfigRepository,
-            lambda: self.get(SQLiteSplitConfigRepository)
-        )
+        self._register_persistence_services()
 
         # OAuth service
         self.register_singleton(
@@ -188,6 +153,39 @@ class DIContainer:
 
         logger.info("Dependency injection container configured successfully")
 
+    def _register_persistence_services(self) -> None:
+        self.register_singleton(
+            PostgresDatabaseManager,
+            self._create_postgres_manager
+        )
+        self.register_singleton(
+            PostgresUserRepository,
+            lambda: PostgresUserRepository(
+                self.get(PostgresDatabaseManager),
+                self.get(TokenEncryptor)
+            )
+        )
+        self.register_singleton(
+            UserRepository,
+            lambda: self.get(PostgresUserRepository)
+        )
+        self.register_singleton(
+            PostgresLearningRepository,
+            lambda: PostgresLearningRepository(self.get(PostgresDatabaseManager))
+        )
+        self.register_singleton(
+            LearningRepository,
+            lambda: self.get(PostgresLearningRepository)
+        )
+        self.register_singleton(
+            PostgresSplitConfigRepository,
+            lambda: PostgresSplitConfigRepository(self.get(PostgresDatabaseManager))
+        )
+        self.register_singleton(
+            SplitConfigRepository,
+            lambda: self.get(PostgresSplitConfigRepository)
+        )
+
     def _create_speech_processor_safely(self) -> SpeechToTextProcessor:
         """Create speech processor with error handling"""
         if not self.config.use_live_integrations:
@@ -216,6 +214,11 @@ class DIContainer:
                 oauth_service=self.get(YNABOAuthService)
             )
         return StubYNABRepositoryFactory()
+
+    def _create_postgres_manager(self) -> PostgresDatabaseManager:
+        manager = PostgresDatabaseManager(self.config.postgres_dsn)
+        manager.initialize_schema()
+        return manager
 
     def _create_llm_parser(self):
         if self.config.use_live_integrations:

@@ -1,10 +1,14 @@
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from infrastructure.config.app_config import AppConfig
+from application.services.expense_service import ExpenseService
+from application.services.on_demand_summary_service import OnDemandSummaryService
+from domain.models.expense import Expense, ExpenseResult
+from domain.models.user import UserConfiguration, UserStatus
+from presentation.http.dev_api_handler import DevAPIHandler
+from presentation.http.server import set_dev_endpoint_handler, set_expense_endpoint_handler
 from infrastructure.health import route_health_request
-from infrastructure.container import DIContainer
-from presentation.http.server import configure_http_api
 
 
 def _post(path, payload, auth="dev-api-key"):
@@ -21,30 +25,84 @@ def _post(path, payload, auth="dev-api-key"):
     return status, response_payload
 
 
-def _build_container(tmp_path):
-    return DIContainer(
-        AppConfig(
-            telegram_token=None,
-            openai_key=None,
-            admin_ids=[1],
-            ynab_client_id=None,
-            ynab_client_secret=None,
-            ynab_redirect_uri=None,
-            token_encryption_key="aTULl7SBg8iYq9Kof_vgaC8GdG25-ryXic46AotyOQs=",
-            http_api_key="dev-http-key",
-            app_mode="http-dev",
-            external_mode="stub",
-            dev_api_key="dev-api-key",
-            enable_dev_routes=True,
-            database_path=str(tmp_path / "dev-harness.db"),
-        )
+def _make_container():
+    config = SimpleNamespace(dev_api_key="dev-api-key")
+    user = UserConfiguration(
+        telegram_id=42,
+        status=UserStatus.AUTHORIZED,
+        username="dev42",
+        first_name="Dev",
     )
+    user.update_ynab_tokens("dev-access-token", "dev-refresh-token", 3600)
+    user.budget_id = "budget-dev-main"
+    user.default_account_id = "acc-dev-nu"
+    user.default_account_name = "Nu Card"
+
+    user_repository = MagicMock()
+    user_repository.find_by_telegram_id.return_value = user
+    user_repository.save.side_effect = lambda saved_user: saved_user
+
+    user_config_service = MagicMock()
+    user_config_service.user_repository = user_repository
+    user_config_service.get_user_status.return_value = "configured"
+
+    onboarding_service = MagicMock()
+    onboarding_service.get_onboarding_step.return_value = SimpleNamespace(value="complete")
+
+    auth_service = MagicMock()
+    auth_service.register_user.return_value = user
+
+    expense_service = MagicMock(spec=ExpenseService)
+    expense = Expense(
+        amount=25000,
+        payee="Carulla",
+        memo="Gaste 25k en Carulla",
+        category_name="Groceries",
+        account_name="Nu Card",
+        confidence=0.92,
+        category_explanation="sugerido por IA",
+    )
+    expense_result = ExpenseResult(
+        success=True,
+        transaction_id="txn-123",
+        expense=expense,
+    )
+    expense_service.process_message.return_value = SimpleNamespace(
+        intent="expense",
+        expense_result=expense_result,
+    )
+
+    summary_service = MagicMock(spec=OnDemandSummaryService)
+    ynab_factory = MagicMock()
+
+    service_map = {
+        ExpenseService: expense_service,
+        OnDemandSummaryService: summary_service,
+    }
+
+    container = MagicMock()
+    container.get_config.return_value = config
+    container.get_auth_service.return_value = auth_service
+    container.get_user_repository.return_value = user_repository
+    container.get_user_config_service.return_value = user_config_service
+    container.get_onboarding_service.return_value = onboarding_service
+    container.get_ynab_factory.return_value = ynab_factory
+    container.get.side_effect = lambda service_type: service_map[service_type]
+    return container
 
 
 class TestDevAPIHandler:
-    def test_bootstrap_and_simulate_text_message(self, tmp_path):
-        container = _build_container(tmp_path)
-        configure_http_api(container)
+    def setup_method(self):
+        set_expense_endpoint_handler(None)
+        set_dev_endpoint_handler(None)
+
+    def teardown_method(self):
+        set_expense_endpoint_handler(None)
+        set_dev_endpoint_handler(None)
+
+    def test_bootstrap_and_simulate_text_message(self):
+        container = _make_container()
+        set_dev_endpoint_handler(DevAPIHandler(container))
 
         status, payload = _post("/dev/bootstrap", {"telegram_user_id": 42})
         assert status == 200
@@ -56,28 +114,26 @@ class TestDevAPIHandler:
         assert payload["kind"] == "message"
         assert "Gasto registrado" in payload["message"]
 
-    def test_simulate_start_command(self, tmp_path):
-        container = _build_container(tmp_path)
-        configure_http_api(container)
-        _post("/dev/bootstrap", {"telegram_user_id": 7, "configured": False})
+    def test_simulate_start_command(self):
+        container = _make_container()
+        set_dev_endpoint_handler(DevAPIHandler(container))
 
         status, payload = _post("/dev/messages/text", {"telegram_user_id": 7, "text": "/start"})
         assert status == 200
         assert payload["kind"] == "command"
         assert payload["command"] == "/start"
 
-    def test_invalid_dev_token_is_rejected(self, tmp_path):
-        container = _build_container(tmp_path)
-        configure_http_api(container)
+    def test_invalid_dev_token_is_rejected(self):
+        container = _make_container()
+        set_dev_endpoint_handler(DevAPIHandler(container))
 
         status, payload = _post("/dev/bootstrap", {"telegram_user_id": 1}, auth="wrong")
         assert status == 401
         assert payload["error_code"] == "INVALID_API_KEY"
 
-    def test_invalid_force_commit_type_is_rejected(self, tmp_path):
-        container = _build_container(tmp_path)
-        configure_http_api(container)
-        _post("/dev/bootstrap", {"telegram_user_id": 42})
+    def test_invalid_force_commit_type_is_rejected(self):
+        container = _make_container()
+        set_dev_endpoint_handler(DevAPIHandler(container))
 
         status, payload = _post(
             "/dev/messages/text",

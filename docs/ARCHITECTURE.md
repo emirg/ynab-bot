@@ -37,7 +37,7 @@ Integration behavior is controlled separately by `EXTERNAL_MODE`:
 
 - **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`, `BudgetQueryResult`, `MessageResult`, `OnboardingStep`, `SplitGroup`, `SharedAccountConfig`, `WeeklySummary`, `OnDemandSummary`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, `time_utils` (timezone-aware date helpers), and custom exceptions. No external dependencies.
 - **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full prepare→commit pipeline (parse→enhance, then create→learn) and routes between expenses and budget queries via `process_message()`. Supports confirmation mode: when enabled, `prepare_expense()` returns a preview without committing, and `commit_expense()` finalizes after user confirmation. `BudgetQueryService` handles category balance, account balance, and budget summary queries. `UserConfigService` manages per-user YNAB budget/account configuration, timezone, and confirmation mode. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository and provides dashboard/forget/stats methods. `OnboardingService` derives the user's onboarding state from existing fields (no DB column). `SplitConfigService` manages split group configuration, person aliases, and shared account settings — validates against YNAB API before persisting. `WeeklySummaryService` fetches YNAB transactions for the past week and computes per-category spending totals. `OnDemandSummaryService` provides day/week/month spending summaries with category breakdowns.
-- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v9), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (public HTTP server for `/`, `/oauth/callback`, and delegated `/api/v1/*`), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts), `scheduler.py` (weekly summary tick job, runs every 15 minutes, checks per-user timezone to fire on Monday 8am local time), `http_client.py` (resilient HTTP client with automatic retries for transient errors), `logging_config.py` (structured logging setup), and `dev/stubbed_integrations.py` (stub parser, OAuth, and YNAB factory used in local stub mode). `AppConfig` validates runtime mode and environment requirements. `DIContainer` wires everything together and swaps live vs. stub integrations based on config.
+- **`src/infrastructure/`** — Concrete implementations. `PostgresDatabaseManager` (runtime PostgreSQL connection + schema initialization), `PostgresUserRepository` (user persistence with token encryption), `PostgresLearningRepository` (per-user learning data), `PostgresSplitConfigRepository` (split groups, aliases, shared account), `DatabaseManager` plus the SQLite repositories (legacy compatibility and migration support only), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (public HTTP server for `/`, `/oauth/callback`, and delegated `/api/v1/*`), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts), `scheduler.py` (weekly summary tick job, runs every 15 minutes, checks per-user timezone to fire on Monday 8am local time), `http_client.py` (resilient HTTP client with automatic retries for transient errors), and `logging_config.py` (structured logging setup). `dev/stubbed_integrations.py` provides stub parser, OAuth, and YNAB factory for local stub mode. `AppConfig` validates runtime mode and environment requirements. `DIContainer` wires everything together and swaps live vs. stub integrations.
 - **`src/presentation/http/`** — Dedicated HTTP API layer. `server.py` hosts the pure router for `/api/v1/*` and `/dev/*`. In production on Railway, the public server in `health.py` delegates `/api/v1/*` to this router so health, OAuth callback, and API share the same public port. In local `http-dev`, the same router also exposes the dev harness endpoints. `handlers/expense_api_handler.py` validates auth and requests, reuses `ExpenseService` for preview/commit, and serializes JSON responses for future integrations. `dev_api_handler.py` powers the local `/dev/*` developer workflow.
 - **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers and the weekly summary scheduler job. Handlers: `GeneralHandler` (includes guided onboarding via `OnboardingService`), `ConfigHandler` (includes `/connect`, `/disconnect`, `/zona` for timezone), `ExpenseHandler` (handles text/voice/photo expenses, `/confirmacion on|off`, and confirmation callbacks), `LearningHandler` (includes `/aprendizaje`, `/olvidar`, `/deshacer`, `/editar`), `SplitConfigHandler` (`/splitwise` — split group CRUD, alias management, shared account config via inline keyboards with pagination), `SummaryHandler` (`/resumen` — on-demand spending summary), `AdminHandler`. `keyboards.py` provides shared inline keyboard builders (confirmation keyboard, budget/account selection, split config panels with pagination). Auth via `@require_authentication` and `@require_admin` decorators.
 
@@ -96,11 +96,11 @@ Each user connects their own YNAB account. No shared global token.
 ```
 User → /connect → generate OAuth URL with HMAC-signed state
      → YNAB authorization page → redirect to /oauth/callback
-     → exchange code for tokens → encrypt & store in SQLite
+     → exchange code for tokens → encrypt & store in PostgreSQL
      → YNABRepositoryFactory creates per-user YNABApiRepository on each request
 ```
 
-- **Token lifecycle**: auto-refresh when expired (5-min buffer), Fernet-encrypted at rest in SQLite
+- **Token lifecycle**: auto-refresh when expired (5-min buffer), Fernet-encrypted at rest in PostgreSQL
 - **State security**: HMAC-SHA256 signed with `YNAB_CLIENT_SECRET` to prevent CSRF
 - **OAuth callback**: served by the health check HTTP server at `/oauth/callback`
 
@@ -111,7 +111,7 @@ Split expenses use YNAB subtransactions to track debts via a dedicated Splitwise
 - **User-paid split**: Transaction with two subtransactions — user's share goes to the real category, the other person's share goes to the split tracking category.
 - **Third-party paid split** (zero-sum): Transaction amount is `$0` with two subtransactions — outflow from real category balanced by inflow to split tracking category. Uses the shared tracking account configured via `/splitwise`.
 - **100% debt**: When `proportion=1` and `payer=other`, user owes the full amount (e.g., "Juan pagó el mercado por mí").
-- **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Data stored in `split_groups`, `split_person_aliases`, and `split_shared_account` SQLite tables.
+- **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Runtime data lives in the PostgreSQL `split_groups`, `split_person_aliases`, and `split_shared_account` tables.
 
 ## User Authentication
 
@@ -130,7 +130,7 @@ Core settings:
 - `TOKEN_ENCRYPTION_KEY`
 - `HTTP_API_KEY`
 - `ADMIN_IDS`
-- `DATABASE_PATH` (default: `data/users.db`)
+- `POSTGRES_DSN`
 
 Required only when the selected runtime needs them:
 - `TELEGRAM_BOT_TOKEN` when Telegram polling is enabled
@@ -175,7 +175,7 @@ Railway should run the production runtime (`APP_MODE=full`). Local Docker profil
 - Query matching uses a two-tier approach: LLM performs semantic matching (user term → exact YNAB name), then `BudgetQueryService` applies 4-step fuzzy matching as fallback (exact → case-insensitive → clean/no-emoji → partial)
 - YNAB API responses are cached with 5-minute TTL in `YNABApiRepository`
 - YNAB services use `YNABRepositoryFactory` (not a singleton repo) — always resolve per-user via `factory.get_repository(user_config)`
-- SQLite migrations are versioned in `database_manager.py` `_MIGRATIONS` list (currently at v9)
+- PostgreSQL schema initialization is managed by `postgres_schema.py` through `PostgresDatabaseManager`; the older SQLite migration list remains only as a compatibility baseline for one-time migration tooling.
 
 ## Development Workflow
 

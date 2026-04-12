@@ -120,15 +120,15 @@
 ### Group 4 (depends on: Group 3)
 <!-- Swap repository implementations behind the existing application interfaces. -->
 
-#### [ ] Step 7: Implement replacement repositories behind existing interfaces
+#### [x] Step 7: Implement replacement repositories behind existing interfaces
 - **Files:** New repository implementations under `src/infrastructure/repositories/`, related tests under `tests/`
-- **Action:** Implement PostgreSQL-backed user, learning, and split-config persistence behind the existing repository ABCs. Preserve token handling, per-user isolation, split configuration semantics, and all observable service-level behavior.
-- **Tests:** Repository-focused tests mirror current SQLite expectations and add PostgreSQL integration coverage
+- **Action:** Completed. Added PostgreSQL-backed user, learning, and split-config repository implementations behind the existing repository ABCs. The current runtime still remains on SQLite; these repositories are implemented and verified but not yet wired into the container/runtime.
+- **Tests:** Repository-focused contract tests cover the new PostgreSQL implementations, and the PostgreSQL foundation/integration scaffold from Step 6 remains available for opt-in environment-backed verification
 
-#### [ ] Step 8: Wire the new persistence layer into the container without breaking current surfaces
+#### [x] Step 8: Wire the new persistence layer into the container without breaking current surfaces
 - **Files:** `src/infrastructure/container.py`, `main.py`, `src/presentation/http/`, `src/infrastructure/health.py`
-- **Action:** Cut application wiring over to the new repository implementations while preserving Telegram behavior, OAuth callback handling, health checks, and the existing authenticated HTTP expense endpoint.
-- **Tests:** `tests/test_container.py`, `tests/test_bot.py`, `tests/test_http_server.py`, `tests/test_http_auth.py`, `tests/test_expense_api_handler.py`, and relevant end-to-end smoke coverage pass
+- **Action:** Completed. The DI container now selects SQLite or PostgreSQL persistence from `PERSISTENCE_BACKEND`. SQLite remains the default path; PostgreSQL initialization and repository wiring activate only when configured. Telegram behavior, OAuth callback handling, health routing, and the authenticated HTTP expense endpoint remain on the same service/runtime boundaries.
+- **Tests:** Runtime-facing tests covering container wiring, bot initialization, health/OAuth routing, and HTTP expense handling pass after the backend-selection cutover
 
 ### Group 5 (depends on: Group 4)
 <!-- Remove obsolete SQLite code only after the new path is validated. -->
@@ -138,10 +138,23 @@
 - **Action:** Delete or archive SQLite-only runtime paths only after the new persistence layer is verified. Keep any one-time migration tooling needed for rollback or audit outside the runtime path.
 - **Tests:** Full test suite passes and targeted searches confirm stale runtime references are gone
 
+**Progress note**
+
+- Runtime configuration now defaults to PostgreSQL instead of SQLite. New `AppConfig.from_env()` loads now require `POSTGRES_DSN` unless callers explicitly opt into the temporary SQLite compatibility path.
+- The DI container runtime path is now PostgreSQL-only; backend switching for SQLite has been removed from application startup. Remaining SQLite usage is limited to migration tooling, direct repository compatibility tests, and other non-runtime support paths.
+- Step 9 is not complete until the remaining stale docs/config references and any obsolete SQLite runtime artifacts are removed or archived.
+
 #### [ ] Step 10: Update project documentation and rollout notes
 - **Files:** `docs/ARCHITECTURE.md`, `README.md`, `docs/wip_state.md`, and any relevant ADR references
 - **Action:** Update architecture and operational docs to match the implemented foundations. Document rollout steps, rollback expectations, and what later advisor phases can now assume.
 - **Tests:** N/A — documentation review only
+
+**Progress note**
+
+- `README.md`, `docs/ARCHITECTURE.md`, `docs/dev/README.md`, and `config/.env.dev.example` now describe PostgreSQL as the runtime persistence baseline instead of SQLite.
+- `docs/dev/railway-postgres-cutover.md` now documents the intended Railway migration order: freeze writes, back up SQLite, copy into PostgreSQL, validate, cut over, and keep the SQLite backup for rollback.
+- SQLite is now documented as migration/compatibility support only.
+- Step 10 remains open until the final rollout notes, rollback guidance, and handoff state are updated to match the completed Phase 1 cutover.
 
 ## Constraints & Architecture
 - The plan must preserve current user-facing bot behavior and all Spanish UI strings.

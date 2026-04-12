@@ -34,6 +34,9 @@ class PostgresDatabaseManager:
         psycopg = self._load_psycopg()
         try:
             self._connection = psycopg.connect(self.dsn)
+            rows = getattr(psycopg, "rows", None)
+            if rows is not None:
+                self._connection.row_factory = rows.dict_row
             return self._connection
         except Exception as exc:
             logger.error("Failed to connect to PostgreSQL: %s", exc)
@@ -78,4 +81,10 @@ class PostgresDatabaseManager:
         conn = self.get_connection()
         cursor = conn.execute("SELECT COALESCE(MAX(version), 0) FROM schema_migrations")
         row = cursor.fetchone()
-        return row[0] if row else 0
+        if not row:
+            return 0
+        if isinstance(row, dict):
+            return int(next(iter(row.values()), 0))
+        if isinstance(row, int):
+            return row
+        return int(row[0])

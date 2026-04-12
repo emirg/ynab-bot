@@ -12,7 +12,7 @@ class _FakeCursor:
         self._value = value
 
     def fetchone(self):
-        return (self._value,)
+        return self._value
 
 
 class _FakeConnection:
@@ -110,3 +110,21 @@ def test_initialize_schema_rolls_back_on_migration_error(monkeypatch):
         manager.initialize_schema()
 
     assert connection.rollback_calls == 1
+
+
+def test_get_current_version_supports_dict_rows(monkeypatch):
+    connection = _FakeConnection(version=0)
+    manager = PostgresDatabaseManager("postgresql://example")
+    monkeypatch.setattr(manager, "get_connection", lambda: connection)
+
+    original_execute = connection.execute
+
+    def dict_execute(sql, params=None):
+        statement = " ".join(sql.strip().split())
+        if "SELECT COALESCE(MAX(version), 0) FROM schema_migrations" in statement:
+            return _FakeCursor({"coalesce": 3})
+        return original_execute(sql, params)
+
+    connection.execute = dict_execute
+
+    assert manager.get_current_version() == 3

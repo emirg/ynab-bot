@@ -20,7 +20,7 @@ class AppConfig:
     ynab_redirect_uri: Optional[str]
     token_encryption_key: str
     http_api_key: str
-    persistence_backend: str = 'sqlite'
+    persistence_backend: str = 'postgres'
     postgres_dsn: Optional[str] = None
     app_mode: str = 'full'
     external_mode: str = 'live'
@@ -43,7 +43,7 @@ class AppConfig:
         cls._validate_app_mode(app_mode)
         external_mode = os.getenv('EXTERNAL_MODE', cls._default_external_mode(app_mode)).strip().lower()
         cls._validate_external_mode(external_mode)
-        persistence_backend = os.getenv('PERSISTENCE_BACKEND', 'sqlite').strip().lower()
+        persistence_backend = os.getenv('PERSISTENCE_BACKEND', 'postgres').strip().lower()
         cls._validate_persistence_backend(persistence_backend)
 
         return cls(
@@ -104,7 +104,7 @@ class AppConfig:
 
     @staticmethod
     def _validate_persistence_backend(persistence_backend: str) -> None:
-        allowed = {'sqlite', 'postgres'}
+        allowed = {'postgres'}
         if persistence_backend not in allowed:
             raise ConfigurationException(
                 f"Invalid PERSISTENCE_BACKEND '{persistence_backend}'. Expected one of: {', '.join(sorted(allowed))}"

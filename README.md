@@ -57,7 +57,7 @@ ynab-bot/
 │   │   ├── token_encryption.py      # Fernet encryption for tokens at rest
 │   │   ├── telegram_notifier.py     # Sync Telegram API wrapper (post-OAuth notifications)
 │   │   ├── dev/                     # Stubbed integrations for local http-dev
-│   │   └── repositories/            # DatabaseManager, SQLite repos, YNAB API, repo factory
+│   │   └── repositories/            # Postgres runtime repos, SQLite migration support, YNAB API, repo factory
 │   ├── presentation/http/
 │   │   ├── server.py                # Pure router for /api/v1/* and /dev/*
 │   │   ├── auth.py                  # Bearer auth validation
@@ -80,7 +80,7 @@ ynab-bot/
 │   ├── .env.dev.example             # Local http-dev/http-live template
 │   └── .env*                        # Local private env files (not committed)
 ├── data/                            # Persistent data
-│   └── *.db                         # SQLite databases (default local persistence)
+│   └── *.db                         # Legacy SQLite files used only for migration/compatibility tooling
 ├── scripts/
 │   └── dev/                         # Local bootstrap/send-message helpers
 ├── docs/
@@ -138,7 +138,8 @@ Edit `config/.env` with your tokens:
 | `YNAB_REDIRECT_URI` | OAuth callback URL (e.g. `https://your-domain.up.railway.app/oauth/callback`) | Yes |
 | `TOKEN_ENCRYPTION_KEY` | Fernet key for encrypting tokens at rest (see below) | Yes |
 | `HTTP_API_KEY` | Bearer token required for authenticated HTTP API endpoints | Yes |
-| `DATABASE_PATH` | Path to SQLite database (users + learning data) | No (default: `data/users.db`) |
+| `POSTGRES_DSN` | PostgreSQL DSN used by the runtime app | Yes |
+| `DATABASE_PATH` | Path to legacy SQLite database used only for migration tooling | No |
 
 **Generate a Fernet encryption key:**
 ```bash
@@ -157,7 +158,7 @@ At minimum, set:
 - `HTTP_API_KEY`
 - `DEV_API_KEY`
 - `ADMIN_IDS`
-- `DATABASE_PATH`
+- `POSTGRES_DSN`
 
 In `http-dev`, Telegram polling is disabled and OpenAI/YNAB integrations are stubbed by default, so live external credentials are not required.
 
@@ -179,7 +180,7 @@ This starts `APP_MODE=http-dev` on `127.0.0.1:8080` with:
 - no Telegram polling
 - stubbed OpenAI and YNAB integrations
 - `/dev/*` routes enabled
-- SQLite persistence from your local `DATABASE_PATH`
+- PostgreSQL persistence from your configured `POSTGRES_DSN`
 
 ## Local Development
 
@@ -187,6 +188,7 @@ Daily local development is HTTP-first and should not compete with the Railway Te
 
 Detailed documentation lives in `docs/dev/`.
 Postman artifacts for the current HTTP surface live in `docs/dev/postman/`.
+The production PostgreSQL cutover runbook lives in [docs/dev/railway-postgres-cutover.md](/home/emirg/Proyectos/ynab-bot/docs/dev/railway-postgres-cutover.md).
 
 ### Default local profile: HTTP-only dev mode
 
@@ -197,7 +199,7 @@ docker compose up app-dev
 
 This starts the public HTTP server and local dev harness in `http-dev` mode:
 - Telegram polling is disabled
-- SQLite remains the default local database
+- PostgreSQL is the runtime database baseline
 - OpenAI and YNAB integrations are stubbed by default
 - Dev-only routes are enabled under `/dev/*` only because `ENABLE_DEV_ROUTES=true` is set in the local env/profile
 - Ports are bound to `127.0.0.1`, not the whole network
@@ -227,6 +229,20 @@ Run local Postgres for migration or integration work:
 ```bash
 docker compose --profile postgres up postgres
 ```
+
+From your host machine, connect to it with:
+
+```bash
+export POSTGRES_DSN=postgresql://ynab:ynab@127.0.0.1:5432/ynab_bot
+```
+
+If the app is running inside `docker compose`, use the service name instead:
+
+```env
+POSTGRES_DSN=postgresql://ynab:ynab@postgres:5432/ynab_bot
+```
+
+For `app-dev`, start both services with the profile enabled and set `POSTGRES_DSN=postgresql://ynab:ynab@postgres:5432/ynab_bot` in `config/.env.dev`.
 
 Run HTTP mode with live OpenAI/YNAB integrations:
 
@@ -417,7 +433,7 @@ Each user connects their own YNAB account. No shared tokens.
 1. User sends `/connect` → bot generates an authorization URL with HMAC-SHA256 signed state
 2. User clicks the link → authorizes the app on YNAB's site
 3. YNAB redirects to the bot's callback endpoint (`/oauth/callback`) with an authorization code
-4. Bot exchanges the code for access + refresh tokens, encrypts them with Fernet, and stores in SQLite
+4. Bot exchanges the code for access + refresh tokens, encrypts them with Fernet, and stores in PostgreSQL
 5. Tokens are automatically refreshed when expired
 
 **Security:**
