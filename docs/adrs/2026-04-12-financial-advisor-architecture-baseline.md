@@ -3,8 +3,8 @@
 ## Metadata
 - **Status:** Accepted
 - **Date:** 2026-04-12
-- **Related Spec:** `docs/specs/2026-03-21-financial-advisor-web-app.md`
-- **Related Plan:** `docs/plans/2026-03-21-phase1-foundations.md`
+- **Related Spec:** `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
+- **Related Plan:** `docs/plans/archive/2026-03-21-phase1-foundations.md`
 - **Supersedes:** None
 - **Superseded By:** None
 
@@ -48,8 +48,9 @@ This baseline means:
 - **Follow-up:** Implementation must preserve the current public HTTP contract, Telegram behavior, per-user isolation, and YNAB invariants while Phase 1 foundations are delivered.
 
 ## References
-- `docs/specs/2026-03-21-financial-advisor-web-app.md`
-- `docs/plans/2026-03-21-phase1-foundations.md`
+- `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
+- `docs/plans/archive/2026-03-21-phase1-foundations.md`
+- `docs/plans/archive/2026-03-21-phase1-foundations.md`
 - `docs/adrs/2026-04-11-prepared-expense-domain-contract.md`
 - `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`
 - `docs/ARCHITECTURE.md`

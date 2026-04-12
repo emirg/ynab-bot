@@ -1,7 +1,7 @@
 # Spec: YNAB Financial Advisor Web App
 
 ## Metadata
-- **Status:** Approved
+- **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** Future Financial Advisor milestone
 - **Related ADRs:** `docs/adrs/2026-04-11-sqlite-per-thread-connections.md`, `docs/adrs/2026-04-11-prepared-expense-domain-contract.md`, `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`
@@ -72,17 +72,17 @@ This spec defines the expected product behavior and system constraints. It does 
 - If deployment remains single-process during early phases, advisor additions must not break existing health checks, OAuth callback handling, or the current HTTP expense endpoint.
 
 ## Acceptance Criteria
-- [ ] The project has a dedicated advisor spec that cleanly separates product behavior from implementation sequencing.
-- [ ] The advisor is defined as a web-first analysis experience that complements, rather than replaces, Telegram expense capture.
-- [ ] The spec preserves current invariants: per-user isolation, Spanish UI, YNAB-backed identity, and bot-first entry into advisor access.
-- [ ] The spec explicitly recognizes phased delivery and the existence of the current public HTTP server.
-- [ ] The spec does not hard-code a repo split, service topology, or persistence migration strategy that belongs in a plan or ADR.
+- [x] The project has a dedicated advisor spec that cleanly separates product behavior from implementation sequencing.
+- [x] The advisor is defined as a web-first analysis experience that complements, rather than replaces, Telegram expense capture.
+- [x] The spec preserves current invariants: per-user isolation, Spanish UI, YNAB-backed identity, and bot-first entry into advisor access.
+- [x] The spec explicitly recognizes phased delivery and the existence of the current public HTTP server.
+- [x] The spec does not hard-code a repo split, service topology, or persistence migration strategy that belongs in a plan or ADR.
 
 ## Open Questions
 - Whether the final advisor architecture should stay on the current public HTTP server during early rollout or move to dedicated API/web services later.
 
 ## References
-- `docs/plans/2026-03-21-phase1-foundations.md`
+- `docs/plans/archive/2026-03-21-phase1-foundations.md`
 - `docs/specs/archive/2026-04-11-http-expense-endpoint-design.md`
 - `docs/specs/archive/2026-04-11-shared-http-request-validation.md`
 - `docs/specs/archive/2026-04-11-constant-time-http-auth.md`

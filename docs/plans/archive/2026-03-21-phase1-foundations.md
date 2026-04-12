@@ -1,8 +1,8 @@
 # Plan: Phase 1 Foundations for the Financial Advisor
 
 ## Objective & Context
-- **Status:** Draft
-- **Source Spec:** `docs/specs/2026-03-21-financial-advisor-web-app.md`
+- **Status:** Completed
+- **Source Spec:** `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
 - **Goal:** Prepare the current codebase for the future financial advisor without breaking the Telegram bot, the existing OAuth flow, or the current public HTTP API.
 - **Approach:** Phase 1 stays grounded in the current single-repo, single-public-server reality. It starts from the codebase as it exists now: SQLite remains the active persistence layer, `DatabaseManager` already uses per-thread runtime connections, and the public HTTP expense endpoint already has shared Pydantic request validation plus constant-time bearer auth. The phase now has an accepted persistence target: migrate runtime persistence to PostgreSQL during Phase 1 while preserving current user-facing and HTTP behavior throughout the transition.
 
@@ -133,7 +133,7 @@
 ### Group 5 (depends on: Group 4)
 <!-- Remove obsolete SQLite code only after the new path is validated. -->
 
-#### [ ] Step 9: Remove deprecated SQLite-only runtime code
+#### [x] Step 9: Remove deprecated SQLite-only runtime code
 - **Files:** Obsolete SQLite runtime files, configuration docs, migration references, and tests that are no longer valid after cutover
 - **Action:** Delete or archive SQLite-only runtime paths only after the new persistence layer is verified. Keep any one-time migration tooling needed for rollback or audit outside the runtime path.
 - **Tests:** Full test suite passes and targeted searches confirm stale runtime references are gone
@@ -144,7 +144,7 @@
 - The DI container runtime path is now PostgreSQL-only; backend switching for SQLite has been removed from application startup. Remaining SQLite usage is limited to migration tooling, direct repository compatibility tests, and other non-runtime support paths.
 - Step 9 is not complete until the remaining stale docs/config references and any obsolete SQLite runtime artifacts are removed or archived.
 
-#### [ ] Step 10: Update project documentation and rollout notes
+#### [x] Step 10: Update project documentation and rollout notes
 - **Files:** `docs/ARCHITECTURE.md`, `README.md`, `docs/wip_state.md`, and any relevant ADR references
 - **Action:** Update architecture and operational docs to match the implemented foundations. Document rollout steps, rollback expectations, and what later advisor phases can now assume.
 - **Tests:** N/A — documentation review only
@@ -154,7 +154,7 @@
 - `README.md`, `docs/ARCHITECTURE.md`, `docs/dev/README.md`, and `config/.env.dev.example` now describe PostgreSQL as the runtime persistence baseline instead of SQLite.
 - `docs/dev/railway-postgres-cutover.md` now documents the intended Railway migration order: freeze writes, back up SQLite, copy into PostgreSQL, validate, cut over, and keep the SQLite backup for rollback.
 - SQLite is now documented as migration/compatibility support only.
-- Step 10 remains open until the final rollout notes, rollback guidance, and handoff state are updated to match the completed Phase 1 cutover.
+- Final rollout notes, rollback guidance, and handoff state now match the completed PostgreSQL cutover.
 
 ## Constraints & Architecture
 - The plan must preserve current user-facing bot behavior and all Spanish UI strings.
@@ -167,9 +167,9 @@
 - New persistence work must have real regression coverage before SQLite runtime code is removed.
 
 ## Verification
-- [ ] Existing Telegram bot flows still work after each cutover step.
-- [ ] The current authenticated HTTP expense endpoint still works on the public server.
-- [ ] HTTP auth, request validation, and preview/commit behavior remain covered by targeted tests after any boundary refactor.
-- [ ] The chosen persistence strategy has automated test coverage and a documented migration path.
-- [ ] Documentation and ADRs match the implementation that Phase 1 actually ships.
-- [ ] Phase 2 work can start from these foundations without needing to rediscover repo layout, runtime entrypoints, or persistence assumptions.
+- [x] Existing Telegram bot flows still work after each cutover step.
+- [x] The current authenticated HTTP expense endpoint still works on the public server.
+- [x] HTTP auth, request validation, and preview/commit behavior remain covered by targeted tests after any boundary refactor.
+- [x] The chosen persistence strategy has automated test coverage and a documented migration path.
+- [x] Documentation and ADRs match the implementation that Phase 1 actually ships.
+- [x] Phase 2 work can start from these foundations without needing to rediscover repo layout, runtime entrypoints, or persistence assumptions.

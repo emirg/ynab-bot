@@ -3,8 +3,8 @@
 ## Metadata
 - **Status:** Accepted
 - **Date:** 2026-04-12
-- **Related Spec:** `docs/specs/2026-03-21-financial-advisor-web-app.md`
-- **Related Plan:** `docs/plans/2026-03-21-phase1-foundations.md`
+- **Related Spec:** `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
+- **Related Plan:** `docs/plans/archive/2026-03-21-phase1-foundations.md`
 - **Supersedes:** None
 - **Superseded By:** None
 
@@ -46,8 +46,8 @@ Until cutover is complete, SQLite remains the current production baseline. Exist
 - **Follow-up:** Implementation must preserve per-user isolation, YNAB milliunit handling, Spanish UI copy, OAuth behavior, and the current authenticated HTTP expense API during and after cutover.
 
 ## References
-- `docs/plans/2026-03-21-phase1-foundations.md`
-- `docs/specs/2026-03-21-financial-advisor-web-app.md`
+- `docs/plans/archive/2026-03-21-phase1-foundations.md`
+- `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
 - `docs/ARCHITECTURE.md`
 - `src/infrastructure/repositories/database_manager.py`
 - `src/infrastructure/container.py`

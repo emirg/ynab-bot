@@ -136,3 +136,12 @@ Consultar información del presupuesto YNAB con preguntas en lenguaje natural:
 
 - Saldo de categorías, cuentas y resumen general del presupuesto
 - Intent detection via LLM para distinguir entre registro de gastos y consultas
+
+### E.6 — Financial Advisor Phase 1 Foundations [COMPLETADO]
+
+Se completó la base técnica para el futuro advisor web sin romper el bot actual:
+
+- Persistencia runtime migrada de SQLite a PostgreSQL
+- Runbook documentado para cutover y rollback en Railway
+- El servidor HTTP público actual sigue siendo el entrypoint protegido
+- El endpoint autenticado de gastos HTTP y los flujos de Telegram siguen funcionando sobre la nueva base
