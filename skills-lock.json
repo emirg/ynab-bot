@@ -11,15 +11,35 @@
       "sourceType": "github",
       "computedHash": "8c3ab86dc4cd01598c4c7093aace03d89d8e21940678d9c2a68f7460dc47f409"
     },
+    "pydantic": {
+      "source": "bobmatnyc/claude-mpm-skills",
+      "sourceType": "github",
+      "computedHash": "49c65015e4af62e69fa6a0df70fc04e74378244b7c7e003a1c033b946ccf50fc"
+    },
     "python-design-patterns": {
       "source": "wshobson/agents",
       "sourceType": "github",
       "computedHash": "b70500bae0d16740d8a359be63c4645a0ab0f9b839d11d181c45d20958313698"
     },
+    "python-executor": {
+      "source": "inferen-sh/skills",
+      "sourceType": "github",
+      "computedHash": "2979857a8ffb1b1a64665dc611caa4fa9669c47edbf242261b27a6b15638d08c"
+    },
+    "python-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "16fa370e24821a211eff44d9deb129e05f4ccebfaa8c14277824fd4103635af5"
+    },
     "python-performance-optimization": {
       "source": "wshobson/agents",
       "sourceType": "github",
       "computedHash": "2a11c79dcd94b5424261b44247ab03a8365cbe62f05f9b52500211db8fda98f9"
+    },
+    "python-testing-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "69915bb276b6aec61fe5b283a933f96584f66d14b616ce2060d95757629c6866"
     },
     "use-railway": {
       "source": "railwayapp/railway-skills",
