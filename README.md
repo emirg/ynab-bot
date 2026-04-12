@@ -28,55 +28,67 @@ ynab-bot/
 ├── main.py                          # Entry point
 ├── requirements.txt                 # Python dependencies
 ├── pytest.ini                       # Test configuration
-├── railway.toml                     # Railway deployment config (test-gating)
+├── docker-compose.yml               # Local dev profiles (http-dev, http-live, postgres)
+├── railway.toml                     # Railway build/deploy config
 ├── src/
 │   ├── domain/                      # Models, interfaces, exceptions
-│   │   ├── models/                  # Expense, BudgetQueryResult, UserConfiguration, SplitGroup, OnboardingStep
-│   │   ├── repositories/           # Abstract interfaces (ABC)
-│   │   ├── services/               # AuthorizationService, payee_normalizer
-│   │   └── exceptions.py           # Includes OAuthException, TokenExpiredException
+│   │   ├── models/                  # Expense, summaries, onboarding, split config
+│   │   ├── repositories/            # Abstract interfaces (ABC)
+│   │   ├── services/                # AuthorizationService, payee_normalizer
+│   │   ├── time_utils.py            # Timezone-aware date helpers
+│   │   └── exceptions.py            # Domain and configuration exceptions
 │   ├── application/services/        # Business logic orchestrators
-│   │   ├── expense_service.py       # Pipeline: parse→enhance→create→learn + query routing + shared expenses
-│   │   ├── budget_query_service.py  # Budget queries (category/account balance, summary)
-│   │   ├── user_config_service.py   # Per-user configuration
-│   │   ├── oauth_service.py         # YNAB OAuth2 lifecycle (auth, tokens, refresh)
+│   │   ├── expense_service.py       # Parse/prepare/commit flow + query routing + shared expenses
+│   │   ├── budget_query_service.py  # Category/account/budget summary queries
+│   │   ├── user_config_service.py   # Budget, account, timezone, confirmation config
+│   │   ├── oauth_service.py         # YNAB OAuth2 lifecycle (auth, refresh, disconnect)
 │   │   ├── learning_service.py      # Dashboard, forget, stats
 │   │   ├── onboarding_service.py    # Guided onboarding state derivation
-│   │   ├── split_config_service.py  # Split group/alias/shared account management
+│   │   ├── split_config_service.py  # Split group, alias, shared account management
 │   │   ├── weekly_summary_service.py # Automated weekly spending summary
 │   │   └── on_demand_summary_service.py # On-demand spending summary
 │   ├── infrastructure/
-│   │   ├── config/app_config.py     # Loads config/.env
+│   │   ├── config/app_config.py     # Runtime mode and env validation
 │   │   ├── container.py             # Dependency injection (DIContainer)
-│   │   ├── health.py                # Public HTTP server: health + OAuth callback + /api/v1/*
-│   │   ├── scheduler.py             # Weekly summary job scheduler
+│   │   ├── health.py                # Public HTTP server: /, /oauth/callback, /api/v1/*
+│   │   ├── scheduler.py             # Weekly summary scheduler
 │   │   ├── http_client.py           # Resilient HTTP client with retries
 │   │   ├── logging_config.py        # Structured logging setup
 │   │   ├── token_encryption.py      # Fernet encryption for tokens at rest
 │   │   ├── telegram_notifier.py     # Sync Telegram API wrapper (post-OAuth notifications)
-│   │   └── repositories/           # SQLite, YNAB API, YNABRepositoryFactory
+│   │   ├── dev/                     # Stubbed integrations for local http-dev
+│   │   └── repositories/            # DatabaseManager, SQLite repos, YNAB API, repo factory
 │   ├── presentation/http/
-│   │   ├── server.py                # Pure router + optional standalone HTTP transport
+│   │   ├── server.py                # Pure router for /api/v1/* and /dev/*
 │   │   ├── auth.py                  # Bearer auth validation
+│   │   ├── dev_api_handler.py       # Local dev harness endpoints
 │   │   ├── serializers.py           # JSON response serialization
 │   │   └── handlers/
 │   │       └── expense_api_handler.py # POST /api/v1/expenses/text
 │   ├── presentation/telegram/
 │   │   ├── bot.py                   # Handler registration
-│   │   ├── formatters.py           # Message formatting (expenses, queries, shared)
-│   │   ├── keyboards.py            # Inline keyboard builders (budgets, accounts, split config)
-│   │   ├── handlers/               # General, Config, Expense, Learning, SplitConfig, Summary, Admin
-│   │   └── middleware/             # @require_authentication, @require_admin
+│   │   ├── formatters.py            # Message formatting (expenses, queries, summaries)
+│   │   ├── keyboards.py             # Inline keyboard builders
+│   │   ├── handlers/                # General, Config, Expense, Learning, SplitConfig, Summary, Admin
+│   │   └── middleware/              # @require_authentication, @require_admin
 │   ├── parsers/
-│   │   └── llm_expense_parser.py    # GPT-4o-mini parser (intent classification, date parsing, shared expenses)
+│   │   └── llm_expense_parser.py    # GPT-based parser for text and receipts
 │   └── integrations/
 │       └── speech_to_text.py        # Whisper transcription
 ├── config/
-│   ├── .env                         # Environment variables (private)
-│   └── .env.example                 # Configuration template
+│   ├── .env.example                 # Production/full-mode template
+│   ├── .env.dev.example             # Local http-dev/http-live template
+│   └── .env*                        # Local private env files (not committed)
 ├── data/                            # Persistent data
-│   └── users.db                     # SQLite database (users, learning, split config)
-└── tests/                           # Test suite
+│   └── *.db                         # SQLite databases (default local persistence)
+├── scripts/
+│   └── dev/                         # Local bootstrap/send-message helpers
+├── docs/
+│   ├── dev/                         # Local DX, harness, and Postman guides
+│   ├── specs/                       # Feature specifications
+│   ├── plans/                       # Implementation plans
+│   └── adrs/                        # Architecture decision records
+└── tests/                           # Pytest suite
 ```
 
 ## 🚀 Installation & Setup
@@ -90,11 +102,26 @@ cd ynab-bot
 ### 2. Create virtual environment and install dependencies
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # or: source .venv/bin/activate.fish
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment variables
+After the environment exists, prefer project commands through `.venv/bin/...` (for example `.venv/bin/python main.py` and `.venv/bin/pytest`).
+
+### 3. Choose a runtime profile
+
+The project now supports multiple runtime modes:
+
+- `APP_MODE=full`: production-style runtime, public HTTP server plus Telegram polling
+- `APP_MODE=http-dev`: default local DX, public HTTP server plus `/dev/*`, no Telegram polling
+- `APP_MODE=http-live`: HTTP-only mode with live OpenAI and YNAB integrations
+- `APP_MODE=test`: test-oriented runtime
+
+For day-to-day local work, use `http-dev`. For Railway deployment, use `full`.
+
+### 4. Configure environment variables
+
+#### Production / full mode
 ```bash
 cp config/.env.example config/.env
 ```
@@ -115,17 +142,48 @@ Edit `config/.env` with your tokens:
 
 **Generate a Fernet encryption key:**
 ```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+.venv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-### 4. Run
+#### Local `http-dev` profile
+
 ```bash
-python main.py     # Starts the bot
+cp config/.env.dev.example config/.env.dev
 ```
+
+At minimum, set:
+
+- `TOKEN_ENCRYPTION_KEY`
+- `HTTP_API_KEY`
+- `DEV_API_KEY`
+- `ADMIN_IDS`
+- `DATABASE_PATH`
+
+In `http-dev`, Telegram polling is disabled and OpenAI/YNAB integrations are stubbed by default, so live external credentials are not required.
+
+### 5. Run
+
+#### Production-style local run
+```bash
+.venv/bin/python main.py
+```
+
+#### Default local development
+
+```bash
+docker compose up app-dev
+```
+
+This starts `APP_MODE=http-dev` on `127.0.0.1:8080` with:
+
+- no Telegram polling
+- stubbed OpenAI and YNAB integrations
+- `/dev/*` routes enabled
+- SQLite persistence from your local `DATABASE_PATH`
 
 ## Local Development
 
-Daily local development no longer needs to compete with the Railway Telegram polling instance.
+Daily local development is HTTP-first and should not compete with the Railway Telegram polling instance.
 
 Detailed documentation lives in `docs/dev/`.
 Postman artifacts for the current HTTP surface live in `docs/dev/postman/`.
@@ -137,7 +195,7 @@ cp config/.env.dev.example config/.env.dev
 docker compose up app-dev
 ```
 
-This starts the public HTTP server and the existing HTTP API in `http-dev` mode:
+This starts the public HTTP server and local dev harness in `http-dev` mode:
 - Telegram polling is disabled
 - SQLite remains the default local database
 - OpenAI and YNAB integrations are stubbed by default
@@ -149,14 +207,14 @@ This starts the public HTTP server and the existing HTTP API in `http-dev` mode:
 Bootstrap a local user:
 
 ```bash
-.venv/bin/python scripts/dev/bootstrap_user.py
+.venv/bin/python scripts/dev/bootstrap_user.py --dev-api-key "$DEV_API_KEY"
 ```
 
 Send a synthetic command or expense message:
 
 ```bash
-.venv/bin/python scripts/dev/send_message.py "/start"
-.venv/bin/python scripts/dev/send_message.py "Gaste 25k en Carulla"
+.venv/bin/python scripts/dev/send_message.py "/start" --dev-api-key "$DEV_API_KEY"
+.venv/bin/python scripts/dev/send_message.py "Gaste 25k en Carulla" --dev-api-key "$DEV_API_KEY"
 ```
 
 The dev harness reuses the current service layer and returns JSON responses from `/dev/messages/text`.
@@ -371,29 +429,36 @@ Each user connects their own YNAB account. No shared tokens.
 
 ```bash
 # Full suite
-pytest
+.venv/bin/pytest
 
 # Single test file
-pytest tests/test_domain_models.py
+.venv/bin/pytest tests/test_domain_models.py
 
 # Single test class or method
-pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic
+.venv/bin/pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic
 
 # Filter by name
-pytest -k "test_predict_category"
+.venv/bin/pytest -k "test_predict_category"
 ```
 
 ## 🏗️ Architecture
 
-Layered architecture with dependency injection:
+Layered architecture with dependency injection and explicit runtime modes:
 
 ```
 main.py → DIContainer (infrastructure/container.py)
+        → AppConfig selects APP_MODE / EXTERNAL_MODE
         → public HTTP server on $PORT (health + OAuth + HTTP API)
-        → YNABTelegramBot (presentation/telegram/bot.py)
+        → Telegram polling only when APP_MODE=full
 ```
 
-**Message processing flow:**
+Runtime summary:
+- `full`: Railway/production runtime, public HTTP server plus Telegram polling
+- `http-dev`: local DX runtime, public HTTP server plus `/dev/*`, no Telegram polling
+- `http-live`: HTTP-only runtime with live OpenAI/YNAB integrations
+- `test`: test-oriented runtime
+
+**Message and HTTP processing flow:**
 ```
 User (text)
   → ExpenseService.process_message()
@@ -411,18 +476,36 @@ User (voice)
 User (photo)
   → GPT-4o-mini vision (receipt extraction)
   → ExpenseService.process_receipt_image() → expense pipeline
+
+HTTP client
+  → public server in infrastructure/health.py
+    → /api/v1/* delegated to presentation/http/server.py
+    → /dev/* delegated to presentation/http/dev_api_handler.py in http-dev only
 ```
+
+The public HTTP surface is shared:
+- `/` for Railway health checks
+- `/oauth/callback` for YNAB OAuth
+- `/api/v1/expenses/text` for the authenticated expense API
+- `/dev/*` only in local `http-dev`
 
 ## 🚀 Deployment
 
 The bot is configured for deployment on **Railway** with:
 
+- **Production runtime**: Railway should run `APP_MODE=full`, which enables Telegram polling and the public HTTP server
 - **Test-gating**: Tests run before every deploy; failures cancel the deployment (`railway.toml`)
 - **Health check**: Built-in HTTP server at `/` for Railway health probes
 - **OAuth callback**: Same public HTTP server handles `/oauth/callback` for the YNAB OAuth flow
 - **Authenticated API**: Same public HTTP server also exposes `POST /api/v1/expenses/text`
+- **Guardrails**: `APP_MODE=http-dev` is blocked on Railway by startup validation
 
 To use the HTTP endpoint after deploy, set `HTTP_API_KEY` in Railway and call the same service domain at `/api/v1/expenses/text`.
+
+Local Docker profiles are for development only:
+- `docker compose up app-dev` for stubbed local HTTP-first development
+- `docker compose --profile live-integrations up app-live` for local HTTP-only runs with real OpenAI/YNAB integrations
+- `docker compose --profile postgres up postgres` only when you need a local Postgres instance for migration or integration work
 
 ### YNAB OAuth App Setup
 
@@ -439,4 +522,15 @@ Feature work is documented and executed in stages:
 - `PLAN` in `docs/plans/` defines how to build it
 - `ADR` in `docs/adrs/` records significant architectural decisions
 
-See [docs/DOCUMENTATION_WORKFLOW.md](docs/DOCUMENTATION_WORKFLOW.md) for the documentation lifecycle, [docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) for the execution pipeline, and [CLAUDE.md](CLAUDE.md) or [GEMINI.md](GEMINI.md) for AI-specific routing and role mapping.
+Practical local workflow:
+
+1. Start the default local profile with `docker compose up app-dev`
+2. Bootstrap a local user with `.venv/bin/python scripts/dev/bootstrap_user.py --dev-api-key "$DEV_API_KEY"`
+3. Exercise flows through `.venv/bin/python scripts/dev/send_message.py ...` or the Postman collection in `docs/dev/postman/`
+4. Run tests with `.venv/bin/pytest`
+
+Documentation references:
+- [docs/DOCUMENTATION_WORKFLOW.md](docs/DOCUMENTATION_WORKFLOW.md) defines when SPECs, PLANs, and ADRs are required
+- [docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) defines the execution and handoff pipeline
+- [docs/dev/README.md](docs/dev/README.md) documents the current HTTP-first local DX
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) describes the runtime architecture in more detail
