@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import threading
 import pytest
 from src.infrastructure.repositories.database_manager import DatabaseManager
 
@@ -175,3 +176,27 @@ def test_migration_v8_on_existing_v7_db(tmp_path):
         db_manager.close()
     finally:
         dm_module._MIGRATIONS = original_migrations
+
+
+def test_get_connection_returns_distinct_connections_per_thread(tmp_path):
+    db_file = tmp_path / "threaded.db"
+    db_manager = DatabaseManager(str(db_file))
+    thread_ready = threading.Event()
+    thread_done = threading.Event()
+    connections = {}
+
+    def worker():
+        connections["worker"] = db_manager.get_connection()
+        thread_ready.set()
+        thread_done.wait(timeout=2)
+
+    worker_thread = threading.Thread(target=worker)
+    worker_thread.start()
+
+    thread_ready.wait(timeout=2)
+    connections["main"] = db_manager.get_connection()
+    thread_done.set()
+    worker_thread.join(timeout=2)
+
+    assert connections["main"] is not connections["worker"]
+    db_manager.close()

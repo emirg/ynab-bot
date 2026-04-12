@@ -97,12 +97,13 @@ class TestOAuthCallback:
     def test_missing_params_returns_400(self):
         status, body = _get("/oauth/callback")
         assert status == 400
-        assert b"missing required request parameters" in body.lower()
+        assert "faltan parámetros requeridos".encode() in body.lower()
 
     def test_no_oauth_service_returns_503(self):
         set_oauth_service(None)
         status, body = _get("/oauth/callback?code=abc&state=123.sig")
         assert status == 503
+        assert "oauth no está disponible".encode() in body.lower()
 
     def test_successful_callback(self):
         mock_service = MagicMock()
@@ -117,7 +118,7 @@ class TestOAuthCallback:
         
         status, body = _get("/oauth/callback?code=abc&state=123.sig")
         assert status == 200
-        assert b"account connected" in body.lower()
+        assert "cuenta ynab conectada".encode() in body.lower()
         mock_service.exchange_code_for_tokens.assert_called_once_with("abc", "123.sig")
         
         # Verify callback was called with correct telegram_id
@@ -133,5 +134,16 @@ class TestOAuthCallback:
         set_oauth_service(mock_service)
         status, body = _get("/oauth/callback?code=bad&state=123.sig")
         assert status == 400
-        assert b"invalid code" in body
+        assert "no se pudo completar la conexión".encode() in body.lower()
+        assert b"invalid code" not in body
+        set_oauth_service(None)
+
+    def test_exchange_error_does_not_reflect_unsafe_html(self):
+        mock_service = MagicMock()
+        mock_service.exchange_code_for_tokens.side_effect = Exception("<script>alert(1)</script>")
+        set_oauth_service(mock_service)
+        status, body = _get("/oauth/callback?code=bad&state=123.sig")
+        assert status == 400
+        assert b"<script>alert(1)</script>" not in body
+        assert b"&lt;script&gt;" not in body
         set_oauth_service(None)

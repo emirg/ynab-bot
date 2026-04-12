@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import threading
 from typing import Optional
 
 from domain.exceptions import YNABBotException
@@ -171,7 +172,10 @@ class DatabaseManager:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self._conn: Optional[sqlite3.Connection] = None
+        self._init_conn: Optional[sqlite3.Connection] = None
+        self._thread_local = threading.local()
+        self._connections_lock = threading.RLock()
+        self._connections_by_thread: dict[int, sqlite3.Connection] = {}
         self._ensure_directory()
         self._init_database()
 
@@ -181,20 +185,31 @@ class DatabaseManager:
             os.makedirs(data_dir, exist_ok=True)
 
     def get_connection(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(
-                self.db_path,
-                check_same_thread=False,
-            )
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA foreign_keys=ON")
-        return self._conn
+        conn = getattr(self._thread_local, "connection", None)
+        if conn is not None:
+            return conn
+
+        conn = self._create_connection()
+        thread_id = threading.get_ident()
+        self._thread_local.connection = conn
+        with self._connections_lock:
+            self._connections_by_thread[thread_id] = conn
+        return conn
 
     def close(self) -> None:
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+        with self._connections_lock:
+            connections = list(self._connections_by_thread.values())
+            self._connections_by_thread.clear()
+
+        for conn in connections:
+            conn.close()
+
+        if hasattr(self._thread_local, "connection"):
+            self._thread_local.connection = None
+
+        if self._init_conn is not None:
+            self._init_conn.close()
+            self._init_conn = None
 
     def __del__(self) -> None:
         try:
@@ -207,9 +222,24 @@ class DatabaseManager:
     # Migration system
     # ------------------------------------------------------------------
 
+    def _create_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(
+            self.db_path,
+            check_same_thread=False,
+        )
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
+    def _get_initialization_connection(self) -> sqlite3.Connection:
+        if self._init_conn is None:
+            self._init_conn = self._create_connection()
+        return self._init_conn
+
     def _init_database(self) -> None:
         try:
-            conn = self.get_connection()
+            conn = self._get_initialization_connection()
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -220,21 +250,23 @@ class DatabaseManager:
                 """
             )
             conn.commit()
-            self._run_migrations()
+            self._run_migrations(conn)
             logger.info(f"Database initialized at {self.db_path}")
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise YNABBotException(f"Database initialization failed: {e}")
+        finally:
+            if self._init_conn is not None:
+                self._init_conn.close()
+                self._init_conn = None
 
-    def _get_current_version(self) -> int:
-        conn = self.get_connection()
+    def _get_current_version(self, conn: sqlite3.Connection) -> int:
         cursor = conn.execute("SELECT MAX(version) FROM schema_version")
         row = cursor.fetchone()
         return row[0] or 0
 
-    def _run_migrations(self) -> None:
-        current_version = self._get_current_version()
-        conn = self.get_connection()
+    def _run_migrations(self, conn: sqlite3.Connection) -> None:
+        current_version = self._get_current_version(conn)
 
         for version, description, sql in _MIGRATIONS:
             if version <= current_version:
