@@ -67,6 +67,24 @@ def test_advisor_bootstrap_route_delegates_to_api_handler():
     set_advisor_api_handler(None)
 
 
+def test_advisor_dashboard_route_delegates_to_api_handler():
+    handler = MagicMock()
+    handler.handle_dashboard.return_value = (
+        200,
+        {"status": "ok", "selected_period": "mes"},
+        {},
+    )
+    set_advisor_api_handler(handler)
+
+    status, response_type, payload, _ = _get("/api/v1/advisor/dashboard?period=mes", headers={"Cookie": "advisor_session=abc"})
+
+    assert status == 200
+    assert response_type == "json"
+    assert payload["selected_period"] == "mes"
+    handler.handle_dashboard.assert_called_once()
+    set_advisor_api_handler(None)
+
+
 def test_advisor_logout_route_delegates_to_api_handler():
     handler = MagicMock()
     handler.handle_logout.return_value = (200, {"status": "ok"}, {"Set-Cookie": "advisor_session=; Max-Age=0"})

@@ -4,6 +4,7 @@ import pytest
 
 from infrastructure.config.app_config import AppConfig
 from infrastructure.container import DIContainer
+from application.services.advisor_dashboard_service import AdvisorDashboardService
 from application.services.weekly_summary_service import WeeklySummaryService
 from domain.repositories.user_repository import UserRepository
 
@@ -53,6 +54,10 @@ class TestWeeklySummaryServiceRegistration:
     def test_user_repository_interface_is_registered(self, container):
         repo = container.get(UserRepository)
         assert repo is container.get_user_repository()
+
+    def test_get_advisor_dashboard_service_returns_instance(self, container):
+        service = container.get_advisor_dashboard_service()
+        assert isinstance(service, AdvisorDashboardService)
 
     def test_registers_postgres_user_repository(self, tmp_path, monkeypatch):
         from infrastructure.repositories.postgres_manager import PostgresDatabaseManager

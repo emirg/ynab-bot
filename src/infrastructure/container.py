@@ -2,6 +2,7 @@ import logging
 from typing import TypeVar, Callable, Dict, Any, Type
 
 from application.services.advisor_access_service import AdvisorAccessService
+from application.services.advisor_dashboard_service import AdvisorDashboardService
 from infrastructure.config.app_config import AppConfig
 from infrastructure.dev.stubbed_integrations import (
     StubLLMExpenseParser,
@@ -152,6 +153,14 @@ class DIContainer:
                 advisor_auth_repository=self.get(AdvisorAuthRepository),
                 user_repository=self.get(UserRepository),
                 learning_repository=self.get(LearningRepository),
+                ynab_factory=self.get(YNABRepositoryFactory),
+            )
+        )
+
+        self.register_transient(
+            AdvisorDashboardService,
+            lambda: AdvisorDashboardService(
+                user_repository=self.get(UserRepository),
                 ynab_factory=self.get(YNABRepositoryFactory),
             )
         )
@@ -338,6 +347,9 @@ class DIContainer:
 
     def get_advisor_access_service(self):
         return self.get(AdvisorAccessService)
+
+    def get_advisor_dashboard_service(self):
+        return self.get(AdvisorDashboardService)
 
 
 def create_container(config_path: str = 'config/.env') -> DIContainer:
