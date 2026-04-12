@@ -1,5 +1,5 @@
 from datetime import datetime
-from src.domain.models.split_config import SplitGroup, SharedAccountConfig
+from domain.models.split_config import SplitGroup, SharedAccountConfig
 
 
 def test_split_group_add_alias():

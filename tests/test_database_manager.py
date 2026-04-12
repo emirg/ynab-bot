@@ -2,7 +2,7 @@ import os
 import sqlite3
 import threading
 import pytest
-from src.infrastructure.repositories.database_manager import DatabaseManager
+from infrastructure.repositories.database_manager import DatabaseManager
 
 
 def test_database_initialization(tmp_path):
@@ -75,7 +75,7 @@ def test_migration_v8_fresh_db(tmp_path):
     """Migration v8 applies cleanly on a DB bootstrapped to exactly v8."""
     db_file = tmp_path / "test_v8_fresh.db"
 
-    import src.infrastructure.repositories.database_manager as dm_module
+    import infrastructure.repositories.database_manager as dm_module
 
     original_migrations = dm_module._MIGRATIONS
     dm_module._MIGRATIONS = [m for m in original_migrations if m[0] <= 8]
@@ -115,7 +115,7 @@ def test_migration_v9_on_existing_v8_db(tmp_path):
     """Migration v9 applies cleanly on a DB that was already at v8."""
     db_file = tmp_path / "test_v8_to_v9.db"
 
-    import src.infrastructure.repositories.database_manager as dm_module
+    import infrastructure.repositories.database_manager as dm_module
 
     original_migrations = dm_module._MIGRATIONS
     dm_module._MIGRATIONS = [m for m in original_migrations if m[0] <= 8]
@@ -147,7 +147,7 @@ def test_migration_v8_on_existing_v7_db(tmp_path):
     db_file = tmp_path / "test_v7_to_v8.db"
 
     # Bootstrap the DB up to v7 by temporarily patching _MIGRATIONS
-    import src.infrastructure.repositories.database_manager as dm_module
+    import infrastructure.repositories.database_manager as dm_module
 
     original_migrations = dm_module._MIGRATIONS
     dm_module._MIGRATIONS = [m for m in original_migrations if m[0] <= 7]

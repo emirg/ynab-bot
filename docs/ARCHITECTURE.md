@@ -11,6 +11,16 @@ main.py → DIContainer (infrastructure/container.py)
         → YNABTelegramBot only when APP_MODE=full
 ```
 
+## Phase 1 Advisor Baseline
+
+Financial Advisor Phase 1 starts from the current shipped runtime, not from an assumed future repo split or mandatory multi-service topology.
+
+- The current repository is the implementation unit.
+- The current public HTTP server remains the public entrypoint during Phase 1.
+- Railway should continue running `APP_MODE=full`.
+- Local advisor-related development should continue using the existing HTTP-first `http-dev` workflow.
+- Telegram and HTTP continue sharing the current service boundaries until a later ADR explicitly changes that architecture.
+
 ## Runtime Modes
 
 - **`APP_MODE=full`** — production-style runtime. Starts the public HTTP server and Telegram polling.

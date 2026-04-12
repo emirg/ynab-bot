@@ -124,6 +124,12 @@ docker compose --profile postgres up postgres
 
 Use this when working on database migration or integration scenarios that need PostgreSQL.
 
+If you want the Phase 1 PostgreSQL scaffolding to connect locally, use a DSN like:
+
+```bash
+export POSTGRES_DSN=postgresql://ynab:ynab@127.0.0.1:5432/ynab_bot
+```
+
 ### Optional live integrations
 
 ```bash
@@ -168,6 +174,21 @@ You can also import the committed Postman bundle from `docs/dev/postman/` and ru
 
 ```bash
 .venv/bin/pytest
+```
+
+For the PostgreSQL integration smoke test specifically:
+
+```bash
+export POSTGRES_INTEGRATION_DSN=postgresql://ynab:ynab@127.0.0.1:5432/ynab_bot
+.venv/bin/pytest tests/test_postgres_integration.py
+```
+
+To exercise the current SQLite-to-PostgreSQL migration scaffold locally:
+
+```bash
+.venv/bin/python scripts/dev/migrate_sqlite_to_postgres.py \
+  --sqlite-path data/users.db \
+  --postgres-dsn "$POSTGRES_DSN"
 ```
 
 ## Security Notes

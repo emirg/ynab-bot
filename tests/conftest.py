@@ -7,8 +7,9 @@ from datetime import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-# Add src to path so imports work like in production
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from project_bootstrap import ensure_src_path
+
+ensure_src_path()
 
 from domain.models.expense import Expense, ExpenseResult
 from domain.models.user import UserConfiguration, UserStatus, YNABBudget, YNABAccount, YNABCategory

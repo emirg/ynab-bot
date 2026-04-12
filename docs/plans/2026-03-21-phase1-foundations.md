@@ -4,7 +4,7 @@
 - **Status:** Draft
 - **Source Spec:** `docs/specs/2026-03-21-financial-advisor-web-app.md`
 - **Goal:** Prepare the current codebase for the future financial advisor without breaking the Telegram bot, the existing OAuth flow, or the current public HTTP API.
-- **Approach:** Phase 1 stays grounded in the current single-repo, single-public-server reality. It first locks the architectural decisions that were previously implicit, then introduces the persistence and boundary changes needed for later advisor work in a reversible, testable sequence.
+- **Approach:** Phase 1 stays grounded in the current single-repo, single-public-server reality. It starts from the codebase as it exists now: SQLite remains the active persistence layer, `DatabaseManager` already uses per-thread runtime connections, and the public HTTP expense endpoint already has shared Pydantic request validation plus constant-time bearer auth. The phase now has an accepted persistence target: migrate runtime persistence to PostgreSQL during Phase 1 while preserving current user-facing and HTTP behavior throughout the transition.
 
 ## Affected Components
 - `docs/adrs/` — architecture decisions required before persistence and packaging changes
@@ -12,13 +12,15 @@
 - `src/infrastructure/config/app_config.py` — config needed for any database transition
 - `src/infrastructure/container.py` — DI wiring for current and future repository implementations
 - `src/presentation/http/` and `src/infrastructure/health.py` — current public HTTP surface that must remain stable
+- `src/application/services/expense_service.py` and `src/domain/models/expense.py` — current prepare/commit boundary already shared by Telegram and HTTP flows
+- `docker-compose.yml` and local dev database tooling — current optional PostgreSQL scaffolding that must be reconciled with the chosen runtime approach
 - `tests/` — regression coverage plus any new integration coverage
 - `docs/ARCHITECTURE.md`, `docs/AI_WORKFLOW.md`, `README.md` — only if implementation finalizes decisions that change project invariants
 
 ## Prerequisites (Manual)
 - [ ] Back up the current SQLite database before any migration work starts.
-- [ ] Confirm local PostgreSQL is available for development and integration testing if the persistence ADR chooses PostgreSQL.
-- [ ] Confirm Railway environment constraints before locking any deployment topology decision.
+- [ ] Confirm local PostgreSQL is available for development and integration testing. The current Docker `postgres` profile is optional scaffolding, not the full runtime migration by itself.
+- [ ] Confirm Railway environment constraints assuming the current single-process `APP_MODE=full` deployment and the existing rule that `APP_MODE=http-dev` is not allowed on Railway.
 
 ## Implementation Steps
 *(Models MUST mark steps with [x] as they are completed and save the file)*
@@ -26,40 +28,93 @@
 ### Group 1
 <!-- Lock the missing architecture decisions before code changes. -->
 
-#### [ ] Step 1: Record the advisor architecture baseline in an ADR
-- **Files:** `docs/adrs/2026-04-11-financial-advisor-architecture-baseline.md`, `docs/ARCHITECTURE.md`
-- **Action:** Record that Phase 1 planning starts from the current repo and public HTTP server, not from an assumed future monorepo or mandatory multi-service split. Clarify what is decided now versus deferred to later phases.
+#### [x] Step 1: Record the advisor architecture baseline in an ADR
+- **Files:** `docs/adrs/2026-04-12-financial-advisor-architecture-baseline.md`, `docs/ARCHITECTURE.md`
+- **Action:** Accepted. Phase 1 starts from the current single-repo, single-public-server runtime. The ADR and architecture doc now capture the preserved runtime facts: Railway public HTTP entrypoint, HTTP-first local development, existing OAuth callback flow, and shared prepare/commit service boundaries.
 - **Tests:** N/A — documentation review only
 
-#### [ ] Step 2: Record the persistence strategy ADR
-- **Files:** `docs/adrs/2026-04-11-financial-advisor-persistence-strategy.md`, `docs/AI_WORKFLOW.md`, `docs/ARCHITECTURE.md`
-- **Action:** Decide whether Phase 1 will migrate from SQLite to PostgreSQL immediately or stage the migration behind compatibility seams first. If the decision supersedes the current `DatabaseManager` invariant, update the project docs in the same change.
+#### [x] Step 2: Record the persistence strategy ADR
+- **Files:** `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`
+- **Action:** Accepted. Phase 1 will migrate from SQLite to PostgreSQL. The ADR records PostgreSQL as required Phase 1 scope while keeping current SQLite behavior as the compatibility baseline until cutover lands.
 - **Tests:** N/A — documentation review only
 
 ### Group 2 (depends on: Group 1)
 <!-- Establish safer boundaries in the current repo before swapping infrastructure. -->
 
-#### [ ] Step 3: Inventory the current persistence surface and migration scope
+#### [x] Step 3: Inventory the current persistence surface and migration scope
 - **Files:** `src/infrastructure/repositories/database_manager.py`, `src/infrastructure/repositories/sqlite_user_repository.py`, `src/infrastructure/repositories/sqlite_learning_repository.py`, `src/infrastructure/repositories/sqlite_split_config_repository.py`, `tests/test_database_manager.py`, `tests/test_sqlite_user_repository.py`, `tests/test_sqlite_learning_repository.py`, `tests/test_sqlite_split_config_repository.py`
-- **Action:** Map the exact schema, repository behavior, and test expectations that must be preserved. Produce a concrete migration checklist from current SQLite tables and invariants so the new storage layer does not silently change behavior.
+- **Action:** Completed. The current SQLite baseline and PostgreSQL compatibility checklist are now captured below so later groups can implement against an explicit target instead of rediscovering behavior from code.
 - **Tests:** Existing SQLite repository tests remain green and become the behavioral baseline for later groups
 
-#### [ ] Step 4: Stabilize application boundaries for future advisor reuse
+**Current SQLite baseline**
+
+- `DatabaseManager` owns the full runtime schema and versioned migration history. The active baseline is schema version `9`.
+- `DatabaseManager.get_connection()` returns one lazily created runtime connection per thread. Migration/startup uses a dedicated initialization connection.
+- `user_configurations` is the primary per-user table. Current persisted fields include:
+  `telegram_id`, `status`, `budget_id`, `default_account_id`, `default_account_name`, `username`, `first_name`, `last_name`, `created_at`, `updated_at`, `approved_at`, `approved_by`, `ynab_access_token`, `ynab_refresh_token`, `ynab_token_expires_at`, `timezone`, `last_weekly_summary_sent`, `confirm_before_create`.
+- `payee_category_mappings` stores learned category mappings keyed by `(telegram_id, normalized_payee, category_id)` with a mutable `count` and `category_name`.
+- `user_corrections` stores correction history per user.
+- `recent_transactions` stores recent expense history per user and trims to the latest `20` rows per user after each insert.
+- `split_groups` stores per-user split categories with uniqueness on `(telegram_id, category_id)`.
+- `split_person_aliases` stores aliases per split group with uniqueness on `(split_group_id, alias)` and cascade delete from `split_groups`.
+- `split_shared_account` stores one shared tracking account per user keyed by `telegram_id`.
+
+**Behavioral compatibility checklist for PostgreSQL cutover**
+
+- Preserve per-user isolation in every query and uniqueness constraint. No repository method may return or mutate cross-user data.
+- Preserve `SQLiteUserRepository.save()` upsert behavior:
+  insert-or-update by `telegram_id`, update mutable fields, and preserve the original `created_at` value on updates.
+- Preserve token-at-rest handling at the repository boundary:
+  encrypted values are stored, decrypted values are returned to the domain model.
+- Preserve timezone default behavior:
+  missing persisted timezone resolves to `DEFAULT_TIMEZONE` (`America/Bogota`) at load time.
+- Preserve boolean semantics for `confirm_before_create`, including default `False` and round-trip behavior through persistence.
+- Preserve nullable datetime semantics for `approved_at`, `ynab_token_expires_at`, and `last_weekly_summary_sent`.
+- Preserve learning write patterns:
+  successful transactions increment existing `(telegram_id, normalized_payee, category_id)` mappings instead of creating duplicates.
+- Preserve correction behavior:
+  user corrections decrement the old mapping, delete rows whose count reaches zero, and upsert the new mapping.
+- Preserve prediction behavior:
+  `predict_category()` returns `None` when no mapping exists or when the learned category is no longer present in the caller-supplied YNAB categories.
+- Preserve recent-transaction behavior:
+  inserts retain newest-first retrieval ordering and enforce the per-user cap of `20` rows.
+- Preserve split-config behavior:
+  adding the same split group twice must remain idempotent from the caller perspective, and deleting a split group must remove its aliases.
+- Preserve case-insensitive alias lookup semantics in `find_split_group_by_alias()`.
+- Preserve shared-account upsert behavior keyed by `telegram_id`.
+- Preserve error translation at repository boundaries:
+  persistence failures still surface as project-level exceptions, not raw driver exceptions leaking into services.
+
+**Test baseline that PostgreSQL repositories must satisfy**
+
+- `tests/test_database_manager.py` currently defines the schema and migration baseline at version `9`; the PostgreSQL foundation needs an equivalent migration/version test surface.
+- `tests/test_sqlite_user_repository.py` defines the expected user persistence contract, especially upsert, timestamp preservation, timezone defaulting, and confirmation-mode persistence.
+- `tests/test_sqlite_learning_repository.py` defines the expected learning contract, especially per-user isolation, correction semantics, category prediction, and recent-transaction trimming.
+- `tests/test_sqlite_split_config_repository.py` defines the split-config contract, especially duplicate-group idempotency, alias operations, cascade delete, case-insensitive alias lookup, shared-account upsert, and per-user isolation.
+
+#### [x] Step 4: Stabilize application boundaries for future advisor reuse
 - **Files:** `src/domain/`, `src/application/services/`, `src/presentation/http/`, `main.py`, `tests/conftest.py`
-- **Action:** Remove or reduce packaging shortcuts that make reuse harder, but do it within the current repo layout. Any import cleanup or packaging work must preserve the current public HTTP API and Telegram runtime instead of assuming a full directory split in this phase.
-- **Tests:** `tests/test_main.py`, `tests/test_http_server.py`, `tests/test_health.py`, and representative service tests pass without import regressions
+- **Action:** Completed. Reduced packaging and import shortcuts without changing repo layout or runtime behavior. The current public HTTP API, its request-validation/auth boundary, the `PreparedExpense`-based prepare/commit flow, and Telegram runtime behavior remain unchanged.
+- **Tests:** `tests/test_main.py`, `tests/test_http_server.py`, `tests/test_health.py`, `tests/test_http_auth.py`, `tests/test_expense_api_handler.py`, and representative service tests pass without import regressions
+
+**Progress note**
+
+- The DI container now resolves service dependencies through repository interfaces (`UserRepository`, `LearningRepository`, `SplitConfigRepository`) instead of binding services directly to SQLite concrete classes. This keeps current behavior unchanged while making the later PostgreSQL swap a wiring change instead of a service-constructor refactor.
+- Runtime/test import bootstrap is now centralized through `project_bootstrap.py` instead of duplicated `sys.path` mutations scattered across `main.py` and individual test modules. The repo still uses the current root-plus-`src/` layout, but the bootstrap shortcut is now explicit and shared.
+- Test imports that previously mixed `src.*` and package-root imports now follow the same package-root boundary as the runtime, reducing ambiguity about the active module path during future persistence work.
 
 ### Group 3 (depends on: Group 2)
 <!-- Introduce the new persistence foundation without cutting over runtime yet. -->
 
-#### [ ] Step 5: Add the selected persistence foundation
+#### [x] Step 5: Add the selected persistence foundation
 - **Files:** `requirements.txt`, `src/infrastructure/config/app_config.py`, new persistence support files under `src/infrastructure/repositories/` or another ADR-approved location
-- **Action:** Add the chosen database dependencies and base infrastructure needed for the new persistence layer. This includes connection/session management, schema definitions, and migration tooling only after the ADR has locked the target approach.
+- **Action:** Completed. Added PostgreSQL dependency and non-cutover foundation support:
+  `PERSISTENCE_BACKEND` / `POSTGRES_DSN` config handling in `AppConfig`, a migration-capable `PostgresDatabaseManager`, and the initial PostgreSQL baseline schema derived from the current SQLite v9 runtime contract. The active runtime still remains on SQLite until later cutover steps.
 - **Tests:** Configuration tests cover new required settings; new infrastructure unit tests validate connection lifecycle and error handling
 
-#### [ ] Step 6: Create migration and integration test scaffolding
+#### [x] Step 6: Create migration and integration test scaffolding
 - **Files:** `tests/`, migration tooling files, optional local compose/dev files if required by the chosen strategy
-- **Action:** Add reproducible integration test support for the target database and create the migration path from current persisted data. The scaffolding must be runnable locally and match the project's real deployment assumptions.
+- **Action:** Completed. Added a reusable SQLite-to-PostgreSQL migration helper plus a local script entrypoint, an opt-in PostgreSQL integration smoke test gated by `POSTGRES_INTEGRATION_DSN`, and local DX documentation for bringing up the Docker PostgreSQL profile and exercising the migration scaffold.
 - **Tests:** New integration setup proves the target schema can be created and exercised in tests
 
 ### Group 4 (depends on: Group 3)
@@ -67,13 +122,13 @@
 
 #### [ ] Step 7: Implement replacement repositories behind existing interfaces
 - **Files:** New repository implementations under `src/infrastructure/repositories/`, related tests under `tests/`
-- **Action:** Re-implement user, learning, and split-config persistence behind the existing repository ABCs. Preserve token handling, per-user isolation, split configuration semantics, and all observable service-level behavior.
-- **Tests:** Repository-focused tests mirror current SQLite expectations and add target-database integration coverage
+- **Action:** Implement PostgreSQL-backed user, learning, and split-config persistence behind the existing repository ABCs. Preserve token handling, per-user isolation, split configuration semantics, and all observable service-level behavior.
+- **Tests:** Repository-focused tests mirror current SQLite expectations and add PostgreSQL integration coverage
 
 #### [ ] Step 8: Wire the new persistence layer into the container without breaking current surfaces
 - **Files:** `src/infrastructure/container.py`, `main.py`, `src/presentation/http/`, `src/infrastructure/health.py`
 - **Action:** Cut application wiring over to the new repository implementations while preserving Telegram behavior, OAuth callback handling, health checks, and the existing authenticated HTTP expense endpoint.
-- **Tests:** `tests/test_container.py`, `tests/test_bot.py`, `tests/test_http_server.py`, `tests/test_expense_api_handler.py`, and relevant end-to-end smoke coverage pass
+- **Tests:** `tests/test_container.py`, `tests/test_bot.py`, `tests/test_http_server.py`, `tests/test_http_auth.py`, `tests/test_expense_api_handler.py`, and relevant end-to-end smoke coverage pass
 
 ### Group 5 (depends on: Group 4)
 <!-- Remove obsolete SQLite code only after the new path is validated. -->
@@ -93,12 +148,15 @@
 - The existing public HTTP server on Railway remains a protected surface throughout Phase 1.
 - Per-user isolation and YNAB milliunit rules remain unchanged.
 - The plan must not assume a `bot/api/web/shared` monorepo split unless a separate ADR explicitly approves it.
+- The plan must preserve the current authenticated HTTP contract, including strict request validation, constant-time bearer token checks, and the shared prepare/commit service flow used by Telegram and HTTP.
+- PostgreSQL migration is required Phase 1 scope, not an optional future branch.
 - If Phase 1 changes the database layer away from `DatabaseManager`, the corresponding invariant docs must be updated in the same implementation stream.
 - New persistence work must have real regression coverage before SQLite runtime code is removed.
 
 ## Verification
 - [ ] Existing Telegram bot flows still work after each cutover step.
 - [ ] The current authenticated HTTP expense endpoint still works on the public server.
+- [ ] HTTP auth, request validation, and preview/commit behavior remain covered by targeted tests after any boundary refactor.
 - [ ] The chosen persistence strategy has automated test coverage and a documented migration path.
 - [ ] Documentation and ADRs match the implementation that Phase 1 actually ships.
 - [ ] Phase 2 work can start from these foundations without needing to rediscover repo layout, runtime entrypoints, or persistence assumptions.

@@ -1,14 +1,11 @@
 """Tests for DIContainer — service registration and convenience methods."""
-import sys
-import os
 
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from infrastructure.config.app_config import AppConfig
 from infrastructure.container import DIContainer
 from application.services.weekly_summary_service import WeeklySummaryService
+from domain.repositories.user_repository import UserRepository
 
 
 @pytest.fixture
@@ -50,3 +47,7 @@ class TestWeeklySummaryServiceRegistration:
         service = container.get_weekly_summary_service()
         assert isinstance(service.ynab_factory, YNABRepositoryFactory)
         assert isinstance(service.user_repository, SQLiteUserRepository)
+
+    def test_user_repository_interface_is_registered(self, container):
+        repo = container.get(UserRepository)
+        assert repo is container.get_user_repository()

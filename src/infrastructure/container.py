@@ -22,6 +22,9 @@ from application.services.split_config_service import SplitConfigService
 from application.services.oauth_service import YNABOAuthService
 from application.services.weekly_summary_service import WeeklySummaryService
 from application.services.on_demand_summary_service import OnDemandSummaryService
+from domain.repositories.learning_repository import LearningRepository
+from domain.repositories.split_config_repository import SplitConfigRepository
+from domain.repositories.user_repository import UserRepository
 from domain.services.auth_service import AuthorizationService
 from parsers.llm_expense_parser import LLMExpenseParser
 from integrations.speech_to_text import SpeechToTextProcessor
@@ -63,15 +66,27 @@ class DIContainer:
                 self.get(TokenEncryptor)
             )
         )
+        self.register_singleton(
+            UserRepository,
+            lambda: self.get(SQLiteUserRepository)
+        )
 
         self.register_singleton(
             SQLiteLearningRepository,
             lambda: SQLiteLearningRepository(self.get(DatabaseManager))
         )
+        self.register_singleton(
+            LearningRepository,
+            lambda: self.get(SQLiteLearningRepository)
+        )
 
         self.register_singleton(
             SQLiteSplitConfigRepository,
             lambda: SQLiteSplitConfigRepository(self.get(DatabaseManager))
+        )
+        self.register_singleton(
+            SplitConfigRepository,
+            lambda: self.get(SQLiteSplitConfigRepository)
         )
 
         # OAuth service
@@ -107,19 +122,19 @@ class DIContainer:
         self.register_transient(
             ExpenseService,
             lambda: ExpenseService(
-                user_repository=self.get(SQLiteUserRepository),
+                user_repository=self.get(UserRepository),
                 ynab_factory=self.get(YNABRepositoryFactory),
-                learning_repository=self.get(SQLiteLearningRepository),
+                learning_repository=self.get(LearningRepository),
                 llm_parser=self.get(LLMExpenseParser),
                 budget_query_service=self.get(BudgetQueryService),
-                split_config_repository=self.get(SQLiteSplitConfigRepository),
+                split_config_repository=self.get(SplitConfigRepository),
             )
         )
 
         self.register_transient(
             UserConfigService,
             lambda: UserConfigService(
-                user_repository=self.get(SQLiteUserRepository),
+                user_repository=self.get(UserRepository),
                 ynab_factory=self.get(YNABRepositoryFactory)
             )
         )
@@ -127,22 +142,22 @@ class DIContainer:
         self.register_transient(
             LearningService,
             lambda: LearningService(
-                learning_repository=self.get(SQLiteLearningRepository)
+                learning_repository=self.get(LearningRepository)
             )
         )
 
         self.register_transient(
             OnboardingService,
             lambda: OnboardingService(
-                user_repository=self.get(SQLiteUserRepository)
+                user_repository=self.get(UserRepository)
             )
         )
 
         self.register_transient(
             SplitConfigService,
             lambda: SplitConfigService(
-                split_config_repository=self.get(SQLiteSplitConfigRepository),
-                user_repository=self.get(SQLiteUserRepository),
+                split_config_repository=self.get(SplitConfigRepository),
+                user_repository=self.get(UserRepository),
                 ynab_factory=self.get(YNABRepositoryFactory)
             )
         )
@@ -151,7 +166,7 @@ class DIContainer:
             WeeklySummaryService,
             lambda: WeeklySummaryService(
                 ynab_factory=self.get(YNABRepositoryFactory),
-                user_repository=self.get(SQLiteUserRepository)
+                user_repository=self.get(UserRepository)
             )
         )
 
@@ -166,7 +181,7 @@ class DIContainer:
         self.register_singleton(
             AuthorizationService,
             lambda: AuthorizationService(
-                user_repository=self.get(SQLiteUserRepository),
+                user_repository=self.get(UserRepository),
                 admin_ids=self.config.admin_ids
             )
         )
@@ -188,11 +203,11 @@ class DIContainer:
         if self.config.use_live_integrations:
             return YNABOAuthService(
                 config=self.config,
-                user_repository=self.get(SQLiteUserRepository)
+                user_repository=self.get(UserRepository)
             )
         return StubYNABOAuthService(
             config=self.config,
-            user_repository=self.get(SQLiteUserRepository),
+            user_repository=self.get(UserRepository),
         )
 
     def _create_ynab_factory(self):
@@ -255,7 +270,7 @@ class DIContainer:
 
     # Convenience methods for commonly used services
     def get_user_repository(self):
-        return self.get(SQLiteUserRepository)
+        return self.get(UserRepository)
 
     def get_ynab_factory(self):
         return self.get(YNABRepositoryFactory)
@@ -264,7 +279,7 @@ class DIContainer:
         return self.get(YNABOAuthService)
 
     def get_learning_repository(self):
-        return self.get(SQLiteLearningRepository)
+        return self.get(LearningRepository)
 
     def get_auth_service(self):
         return self.get(AuthorizationService)

@@ -1,8 +1,6 @@
 import pytest
-from datetime import datetime
-from src.infrastructure.repositories.database_manager import DatabaseManager
-from src.infrastructure.repositories.sqlite_split_config_repository import SQLiteSplitConfigRepository
-from src.domain.models.split_config import SplitGroup, SharedAccountConfig
+from infrastructure.repositories.database_manager import DatabaseManager
+from infrastructure.repositories.sqlite_split_config_repository import SQLiteSplitConfigRepository
 
 
 @pytest.fixture

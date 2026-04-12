@@ -4,7 +4,7 @@
 - **Status:** Approved
 - **Owner:** Codex
 - **Related Roadmap Item:** Future Financial Advisor milestone
-- **Related ADRs:** None yet
+- **Related ADRs:** `docs/adrs/2026-04-11-sqlite-per-thread-connections.md`, `docs/adrs/2026-04-11-prepared-expense-domain-contract.md`, `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`
 
 ## Summary
 The Financial Advisor is a new analysis experience built on top of the bot's existing YNAB-connected user data. The Telegram bot remains the fastest way to capture expenses, while the advisor becomes the place where users review spending, trends, rules, and recommendations through a richer web-first interface.
@@ -13,7 +13,7 @@ This spec defines the expected product behavior and system constraints. It does 
 
 ## Problem
 - The current product is optimized for expense capture and lightweight summaries inside Telegram, but it is not a good surface for richer financial analysis.
-- The project now has multiple consumption surfaces: Telegram, an existing HTTP API, and the future advisor experience. The older documentation mixed product requirements with assumptions about monorepo structure, deployment, and persistence changes.
+- The project now has multiple consumption surfaces: Telegram, a production HTTP API, a local HTTP-first dev harness, and the future advisor experience. The older documentation mixed product requirements with assumptions about monorepo structure, deployment, and persistence changes.
 - Without a clean feature spec, implementation work risks making architectural decisions mid-flight and drifting away from the current repo reality.
 
 ## Goals
@@ -50,9 +50,9 @@ This spec defines the expected product behavior and system constraints. It does 
   - conversational AI advisor features
 
 ## Inputs and Outputs
-- **Inputs:** Telegram command to open the advisor, authenticated HTTP requests, existing user configuration, YNAB-backed financial data, future web UI interactions, and advisor chat prompts.
+- **Inputs:** Telegram command to open the advisor, authenticated HTTP requests, existing user configuration, YNAB-backed financial data, future web UI interactions, local `http-dev` verification flows, and advisor chat prompts.
 - **Outputs:** Authenticated advisor session, visual summaries and charts, financial metrics, advisor responses, and any supporting read-only API responses needed by the UI.
-- **Public Interfaces:** Telegram advisor entry command, current public HTTP server on Railway, future advisor routes/pages, and any supporting internal API contracts used by the web experience.
+- **Public Interfaces:** Telegram advisor entry command, the current public HTTP server on Railway, future advisor routes/pages, and any supporting internal API contracts used by the web experience.
 
 ## Business Rules and Constraints
 - The bot remains the authoritative capture interface for expense logging.
@@ -60,6 +60,7 @@ This spec defines the expected product behavior and system constraints. It does 
 - User-facing copy remains in Spanish.
 - YNAB domain invariants remain unchanged, including milliunit handling and per-user repository resolution.
 - The advisor flow must reuse the current authentication model rooted in the bot and the user's existing YNAB connection.
+- Advisor additions must preserve the current authenticated HTTP expense surface and its security guarantees while new web-facing routes are introduced incrementally.
 - Any persistence, packaging, or deployment decision that materially changes current architecture must be recorded in an ADR before or during implementation.
 - The current public HTTP surface already exists and cannot be ignored in planning future advisor work.
 
@@ -79,10 +80,15 @@ This spec defines the expected product behavior and system constraints. It does 
 
 ## Open Questions
 - Whether the final advisor architecture should stay on the current public HTTP server during early rollout or move to dedicated API/web services later.
-- Whether Phase 1 should immediately migrate persistence, or first stabilize boundaries and record the persistence decision in an ADR.
 
 ## References
 - `docs/plans/2026-03-21-phase1-foundations.md`
-- `docs/specs/2026-04-11-http-expense-endpoint-design.md`
+- `docs/specs/archive/2026-04-11-http-expense-endpoint-design.md`
+- `docs/specs/archive/2026-04-11-shared-http-request-validation.md`
+- `docs/specs/archive/2026-04-11-constant-time-http-auth.md`
+- `docs/specs/archive/2026-04-11-typed-prepared-expense-flow.md`
 - `docs/plans/archive/2026-03-20-financial-advisor-design.md`
+- `docs/adrs/2026-04-11-sqlite-per-thread-connections.md`
+- `docs/adrs/2026-04-11-prepared-expense-domain-contract.md`
+- `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`
 - `docs/ARCHITECTURE.md`

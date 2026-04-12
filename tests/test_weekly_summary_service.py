@@ -1,12 +1,8 @@
 """Tests for WeeklySummaryService."""
-import sys
-import os
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from application.services.weekly_summary_service import WeeklySummaryService, _monday_of_week
 from domain.models.user import UserConfiguration, UserStatus

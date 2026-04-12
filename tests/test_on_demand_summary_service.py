@@ -1,12 +1,8 @@
 """Tests for OnDemandSummaryService."""
-import sys
-import os
 from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from application.services.on_demand_summary_service import OnDemandSummaryService
 from domain.models.on_demand_summary import OnDemandSummary

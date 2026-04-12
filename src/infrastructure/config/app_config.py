@@ -20,6 +20,8 @@ class AppConfig:
     ynab_redirect_uri: Optional[str]
     token_encryption_key: str
     http_api_key: str
+    persistence_backend: str = 'sqlite'
+    postgres_dsn: Optional[str] = None
     app_mode: str = 'full'
     external_mode: str = 'live'
     dev_api_key: str = 'dev-api-key'
@@ -41,6 +43,8 @@ class AppConfig:
         cls._validate_app_mode(app_mode)
         external_mode = os.getenv('EXTERNAL_MODE', cls._default_external_mode(app_mode)).strip().lower()
         cls._validate_external_mode(external_mode)
+        persistence_backend = os.getenv('PERSISTENCE_BACKEND', 'sqlite').strip().lower()
+        cls._validate_persistence_backend(persistence_backend)
 
         return cls(
             telegram_token=cls._optional_env('TELEGRAM_BOT_TOKEN'),
@@ -54,6 +58,8 @@ class AppConfig:
             ynab_redirect_uri=cls._optional_env('YNAB_REDIRECT_URI'),
             token_encryption_key=cls._require_env('TOKEN_ENCRYPTION_KEY'),
             http_api_key=cls._resolve_http_api_key(app_mode),
+            persistence_backend=persistence_backend,
+            postgres_dsn=cls._optional_env('POSTGRES_DSN'),
             app_mode=app_mode,
             external_mode=external_mode,
             dev_api_key=cls._resolve_dev_api_key(app_mode),
@@ -94,6 +100,14 @@ class AppConfig:
         if external_mode not in allowed:
             raise ConfigurationException(
                 f"Invalid EXTERNAL_MODE '{external_mode}'. Expected one of: {', '.join(sorted(allowed))}"
+            )
+
+    @staticmethod
+    def _validate_persistence_backend(persistence_backend: str) -> None:
+        allowed = {'sqlite', 'postgres'}
+        if persistence_backend not in allowed:
+            raise ConfigurationException(
+                f"Invalid PERSISTENCE_BACKEND '{persistence_backend}'. Expected one of: {', '.join(sorted(allowed))}"
             )
 
     @staticmethod
@@ -163,6 +177,10 @@ class AppConfig:
         return self.get_absolute_path(self.database_path)
 
     @property
+    def uses_postgres(self) -> bool:
+        return self.persistence_backend == 'postgres'
+
+    @property
     def telegram_enabled(self) -> bool:
         return self.app_mode == 'full'
 
@@ -195,5 +213,8 @@ class AppConfig:
 
         if self.enable_dev_routes and self.app_mode != 'http-dev':
             raise ConfigurationException("ENABLE_DEV_ROUTES=true requires APP_MODE=http-dev")
+
+        if self.uses_postgres and not self.postgres_dsn:
+            raise ConfigurationException("PERSISTENCE_BACKEND=postgres requires POSTGRES_DSN")
 
         return self

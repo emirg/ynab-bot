@@ -104,7 +104,8 @@ class TestFromEnv:
         for var in ('TELEGRAM_BOT_TOKEN', 'OPENAI_API_KEY', 'ADMIN_IDS',
                      'YNAB_CLIENT_ID', 'YNAB_CLIENT_SECRET', 'YNAB_REDIRECT_URI',
                      'TOKEN_ENCRYPTION_KEY', 'HTTP_API_KEY', 'YNAB_ACCESS_TOKEN',
-                     'APP_MODE', 'EXTERNAL_MODE', 'DEV_API_KEY', 'ENABLE_DEV_ROUTES',
+                     'APP_MODE', 'EXTERNAL_MODE', 'PERSISTENCE_BACKEND', 'POSTGRES_DSN',
+                     'DEV_API_KEY', 'ENABLE_DEV_ROUTES',
                      'RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'):
             monkeypatch.delenv(var, raising=False)
 
@@ -215,3 +216,49 @@ class TestFromEnv:
         )
         with pytest.raises(ConfigurationException, match='not allowed on Railway'):
             AppConfig.from_env(str(env_file))
+
+    def test_defaults_to_sqlite_persistence_backend(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
+        env_file = tmp_path / '.env'
+        env_file.write_text(
+            'APP_MODE=http-dev\n'
+            'EXTERNAL_MODE=stub\n'
+            'ENABLE_DEV_ROUTES=true\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
+            'DEV_API_KEY=dev-only-secret\n'
+        )
+        config = AppConfig.from_env(str(env_file))
+        assert config.persistence_backend == 'sqlite'
+        assert config.uses_postgres is False
+        assert config.postgres_dsn is None
+
+    def test_postgres_backend_requires_dsn(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
+        env_file = tmp_path / '.env'
+        env_file.write_text(
+            'APP_MODE=http-dev\n'
+            'EXTERNAL_MODE=stub\n'
+            'PERSISTENCE_BACKEND=postgres\n'
+            'ENABLE_DEV_ROUTES=true\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
+            'DEV_API_KEY=dev-only-secret\n'
+        )
+        with pytest.raises(ConfigurationException, match='POSTGRES_DSN'):
+            AppConfig.from_env(str(env_file))
+
+    def test_postgres_backend_accepts_dsn(self, monkeypatch, tmp_path):
+        self._clear_env(monkeypatch)
+        env_file = tmp_path / '.env'
+        env_file.write_text(
+            'APP_MODE=http-dev\n'
+            'EXTERNAL_MODE=stub\n'
+            'PERSISTENCE_BACKEND=postgres\n'
+            'POSTGRES_DSN=postgresql://ynab:ynab@localhost:5432/ynab_bot\n'
+            'ENABLE_DEV_ROUTES=true\n'
+            'TOKEN_ENCRYPTION_KEY=k\n'
+            'DEV_API_KEY=dev-only-secret\n'
+        )
+        config = AppConfig.from_env(str(env_file))
+        assert config.persistence_backend == 'postgres'
+        assert config.uses_postgres is True
+        assert config.postgres_dsn == 'postgresql://ynab:ynab@localhost:5432/ynab_bot'
