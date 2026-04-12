@@ -73,3 +73,16 @@ class TestDevAPIHandler:
         status, payload = _post("/dev/bootstrap", {"telegram_user_id": 1}, auth="wrong")
         assert status == 401
         assert payload["error_code"] == "INVALID_API_KEY"
+
+    def test_invalid_force_commit_type_is_rejected(self, tmp_path):
+        container = _build_container(tmp_path)
+        configure_http_api(container)
+        _post("/dev/bootstrap", {"telegram_user_id": 42})
+
+        status, payload = _post(
+            "/dev/messages/text",
+            {"telegram_user_id": 42, "text": "Gaste 25k en Carulla", "force_commit": "false"},
+        )
+        assert status == 400
+        assert payload["error_code"] == "INVALID_REQUEST"
+        assert payload["message"] == "force_commit must be a boolean."

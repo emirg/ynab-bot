@@ -3,9 +3,12 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from domain.time_utils import user_now
+
+if TYPE_CHECKING:
+    from domain.models.user import UserConfiguration
 
 
 _UUID_PATTERN = re.compile(
@@ -122,3 +125,15 @@ class ExpenseResult:
     @classmethod
     def error_result(cls, error_message: str) -> 'ExpenseResult':
         return cls(success=False, error_message=error_message)
+
+
+@dataclass
+class PreparedExpense:
+    """Prepared expense data used by preview and two-phase commit flows."""
+
+    expense: Expense
+    budget_id: str
+    account_id: str
+    user_config: 'UserConfiguration'
+    expense_result: Optional[ExpenseResult]
+    intent: str

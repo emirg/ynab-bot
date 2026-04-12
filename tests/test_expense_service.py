@@ -1813,9 +1813,8 @@ class TestPrepareExpense:
     def test_returns_dict_with_required_keys(self, service, mock_user_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
-        assert isinstance(result, dict)
-        for key in ('expense', 'budget_id', 'account_id', 'user_config', 'expense_result', 'intent'):
-            assert key in result, f"Missing key: {key}"
+        from domain.models.expense import PreparedExpense
+        assert isinstance(result, PreparedExpense)
 
     def test_no_ynab_transaction_created(self, service, mock_user_repository, mock_ynab_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -1831,24 +1830,24 @@ class TestPrepareExpense:
     def test_expense_result_has_no_transaction_id(self, service, mock_user_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
-        assert result['expense_result'].transaction_id is None
+        assert result.expense_result.transaction_id is None
 
     def test_expense_object_is_valid(self, service, mock_user_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
-        expense = result['expense']
+        expense = result.expense
         assert expense.payee is not None
         assert expense.amount is not None
 
     def test_intent_is_expense(self, service, mock_user_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
-        assert result['intent'] == 'expense'
+        assert result.intent == 'expense'
 
     def test_budget_id_matches_user_config(self, service, mock_user_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         result = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
-        assert result['budget_id'] == authorized_user.budget_id
+        assert result.budget_id == authorized_user.budget_id
 
     def test_raises_on_user_not_configured(self, service, mock_user_repository):
         mock_user_repository.find_by_telegram_id.return_value = None
@@ -1882,7 +1881,7 @@ class TestPrepareExpense:
             'confidence': 0.9,
         }
         result = service.prepare_expense(TELEGRAM_ID, 'Carulla 15k')
-        assert result['account_id'] == authorized_user.default_account_id
+        assert result.account_id == authorized_user.default_account_id
 
     def test_passes_learning_hints_to_parse_message(self, service, mock_user_repository, mock_learning_repository, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -1952,7 +1951,7 @@ class TestPrepareAndCommitRoundTrip:
         prep = service.prepare_expense(TELEGRAM_ID, 'Almuerzo McDonald 25 lucas')
         mock_ynab_repository.create_transaction.assert_not_called()
 
-        result = service.commit_expense(TELEGRAM_ID, prep['expense'], prep['budget_id'], prep['account_id'])
+        result = service.commit_expense(TELEGRAM_ID, prep.expense, prep.budget_id, prep.account_id)
         mock_ynab_repository.create_transaction.assert_called_once()
         assert result.success is True
         assert result.transaction_id == 'txn-id-123'
@@ -1977,8 +1976,8 @@ class TestPrepareReceipt:
             'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
         }
         result = service.prepare_receipt(TELEGRAM_ID, 'base64_data', 'almuerzo')
-        for key in ('expense', 'budget_id', 'account_id', 'user_config', 'expense_result', 'intent'):
-            assert key in result
+        from domain.models.expense import PreparedExpense
+        assert isinstance(result, PreparedExpense)
 
     def test_no_ynab_transaction_created(self, service, mock_user_repository, mock_ynab_repository, mock_llm_parser, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -1996,7 +1995,7 @@ class TestPrepareReceipt:
             'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
         }
         result = service.prepare_receipt(TELEGRAM_ID, 'base64_data')
-        assert result['expense_result'].transaction_id is None
+        assert result.expense_result.transaction_id is None
 
     def test_parser_source_is_receipt(self, service, mock_user_repository, mock_llm_parser, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -2005,7 +2004,7 @@ class TestPrepareReceipt:
             'payee': 'El Corral', 'memo': 'almuerzo', 'confidence': 0.95,
         }
         result = service.prepare_receipt(TELEGRAM_ID, 'base64_data')
-        assert result['expense'].parser_source == 'receipt'
+        assert result.expense.parser_source == 'receipt'
 
     def test_raises_on_parse_failure(self, service, mock_user_repository, mock_llm_parser, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -2052,8 +2051,8 @@ class TestPrepareSharedExpense:
             'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
         }
         result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
-        for key in ('expense', 'budget_id', 'account_id', 'user_config', 'expense_result', 'intent'):
-            assert key in result
+        from domain.models.expense import PreparedExpense
+        assert isinstance(result, PreparedExpense)
 
     def test_intent_is_shared_expense(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -2064,7 +2063,7 @@ class TestPrepareSharedExpense:
             'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
         }
         result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
-        assert result['intent'] == 'shared_expense'
+        assert result.intent == 'shared_expense'
 
     def test_expense_is_marked_as_split(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -2075,7 +2074,7 @@ class TestPrepareSharedExpense:
             'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
         }
         result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
-        assert result['expense'].is_split is True
+        assert result.expense.is_split is True
 
     def test_no_ynab_transaction_created(self, service_with_split, mock_user_repository, mock_ynab_repository, mock_llm_parser, authorized_user):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
@@ -2097,7 +2096,7 @@ class TestPrepareSharedExpense:
             'person': 'Juan', 'proportion': '1/2', 'payer': 'user',
         }
         result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
-        assert result['expense_result'].transaction_id is None
+        assert result.expense_result.transaction_id is None
 
     def test_raises_on_user_not_configured(self, service_with_split, mock_user_repository):
         mock_user_repository.find_by_telegram_id.return_value = None
@@ -2129,7 +2128,7 @@ class TestPrepareSharedExpense:
             'split_amount': 36700,
         }
         result = service_with_split.prepare_shared_expense(TELEGRAM_ID, '60k almuerzo, 36700 son por Juan')
-        assert result['expense'].split_fixed_amount == Decimal('36700')
+        assert result.expense.split_fixed_amount == Decimal('36700')
 
     def test_split_amount_null_leaves_fixed_amount_none_in_prepare(self, service_with_split, mock_user_repository, mock_llm_parser, authorized_user):
         """split_amount: null in LLM response leaves split_fixed_amount as None."""
@@ -2142,7 +2141,7 @@ class TestPrepareSharedExpense:
             'split_amount': None,
         }
         result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
-        assert result['expense'].split_fixed_amount is None
+        assert result.expense.split_fixed_amount is None
 
 
 # ---------------------------------------------------------------------------
@@ -2154,23 +2153,24 @@ class TestCommitSharedExpense:
 
     @pytest.fixture
     def prepared_shared(self, sample_expense, authorized_user):
-        """Simulate the dict returned by prepare_shared_expense."""
+        """Simulate the PreparedExpense returned by prepare_shared_expense."""
         sample_expense.is_split = True
         sample_expense.split_person = 'Juan'
-        return {
-            'expense': sample_expense,
-            'budget_id': authorized_user.budget_id,
-            'account_id': authorized_user.default_account_id,
-            'user_config': authorized_user,
-            'expense_result': None,
-            'intent': 'shared_expense',
-        }
+        from domain.models.expense import PreparedExpense
+        return PreparedExpense(
+            expense=sample_expense,
+            budget_id=authorized_user.budget_id,
+            account_id=authorized_user.default_account_id,
+            user_config=authorized_user,
+            expense_result=None,
+            intent='shared_expense',
+        )
 
     def test_creates_ynab_transaction(self, service_with_split, mock_user_repository, mock_ynab_repository, authorized_user, prepared_shared):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
         mock_ynab_repository.create_transaction.assert_called_once_with(
-            prepared_shared['expense'], authorized_user.budget_id, authorized_user.default_account_id
+            prepared_shared.expense, authorized_user.budget_id, authorized_user.default_account_id
         )
 
     def test_returns_expense_result_with_transaction_id(self, service_with_split, mock_user_repository, authorized_user, prepared_shared):
@@ -2182,12 +2182,12 @@ class TestCommitSharedExpense:
     def test_records_successful_transaction(self, service_with_split, mock_user_repository, mock_learning_repository, authorized_user, prepared_shared):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
-        mock_learning_repository.record_successful_transaction.assert_called_once_with(TELEGRAM_ID, prepared_shared['expense'])
+        mock_learning_repository.record_successful_transaction.assert_called_once_with(TELEGRAM_ID, prepared_shared.expense)
 
     def test_adds_to_recent_transactions(self, service_with_split, mock_user_repository, mock_learning_repository, authorized_user, prepared_shared):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         service_with_split.commit_shared_expense(TELEGRAM_ID, prepared_shared)
-        mock_learning_repository.add_recent_transaction.assert_called_once_with(TELEGRAM_ID, prepared_shared['expense'], 'txn-id-123')
+        mock_learning_repository.add_recent_transaction.assert_called_once_with(TELEGRAM_ID, prepared_shared.expense, 'txn-id-123')
 
     def test_creates_fresh_repository_from_factory(self, service_with_split, mock_user_repository, mock_ynab_factory, authorized_user, prepared_shared):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user

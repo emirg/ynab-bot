@@ -149,10 +149,10 @@ class ExpenseHandler(BaseHandler):
 
             # Store pending and show preview
             context.user_data["pending_expense"] = {
-                **prepared,
+                'prepared': prepared,
                 'source': 'text',
             }
-            preview = self.formatter.format_preview(prepared['expense_result'], user_tz=user_tz)
+            preview = self.formatter.format_preview(prepared.expense_result, user_tz=user_tz)
             keyboard = build_confirmation_keyboard()
             await self.send_message(update, preview, reply_markup=keyboard)
             self.log_handler_success("ExpenseHandler.handle_text_message", update)
@@ -212,13 +212,13 @@ class ExpenseHandler(BaseHandler):
                     # Confirmation mode ON — prepare and store pending
                     prepared = self.expense_service.prepare_expense(user_id, transcribed_text)
                     context.user_data["pending_expense"] = {
-                        **prepared,
+                        'prepared': prepared,
                         'source': 'voice',
                         'transcribed_text': transcribed_text,
                     }
                     preview = (
                         f"🎤 *Transcripción:* {transcribed_text}\n\n"
-                        + self.formatter.format_preview(prepared['expense_result'], user_tz=user_tz)
+                        + self.formatter.format_preview(prepared.expense_result, user_tz=user_tz)
                     )
                     keyboard = build_confirmation_keyboard()
                     await self.send_message(update, preview, reply_markup=keyboard)
@@ -284,12 +284,12 @@ class ExpenseHandler(BaseHandler):
                     # Confirmation mode ON — prepare and store pending
                     prepared = self.expense_service.prepare_receipt(user_id, image_base64, caption)
                     context.user_data["pending_expense"] = {
-                        **prepared,
+                        'prepared': prepared,
                         'source': 'receipt',
                     }
                     preview = (
                         "📸 *Recibo analizado*\n\n"
-                        + self.formatter.format_preview(prepared['expense_result'], user_tz=user_tz)
+                        + self.formatter.format_preview(prepared.expense_result, user_tz=user_tz)
                     )
                     keyboard = build_confirmation_keyboard()
                     await self.send_message(update, preview, reply_markup=keyboard)
@@ -320,20 +320,21 @@ class ExpenseHandler(BaseHandler):
 
         if data == 'confirm_expense':
             pending = context.user_data.get("pending_expense")
-            if not pending:
+            prepared = pending.get("prepared") if pending else None
+            if not prepared:
                 await query.message.reply_text("Esta confirmación ya no es válida.")
                 return
 
-            expense = pending['expense']
-            budget_id = pending['budget_id']
-            account_id = pending['account_id']
-            intent = pending.get('intent', 'expense')
-
             try:
-                if intent == 'shared_expense':
-                    result = self.expense_service.commit_shared_expense(user_id, pending)
+                if prepared.intent == 'shared_expense':
+                    result = self.expense_service.commit_shared_expense(user_id, prepared)
                 else:
-                    result = self.expense_service.commit_expense(user_id, expense, budget_id, account_id)
+                    result = self.expense_service.commit_expense(
+                        user_id,
+                        prepared.expense,
+                        prepared.budget_id,
+                        prepared.account_id,
+                    )
 
                 context.user_data.pop("pending_expense", None)
                 response = self.formatter.format_success(result, user_tz=user_tz)

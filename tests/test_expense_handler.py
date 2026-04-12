@@ -2,6 +2,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock, call
 
+from domain.models.expense import PreparedExpense
 from presentation.telegram.handlers.expense_handler import ExpenseHandler
 from domain.exceptions import SpeechProcessingException, ImageProcessingException
 
@@ -215,17 +216,17 @@ def make_expense_result(success=True, transaction_id=None):
 
 
 def make_prepared(intent='expense'):
-    """Build a minimal prepared-dict as returned by expense_service.prepare_*."""
+    """Build a minimal PreparedExpense as returned by expense_service.prepare_*."""
     expense = MagicMock()
     expense_result = make_expense_result(success=True, transaction_id=None)
-    return {
-        'expense': expense,
-        'budget_id': 'budget-1',
-        'account_id': 'account-1',
-        'user_config': MagicMock(),
-        'expense_result': expense_result,
-        'intent': intent,
-    }
+    return PreparedExpense(
+        expense=expense,
+        budget_id='budget-1',
+        account_id='account-1',
+        user_config=MagicMock(),
+        expense_result=expense_result,
+        intent=intent,
+    )
 
 
 @pytest.fixture
@@ -309,7 +310,7 @@ class TestConfirmationFlow:
 
         handler.expense_service.prepare_expense.assert_called_once()
         handler.expense_service.commit_expense.assert_not_called()
-        assert ctx.user_data["pending_expense"]["expense"] is prepared["expense"]
+        assert ctx.user_data["pending_expense"]["prepared"] is prepared
         assert ctx.user_data["pending_expense"]["source"] == "text"
         # send_message called with keyboard (reply_markup keyword arg)
         handler.send_message.assert_called_once()
@@ -323,7 +324,7 @@ class TestConfirmationFlow:
 
         first_prepared = make_prepared(intent='expense')
         second_prepared = make_prepared(intent='expense')
-        second_prepared['budget_id'] = 'budget-2'
+        second_prepared.budget_id = 'budget-2'
 
         handler.expense_service.prepare_shared_expense.side_effect = Exception("no split")
         handler.expense_service.prepare_expense.side_effect = [first_prepared, second_prepared]
@@ -333,10 +334,10 @@ class TestConfirmationFlow:
         ctx = make_context()
 
         await handler.handle_text_message(update, ctx)
-        assert ctx.user_data["pending_expense"]["budget_id"] == 'budget-1'
+        assert ctx.user_data["pending_expense"]["prepared"].budget_id == 'budget-1'
 
         await handler.handle_text_message(update, ctx)
-        assert ctx.user_data["pending_expense"]["budget_id"] == 'budget-2'
+        assert ctx.user_data["pending_expense"]["prepared"].budget_id == 'budget-2'
 
     async def test_confirm_callback_commits_and_clears_pending(self, handler_conf):
         """confirm_expense callback calls commit_expense, sends success, clears pending."""
@@ -355,12 +356,12 @@ class TestConfirmationFlow:
         update.callback_query = query
         update.effective_user.id = 123
 
-        ctx = make_context(user_data={"pending_expense": {**prepared, 'source': 'text'}})
+        ctx = make_context(user_data={"pending_expense": {'prepared': prepared, 'source': 'text'}})
 
         await handler.handle_confirmation_callback(update, ctx)
 
         handler.expense_service.commit_expense.assert_called_once_with(
-            123, prepared['expense'], prepared['budget_id'], prepared['account_id']
+            123, prepared.expense, prepared.budget_id, prepared.account_id
         )
         assert "pending_expense" not in ctx.user_data
         query.message.reply_text.assert_called_once()
@@ -384,7 +385,7 @@ class TestConfirmationFlow:
         update.callback_query = query
         update.effective_user.id = 123
 
-        ctx = make_context(user_data={"pending_expense": {**prepared, 'source': 'text'}})
+        ctx = make_context(user_data={"pending_expense": {'prepared': prepared, 'source': 'text'}})
 
         await handler.handle_confirmation_callback(update, ctx)
 
@@ -405,7 +406,7 @@ class TestConfirmationFlow:
         update.callback_query = query
         update.effective_user.id = 123
 
-        ctx = make_context(user_data={"pending_expense": {**prepared, 'source': 'text'}})
+        ctx = make_context(user_data={"pending_expense": {'prepared': prepared, 'source': 'text'}})
 
         await handler.handle_confirmation_callback(update, ctx)
 

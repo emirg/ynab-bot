@@ -7,6 +7,10 @@ from domain.exceptions import ExpenseParsingException, UserNotConfiguredExceptio
 from application.services.expense_service import ExpenseService
 from application.services.on_demand_summary_service import OnDemandSummaryService
 from presentation.http.auth import HTTPAuthError, validate_bearer_token
+from presentation.http.request_models import (
+    TextMessageRequestValidationError,
+    parse_text_message_request,
+)
 from presentation.telegram.formatters import (
     BudgetQueryFormatter,
     ConfigResponseFormatter,
@@ -47,6 +51,8 @@ class DevAPIHandler:
             return 404, self._error("ROUTE_NOT_FOUND", "The requested dev route does not exist.")
         except HTTPAuthError as exc:
             return 401, self._error(exc.error_code, exc.message)
+        except TextMessageRequestValidationError as exc:
+            return 400, self._error(exc.error_code, exc.message)
         except Exception:
             logger.exception("Unexpected error in development HTTP handler")
             return 500, self._error("INTERNAL_ERROR", "Unexpected error handling development request.")
@@ -98,10 +104,10 @@ class DevAPIHandler:
         }
 
     def _handle_message(self, body: bytes) -> tuple[int, dict]:
-        payload = self._parse_json(body)
-        telegram_user_id = payload["telegram_user_id"]
-        text = payload["text"].strip()
-        force_commit = bool(payload.get("force_commit", False))
+        payload = parse_text_message_request(body)
+        telegram_user_id = payload.telegram_user_id
+        text = payload.text
+        force_commit = payload.force_commit
 
         if text.startswith("/"):
             return self._simulate_command(telegram_user_id, text)
@@ -190,16 +196,14 @@ class DevAPIHandler:
         if user.confirm_before_create and not force_commit:
             try:
                 prepared = self.expense_service.prepare_shared_expense(telegram_user_id, text)
-                intent = "shared_expense"
             except ExpenseParsingException:
                 prepared = self.expense_service.prepare_expense(telegram_user_id, text)
-                intent = "expense"
 
             return 200, {
                 "status": "preview",
                 "kind": "message",
-                "intent": intent,
-                "message": self.expense_formatter.format_preview(prepared["expense_result"], user_tz=user.timezone),
+                "intent": prepared.intent,
+                "message": self.expense_formatter.format_preview(prepared.expense_result, user_tz=user.timezone),
             }
 
         result = self.expense_service.process_message(telegram_user_id, text)

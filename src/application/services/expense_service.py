@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
-from domain.models.expense import Expense, ExpenseResult
+from domain.models.expense import Expense, ExpenseResult, PreparedExpense
 from domain.models.budget_query import BudgetQueryResult, MessageResult
 from domain.models.user import UserConfiguration, YNABCategory, YNABPayee
 from domain.time_utils import user_now, DEFAULT_TIMEZONE
@@ -122,16 +122,11 @@ class ExpenseService:
     # Public parse-phase methods (no YNAB write)
     # ------------------------------------------------------------------
 
-    def prepare_expense(self, telegram_user_id: int, message: str) -> dict:
+    def prepare_expense(self, telegram_user_id: int, message: str) -> PreparedExpense:
         """Parse and build an Expense object without creating a YNAB transaction.
 
-        Returns a dict with keys:
-            expense      - fully-built Expense object
-            budget_id    - str
-            account_id   - str
-            user_config  - UserConfiguration
-            expense_result - ExpenseResult with transaction_id=None
-            intent       - str ('expense')
+        Returns a PreparedExpense containing the fully-built Expense,
+        budget/account identifiers, user config, preview result, and intent.
 
         Raises UserNotConfiguredException, ExpenseParsingException, or other
         domain exceptions on failure (not caught here — caller decides).
@@ -171,14 +166,14 @@ class ExpenseService:
         account_id = expense.account_id
         expense_result = ExpenseResult.success_result(expense, transaction_id=None)
 
-        return {
-            'expense': expense,
-            'budget_id': user_config.budget_id,
-            'account_id': account_id,
-            'user_config': user_config,
-            'expense_result': expense_result,
-            'intent': 'expense',
-        }
+        return PreparedExpense(
+            expense=expense,
+            budget_id=user_config.budget_id,
+            account_id=account_id,
+            user_config=user_config,
+            expense_result=expense_result,
+            intent='expense',
+        )
 
     def commit_expense(self, telegram_user_id: int, expense: 'Expense', budget_id: str, account_id: str) -> 'ExpenseResult':
         """Create a YNAB transaction and record learning for an already-prepared Expense.
@@ -206,16 +201,11 @@ class ExpenseService:
         logger.info(f"Committed expense: {expense.payee} ${expense.amount}")
         return ExpenseResult.success_result(expense, transaction_id)
 
-    def prepare_shared_expense(self, telegram_user_id: int, message: str) -> dict:
+    def prepare_shared_expense(self, telegram_user_id: int, message: str) -> PreparedExpense:
         """Parse and build a shared Expense object without creating a YNAB transaction.
 
-        Returns a dict with keys:
-            expense      - fully-built Expense object (is_split=True)
-            budget_id    - str
-            account_id   - str
-            user_config  - UserConfiguration
-            expense_result - ExpenseResult with transaction_id=None
-            intent       - str ('shared_expense')
+        Returns a PreparedExpense containing the fully-built shared Expense
+        plus the preview metadata needed for later commit.
 
         Raises on failure — caller decides error handling.
         """
@@ -274,19 +264,19 @@ class ExpenseService:
         account_id = expense.account_id
         expense_result = ExpenseResult.success_result(expense, transaction_id=None)
 
-        return {
-            'expense': expense,
-            'budget_id': user_config.budget_id,
-            'account_id': account_id,
-            'user_config': user_config,
-            'expense_result': expense_result,
-            'intent': 'shared_expense',
-        }
+        return PreparedExpense(
+            expense=expense,
+            budget_id=user_config.budget_id,
+            account_id=account_id,
+            user_config=user_config,
+            expense_result=expense_result,
+            intent='shared_expense',
+        )
 
-    def commit_shared_expense(self, telegram_user_id: int, prepared_data: dict) -> 'ExpenseResult':
+    def commit_shared_expense(self, telegram_user_id: int, prepared_data: PreparedExpense) -> 'ExpenseResult':
         """Create a YNAB transaction and record learning for an already-prepared shared Expense.
 
-        Takes the dict returned by prepare_shared_expense. Creates a FRESH ynab_repository
+        Takes the PreparedExpense returned by prepare_shared_expense. Creates a FRESH ynab_repository
         from the factory (to handle OAuth token refresh between prepare and commit).
 
         Returns ExpenseResult with transaction_id set on success.
@@ -296,9 +286,9 @@ class ExpenseService:
             missing = "budget_id and account_id" if not user_config else "budget configuration"
             raise UserNotConfiguredException(telegram_user_id, missing)
 
-        expense = prepared_data['expense']
-        budget_id = prepared_data['budget_id']
-        account_id = prepared_data['account_id']
+        expense = prepared_data.expense
+        budget_id = prepared_data.budget_id
+        account_id = prepared_data.account_id
 
         # Fresh repository to handle possible token refresh
         ynab_repository = self.ynab_factory.get_repository(user_config)
@@ -313,16 +303,11 @@ class ExpenseService:
         logger.info(f"Committed shared expense: {expense.payee} ${expense.amount} with {expense.split_person}")
         return ExpenseResult.success_result(expense, transaction_id)
 
-    def prepare_receipt(self, telegram_user_id: int, image_base64: str, caption: str = None) -> dict:
+    def prepare_receipt(self, telegram_user_id: int, image_base64: str, caption: str = None) -> PreparedExpense:
         """Parse a receipt image and build an Expense object without creating a YNAB transaction.
 
-        Returns a dict with keys:
-            expense      - fully-built Expense object (parser_source='receipt')
-            budget_id    - str
-            account_id   - str
-            user_config  - UserConfiguration
-            expense_result - ExpenseResult with transaction_id=None
-            intent       - str ('expense')
+        Returns a PreparedExpense containing the fully-built receipt Expense
+        plus the preview metadata needed for later commit.
 
         Raises on failure — caller decides error handling.
         """
@@ -363,14 +348,14 @@ class ExpenseService:
         account_id = expense.account_id
         expense_result = ExpenseResult.success_result(expense, transaction_id=None)
 
-        return {
-            'expense': expense,
-            'budget_id': user_config.budget_id,
-            'account_id': account_id,
-            'user_config': user_config,
-            'expense_result': expense_result,
-            'intent': 'expense',
-        }
+        return PreparedExpense(
+            expense=expense,
+            budget_id=user_config.budget_id,
+            account_id=account_id,
+            user_config=user_config,
+            expense_result=expense_result,
+            intent='expense',
+        )
 
     # ------------------------------------------------------------------
     # Internal pipeline helpers

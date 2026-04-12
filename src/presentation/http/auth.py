@@ -1,3 +1,6 @@
+import hmac
+
+
 class HTTPAuthError(Exception):
     def __init__(self, error_code: str, message: str):
         super().__init__(message)
@@ -20,7 +23,7 @@ def validate_bearer_token(headers: dict, expected_token: str) -> bool:
             message="Authorization header must use the Bearer scheme.",
         )
 
-    if token != expected_token:
+    if not hmac.compare_digest(token, expected_token):
         raise HTTPAuthError(
             error_code="INVALID_API_KEY",
             message="Invalid authentication token.",

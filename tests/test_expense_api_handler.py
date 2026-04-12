@@ -10,7 +10,7 @@ from domain.exceptions import (
     YNABApiException,
 )
 from domain.models.budget_query import MessageResult
-from domain.models.expense import Expense, ExpenseResult
+from domain.models.expense import Expense, ExpenseResult, PreparedExpense
 from domain.models.user import UserConfiguration, UserStatus
 from presentation.http.handlers.expense_api_handler import ExpenseAPIHandler
 
@@ -76,6 +76,18 @@ class TestExpenseAPIHandlerValidation:
         assert status_code == 400
         assert payload["error_code"] == "INVALID_REQUEST"
         assert payload["message"] == "telegram_user_id must be an integer."
+
+    def test_returns_400_for_invalid_force_commit_type(self):
+        handler, _, _, _ = _build_handler(user=_configured_user())
+
+        status_code, payload = handler.handle_post(
+            _headers(),
+            _body({"telegram_user_id": 123, "text": "Gaste 25k en Carulla", "force_commit": "false"}),
+        )
+
+        assert status_code == 400
+        assert payload["error_code"] == "INVALID_REQUEST"
+        assert payload["message"] == "force_commit must be a boolean."
 
     def test_returns_400_for_invalid_field_types(self):
         handler, _, _, _ = _build_handler(user=_configured_user())
@@ -150,13 +162,14 @@ class TestExpenseAPIHandlerBusinessErrors:
 
     def test_returns_502_for_expected_ynab_error(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=False))
-        prepared = {
-            "expense": _sample_expense(),
-            "budget_id": "budget-1",
-            "account_id": "acc-1",
-            "expense_result": ExpenseResult.success_result(_sample_expense()),
-            "intent": "expense",
-        }
+        prepared = PreparedExpense(
+            expense=_sample_expense(),
+            budget_id="budget-1",
+            account_id="acc-1",
+            user_config=_configured_user(confirm_before_create=False),
+            expense_result=ExpenseResult.success_result(_sample_expense()),
+            intent="expense",
+        )
         expense_service.prepare_shared_expense.side_effect = ExpenseParsingException("gaste 25k")
         expense_service.prepare_expense.return_value = prepared
         expense_service.commit_expense.side_effect = YNABApiException("timeout")
@@ -202,13 +215,14 @@ class TestExpenseAPIHandlerAuth:
 class TestExpenseAPIHandlerFlows:
     def test_returns_preview_when_confirmation_enabled(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=True))
-        prepared = {
-            "expense": _sample_expense(),
-            "budget_id": "budget-1",
-            "account_id": "acc-1",
-            "expense_result": ExpenseResult.success_result(_sample_expense()),
-            "intent": "expense",
-        }
+        prepared = PreparedExpense(
+            expense=_sample_expense(),
+            budget_id="budget-1",
+            account_id="acc-1",
+            user_config=_configured_user(confirm_before_create=True),
+            expense_result=ExpenseResult.success_result(_sample_expense()),
+            intent="expense",
+        )
         expense_service.prepare_shared_expense.side_effect = ExpenseParsingException("gaste 25k")
         expense_service.prepare_expense.return_value = prepared
 
@@ -226,13 +240,14 @@ class TestExpenseAPIHandlerFlows:
 
     def test_commits_when_confirmation_disabled(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=False))
-        prepared = {
-            "expense": _sample_expense(),
-            "budget_id": "budget-1",
-            "account_id": "acc-1",
-            "expense_result": ExpenseResult.success_result(_sample_expense()),
-            "intent": "expense",
-        }
+        prepared = PreparedExpense(
+            expense=_sample_expense(),
+            budget_id="budget-1",
+            account_id="acc-1",
+            user_config=_configured_user(confirm_before_create=False),
+            expense_result=ExpenseResult.success_result(_sample_expense()),
+            intent="expense",
+        )
         committed = ExpenseResult.success_result(_sample_expense(), transaction_id="txn-1")
         expense_service.prepare_shared_expense.side_effect = ExpenseParsingException("gaste 25k")
         expense_service.prepare_expense.return_value = prepared
@@ -250,13 +265,14 @@ class TestExpenseAPIHandlerFlows:
 
     def test_force_commit_overrides_confirmation(self):
         handler, expense_service, _, _ = _build_handler(user=_configured_user(confirm_before_create=True))
-        prepared = {
-            "expense": _sample_expense(),
-            "budget_id": "budget-1",
-            "account_id": "acc-1",
-            "expense_result": ExpenseResult.success_result(_sample_expense()),
-            "intent": "expense",
-        }
+        prepared = PreparedExpense(
+            expense=_sample_expense(),
+            budget_id="budget-1",
+            account_id="acc-1",
+            user_config=_configured_user(confirm_before_create=True),
+            expense_result=ExpenseResult.success_result(_sample_expense()),
+            intent="expense",
+        )
         committed = ExpenseResult.success_result(_sample_expense(), transaction_id="txn-42")
         expense_service.prepare_shared_expense.side_effect = ExpenseParsingException("gaste 25k")
         expense_service.prepare_expense.return_value = prepared
@@ -277,13 +293,14 @@ class TestExpenseAPIHandlerFlows:
         shared_expense = _sample_expense()
         shared_expense.is_split = True
         shared_expense.split_person = "Ana"
-        prepared = {
-            "expense": shared_expense,
-            "budget_id": "budget-1",
-            "account_id": "acc-1",
-            "expense_result": ExpenseResult.success_result(shared_expense),
-            "intent": "shared_expense",
-        }
+        prepared = PreparedExpense(
+            expense=shared_expense,
+            budget_id="budget-1",
+            account_id="acc-1",
+            user_config=_configured_user(confirm_before_create=False),
+            expense_result=ExpenseResult.success_result(shared_expense),
+            intent="shared_expense",
+        )
         committed = ExpenseResult.success_result(shared_expense, transaction_id="txn-shared-1")
         expense_service.prepare_shared_expense.return_value = prepared
         expense_service.commit_shared_expense.return_value = committed
