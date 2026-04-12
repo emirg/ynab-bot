@@ -2,20 +2,33 @@
 
 YNAB Telegram Bot — a multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using OpenAI GPT-4o-mini for natural language parsing and Whisper for voice transcription. Each user connects their own YNAB account via OAuth. Targeted at Spanish-speaking users managing budgets in Colombian pesos. All UI text and prompts are in Spanish.
 
-Layered architecture with dependency injection:
+Layered architecture with dependency injection and explicit runtime modes:
 
 ```
 main.py → DIContainer (infrastructure/container.py)
-        → health server (port $PORT)
-        → YNABTelegramBot (presentation/telegram/bot.py)
+        → AppConfig selects APP_MODE / EXTERNAL_MODE
+        → public health/API server (port $PORT)
+        → YNABTelegramBot only when APP_MODE=full
 ```
+
+## Runtime Modes
+
+- **`APP_MODE=full`** — production-style runtime. Starts the public HTTP server and Telegram polling.
+- **`APP_MODE=http-dev`** — default local development runtime. Starts the public HTTP server, enables `/dev/*`, disables Telegram polling, and normally uses stubbed integrations.
+- **`APP_MODE=http-live`** — HTTP-only runtime with live OpenAI and YNAB integrations, but no Telegram polling.
+- **`APP_MODE=test`** — test-oriented runtime.
+
+Integration behavior is controlled separately by `EXTERNAL_MODE`:
+
+- **`EXTERNAL_MODE=live`** — real OpenAI, YNAB OAuth, YNAB API, and speech integrations.
+- **`EXTERNAL_MODE=stub`** — stubbed parser, OAuth service, and YNAB repository factory for fast local development.
 
 ## Layers
 
 - **`src/domain/`** — Domain models (`Expense`, `UserConfiguration`, `YNABCategory`, `YNABAccount`, `YNABBudget`, `BudgetQueryResult`, `MessageResult`, `OnboardingStep`, `SplitGroup`, `SharedAccountConfig`, `WeeklySummary`, `OnDemandSummary`), repository interfaces (abstract base classes), `AuthorizationService`, `payee_normalizer`, `time_utils` (timezone-aware date helpers), and custom exceptions. No external dependencies.
 - **`src/application/services/`** — Business logic orchestrators. `ExpenseService` coordinates the full prepare→commit pipeline (parse→enhance, then create→learn) and routes between expenses and budget queries via `process_message()`. Supports confirmation mode: when enabled, `prepare_expense()` returns a preview without committing, and `commit_expense()` finalizes after user confirmation. `BudgetQueryService` handles category balance, account balance, and budget summary queries. `UserConfigService` manages per-user YNAB budget/account configuration, timezone, and confirmation mode. `YNABOAuthService` handles the full OAuth lifecycle (auth URLs, token exchange, refresh, disconnect). `LearningService` wraps the learning repository and provides dashboard/forget/stats methods. `OnboardingService` derives the user's onboarding state from existing fields (no DB column). `SplitConfigService` manages split group configuration, person aliases, and shared account settings — validates against YNAB API before persisting. `WeeklySummaryService` fetches YNAB transactions for the past week and computes per-category spending totals. `OnDemandSummaryService` provides day/week/month spending summaries with category breakdowns.
-- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v9), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (HTTP health check + OAuth callback endpoint, fires `on_oauth_success` callback after token exchange), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts), `scheduler.py` (weekly summary tick job, runs every 15 minutes, checks per-user timezone to fire on Monday 8am local time), `http_client.py` (resilient HTTP client with automatic retries for transient errors), `logging_config.py` (structured logging setup). `AppConfig` loads from `config/.env`. `DIContainer` wires everything together.
-- **`src/presentation/http/`** — Dedicated HTTP API layer. `server.py` hosts the pure router for `/api/v1/*` and the optional standalone stdlib transport. In production on Railway, the public server in `health.py` delegates `/api/v1/*` to this router so health, OAuth callback, and API share the same public port. `handlers/expense_api_handler.py` validates auth and requests, reuses `ExpenseService` for preview/commit, and serializes JSON responses for future integrations.
+- **`src/infrastructure/`** — Concrete implementations. `DatabaseManager` (centralized SQLite connection, WAL mode, versioned migrations — currently at v9), `SQLiteUserRepository` (user persistence with token encryption), `SQLiteLearningRepository` (per-user learning data), `SQLiteSplitConfigRepository` (split groups, aliases, shared account), `YNABApiRepository` (YNAB REST API), `YNABRepositoryFactory` (creates per-user YNAB repos from OAuth tokens), `TokenEncryptor` (Fernet encryption for tokens at rest), `health.py` (public HTTP server for `/`, `/oauth/callback`, and delegated `/api/v1/*`), `TelegramNotifier` (sync HTTP wrapper for raw Telegram Bot API — used in post-OAuth callback to avoid async event loop conflicts), `scheduler.py` (weekly summary tick job, runs every 15 minutes, checks per-user timezone to fire on Monday 8am local time), `http_client.py` (resilient HTTP client with automatic retries for transient errors), `logging_config.py` (structured logging setup), and `dev/stubbed_integrations.py` (stub parser, OAuth, and YNAB factory used in local stub mode). `AppConfig` validates runtime mode and environment requirements. `DIContainer` wires everything together and swaps live vs. stub integrations based on config.
+- **`src/presentation/http/`** — Dedicated HTTP API layer. `server.py` hosts the pure router for `/api/v1/*` and `/dev/*`. In production on Railway, the public server in `health.py` delegates `/api/v1/*` to this router so health, OAuth callback, and API share the same public port. In local `http-dev`, the same router also exposes the dev harness endpoints. `handlers/expense_api_handler.py` validates auth and requests, reuses `ExpenseService` for preview/commit, and serializes JSON responses for future integrations. `dev_api_handler.py` powers the local `/dev/*` developer workflow.
 - **`src/presentation/telegram/`** — Telegram bot and handlers. `bot.py` registers all command/message handlers and the weekly summary scheduler job. Handlers: `GeneralHandler` (includes guided onboarding via `OnboardingService`), `ConfigHandler` (includes `/connect`, `/disconnect`, `/zona` for timezone), `ExpenseHandler` (handles text/voice/photo expenses, `/confirmacion on|off`, and confirmation callbacks), `LearningHandler` (includes `/aprendizaje`, `/olvidar`, `/deshacer`, `/editar`), `SplitConfigHandler` (`/splitwise` — split group CRUD, alias management, shared account config via inline keyboards with pagination), `SummaryHandler` (`/resumen` — on-demand spending summary), `AdminHandler`. `keyboards.py` provides shared inline keyboard builders (confirmation keyboard, budget/account selection, split config panels with pagination). Auth via `@require_authentication` and `@require_admin` decorators.
 
 ## Supporting Modules
@@ -60,6 +73,10 @@ User (photo) → ExpenseHandler.handle_photo_message()
 
 Weekly summary (scheduler) → weekly_summary_tick()
   → for each user: check timezone, if Monday 8am local → WeeklySummaryService → send summary via Telegram
+
+HTTP client → public server in `infrastructure/health.py`
+  → `/api/v1/*` delegated to `presentation/http/server.py`
+  → `/dev/*` delegated to `presentation/http/dev_api_handler.py` only in `http-dev`
 ```
 
 ## Per-User YNAB OAuth
@@ -92,12 +109,24 @@ Multi-user system with admin approval. Users have statuses: `PENDING` → `AUTHO
 
 ## Configuration
 
-Environment variables loaded from `config/.env` (see `config/.env.example`):
-- `TELEGRAM_BOT_TOKEN`, `OPENAI_API_KEY`, `ADMIN_IDS` (required)
-- `YNAB_CLIENT_ID`, `YNAB_CLIENT_SECRET`, `YNAB_REDIRECT_URI` (OAuth, required)
-- `TOKEN_ENCRYPTION_KEY` (Fernet key for encrypting OAuth tokens, required)
-- `HTTP_API_KEY` (required bearer token for internal HTTP API authentication)
-- `DATABASE_PATH` (default: `data/users.db`) — single SQLite database for users and learning data
+Environment variables are validated by `AppConfig` and loaded from the chosen env file:
+
+- `config/.env` for production-style or full-mode runs
+- `config/.env.dev` for local `http-dev` and `http-live` workflows
+
+Core settings:
+- `APP_MODE` (`full`, `http-dev`, `http-live`, `test`)
+- `EXTERNAL_MODE` (`live`, `stub`)
+- `TOKEN_ENCRYPTION_KEY`
+- `HTTP_API_KEY`
+- `ADMIN_IDS`
+- `DATABASE_PATH` (default: `data/users.db`)
+
+Required only when the selected runtime needs them:
+- `TELEGRAM_BOT_TOKEN` when Telegram polling is enabled
+- `OPENAI_API_KEY`, `YNAB_CLIENT_ID`, `YNAB_CLIENT_SECRET`, `YNAB_REDIRECT_URI` when `EXTERNAL_MODE=live`
+- `DEV_API_KEY` when `APP_MODE=http-dev`
+- `ENABLE_DEV_ROUTES=true` only with `APP_MODE=http-dev`
 
 ## Deployment
 
@@ -116,6 +145,8 @@ restartPolicyMaxRetries = 3
 ```
 
 Public HTTP server runs on `$PORT` (default 8080), serves `/` for Railway health checks, `/oauth/callback` for YNAB OAuth, and `POST /api/v1/expenses/text` for the authenticated expense API.
+
+Railway should run the production runtime (`APP_MODE=full`). Local Docker profiles (`app-dev`, `app-live`, optional `postgres`) are development-only and should not be confused with the deployed topology.
 
 ## Testing
 
@@ -142,5 +173,12 @@ Feature development follows a staged documentation and execution workflow:
 
 - `docs/DOCUMENTATION_WORKFLOW.md` defines the `SPEC -> PLAN -> IMPLEMENT -> ADR` lifecycle
 - `docs/AI_WORKFLOW.md` defines how approved work is executed, reviewed, and handed off
+
+Local day-to-day development is HTTP-first:
+
+1. Start `docker compose up app-dev`
+2. Bootstrap a local user through `scripts/dev/bootstrap_user.py`
+3. Exercise flows through `/dev/*`, `scripts/dev/send_message.py`, or the Postman bundle in `docs/dev/postman/`
+4. Run tests with `.venv/bin/pytest`
 
 AI-specific routing remains in `CLAUDE.md`, `GEMINI.md`, and `AGENTS.md`.
