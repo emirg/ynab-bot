@@ -249,6 +249,24 @@ class TestFromEnv:
         with pytest.raises(ConfigurationException, match='POSTGRES_DSN'):
             AppConfig.from_env(str(env_file))
 
+    def test_resolved_advisor_base_url_uses_explicit_override(self):
+        config = AppConfig(
+            telegram_token='t', openai_key='o', admin_ids=[1],
+            ynab_client_id='cid', ynab_client_secret='cs',
+            ynab_redirect_uri='https://example.com/oauth/callback', token_encryption_key='k',
+            http_api_key='http-key', advisor_base_url='https://advisor.example.com/',
+        )
+        assert config.resolved_advisor_base_url == 'https://advisor.example.com'
+
+    def test_resolved_advisor_base_url_falls_back_to_ynab_redirect_origin(self):
+        config = AppConfig(
+            telegram_token='t', openai_key='o', admin_ids=[1],
+            ynab_client_id='cid', ynab_client_secret='cs',
+            ynab_redirect_uri='https://app.example.com/oauth/callback', token_encryption_key='k',
+            http_api_key='http-key',
+        )
+        assert config.resolved_advisor_base_url == 'https://app.example.com'
+
     def test_sqlite_backend_is_rejected(self, monkeypatch, tmp_path):
         self._clear_env(monkeypatch)
         env_file = tmp_path / '.env'

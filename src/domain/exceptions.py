@@ -108,6 +108,16 @@ class OAuthException(YNABBotException):
         super().__init__(*args, **kwargs)
 
 
+class AdvisorAuthenticationException(YNABBotException):
+    """Advisor launch/session authentication error"""
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault(
+            "user_message",
+            "No se pudo validar el acceso al advisor. Vuelve a abrirlo desde /analisis.",
+        )
+        super().__init__(*args, **kwargs)
+
+
 class TokenExpiredException(YNABApiException):
     """Token has expired and could not be refreshed"""
     def __init__(self, message: str = "Token expirado y no se pudo refrescar"):

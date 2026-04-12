@@ -4,11 +4,13 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from presentation.http.dev_api_handler import DevAPIHandler
+from presentation.http.handlers.advisor_api_handler import AdvisorAPIHandler
 from presentation.http.handlers.expense_api_handler import ExpenseAPIHandler
 
 logger = logging.getLogger(__name__)
 
 _expense_endpoint_handler = None
+_advisor_api_handler = None
 _dev_endpoint_handler = None
 
 
@@ -22,18 +24,34 @@ def set_dev_endpoint_handler(handler):
     _dev_endpoint_handler = handler
 
 
+def set_advisor_api_handler(handler):
+    global _advisor_api_handler
+    _advisor_api_handler = handler
+
+
 def get_http_api_router():
-    return HTTPAPIRouter(_expense_endpoint_handler, _dev_endpoint_handler)
+    return HTTPAPIRouter(
+        _expense_endpoint_handler,
+        dev_endpoint_handler=_dev_endpoint_handler,
+        advisor_api_handler=_advisor_api_handler,
+    )
 
 
 class HTTPAPIRouter:
-    def __init__(self, endpoint_handler, dev_endpoint_handler=None):
+    def __init__(self, endpoint_handler, dev_endpoint_handler=None, advisor_api_handler=None):
         self.endpoint_handler = endpoint_handler
+        self.advisor_api_handler = advisor_api_handler
         self.dev_endpoint_handler = dev_endpoint_handler
 
     def route(self, method: str, path: str, headers: dict, body: bytes) -> tuple[int, dict, dict]:
         if path.startswith("/dev/"):
             return self._route_dev(method, path, headers, body)
+
+        if path == "/api/v1/advisor/bootstrap":
+            return self._route_advisor_bootstrap(method, headers)
+
+        if path == "/api/v1/advisor/logout":
+            return self._route_advisor_logout(method, headers)
 
         if path != "/api/v1/expenses/text":
             return 404, {
@@ -58,6 +76,36 @@ class HTTPAPIRouter:
 
         status_code, payload = self.endpoint_handler.handle_post(headers, body)
         return status_code, payload, {}
+
+    def _route_advisor_bootstrap(self, method: str, headers: dict) -> tuple[int, dict, dict]:
+        if method != "GET":
+            return 405, {
+                "status": "error",
+                "error_code": "METHOD_NOT_ALLOWED",
+                "message": "This endpoint only accepts GET requests.",
+            }, {"Allow": "GET"}
+        if self.advisor_api_handler is None:
+            return 503, {
+                "status": "error",
+                "error_code": "HANDLER_NOT_CONFIGURED",
+                "message": "The advisor handler is not configured.",
+            }, {}
+        return self.advisor_api_handler.handle_bootstrap(headers)
+
+    def _route_advisor_logout(self, method: str, headers: dict) -> tuple[int, dict, dict]:
+        if method != "POST":
+            return 405, {
+                "status": "error",
+                "error_code": "METHOD_NOT_ALLOWED",
+                "message": "This endpoint only accepts POST requests.",
+            }, {"Allow": "POST"}
+        if self.advisor_api_handler is None:
+            return 503, {
+                "status": "error",
+                "error_code": "HANDLER_NOT_CONFIGURED",
+                "message": "The advisor handler is not configured.",
+            }, {}
+        return self.advisor_api_handler.handle_logout(headers)
 
     def _route_dev(self, method: str, path: str, headers: dict, body: bytes) -> tuple[int, dict, dict]:
         if method != "POST":
@@ -118,6 +166,7 @@ def start_http_api_server(port: int = 8081):
 
 def configure_http_api(container):
     set_expense_endpoint_handler(ExpenseAPIHandler(container))
+    set_advisor_api_handler(AdvisorAPIHandler(container))
     if container.get_config().dev_routes_enabled:
         set_dev_endpoint_handler(DevAPIHandler(container))
     else:

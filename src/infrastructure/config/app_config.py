@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from typing import Optional, List
+from urllib.parse import urlsplit
 from dotenv import load_dotenv
 
 from domain.exceptions import ConfigurationException
@@ -20,6 +21,7 @@ class AppConfig:
     ynab_redirect_uri: Optional[str]
     token_encryption_key: str
     http_api_key: str
+    advisor_base_url: Optional[str] = None
     persistence_backend: str = 'postgres'
     postgres_dsn: Optional[str] = None
     app_mode: str = 'full'
@@ -58,6 +60,7 @@ class AppConfig:
             ynab_redirect_uri=cls._optional_env('YNAB_REDIRECT_URI'),
             token_encryption_key=cls._require_env('TOKEN_ENCRYPTION_KEY'),
             http_api_key=cls._resolve_http_api_key(app_mode),
+            advisor_base_url=cls._optional_env('ADVISOR_BASE_URL'),
             persistence_backend=persistence_backend,
             postgres_dsn=cls._optional_env('POSTGRES_DSN'),
             app_mode=app_mode,
@@ -179,6 +182,16 @@ class AppConfig:
     @property
     def uses_postgres(self) -> bool:
         return self.persistence_backend == 'postgres'
+
+    @property
+    def resolved_advisor_base_url(self) -> str:
+        if self.advisor_base_url:
+            return self.advisor_base_url.rstrip('/')
+        if self.ynab_redirect_uri:
+            parsed = urlsplit(self.ynab_redirect_uri)
+            if parsed.scheme and parsed.netloc:
+                return f"{parsed.scheme}://{parsed.netloc}"
+        return 'http://localhost:8080'
 
     @property
     def telegram_enabled(self) -> bool:

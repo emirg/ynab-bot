@@ -47,6 +47,7 @@ def _make_bot(container):
         patch("presentation.telegram.bot.ExpenseHandler"),
         patch("presentation.telegram.bot.SplitConfigHandler"),
         patch("presentation.telegram.bot.AdminHandler"),
+        patch("presentation.telegram.bot.AdvisorHandler"),
     ]
 
     # Start all patches and track them so we can stop them after the test.

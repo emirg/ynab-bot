@@ -100,4 +100,28 @@ POSTGRES_MIGRATIONS = [
             ON split_person_aliases(split_group_id);
         """,
     ),
+    (
+        2,
+        "Add advisor launch token and session tables",
+        """
+        CREATE TABLE IF NOT EXISTS advisor_launch_tokens (
+            token_hash TEXT PRIMARY KEY,
+            telegram_id BIGINT NOT NULL REFERENCES user_configurations(telegram_id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS advisor_sessions (
+            token_hash TEXT PRIMARY KEY,
+            telegram_id BIGINT NOT NULL REFERENCES user_configurations(telegram_id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_advisor_launch_tokens_expires
+            ON advisor_launch_tokens(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_advisor_sessions_expires
+            ON advisor_sessions(expires_at);
+        """,
+    ),
 ]

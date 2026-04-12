@@ -50,7 +50,6 @@ This baseline means:
 ## References
 - `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
 - `docs/plans/archive/2026-03-21-phase1-foundations.md`
-- `docs/plans/archive/2026-03-21-phase1-foundations.md`
 - `docs/adrs/2026-04-11-prepared-expense-domain-contract.md`
 - `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`
 - `docs/ARCHITECTURE.md`

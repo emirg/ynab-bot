@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 _healthy = True
 _oauth_service = None
 _on_oauth_success = None
+_advisor_page_handler = None
 
 _SUCCESS_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>YNAB Bot</title></head>
@@ -47,6 +48,17 @@ def route_health_request(method: str, path: str, headers: dict | None = None, bo
         )
         return status, "json", payload, extra_headers
 
+    if parsed.path == "/advisor/launch":
+        if _advisor_page_handler is None:
+            return 503, "html", _render_error_html(_SERVICE_UNAVAILABLE_MESSAGE), {}
+        token = parse_qs(parsed.query).get("token", [None])[0]
+        return _advisor_page_handler.handle_launch(token)
+
+    if parsed.path == "/advisor":
+        if _advisor_page_handler is None:
+            return 503, "html", _render_error_html(_SERVICE_UNAVAILABLE_MESSAGE), {}
+        return _advisor_page_handler.handle_page(headers)
+
     if method == "POST":
         return 404, "json", {
             "status": "error",
@@ -78,6 +90,11 @@ def set_on_oauth_success(callback):
     _on_oauth_success = callback
 
 
+def set_advisor_page_handler(handler):
+    global _advisor_page_handler
+    _advisor_page_handler = handler
+
+
 def _render_error_html(message: str) -> str:
     return _ERROR_HTML.format(error=escape(message))
 
@@ -101,15 +118,19 @@ class _HealthHandler(BaseHTTPRequestHandler):
         if response_type == "json":
             self._send_json(status, payload, extra_headers)
         elif response_type == "html":
-            self._send_html(status, payload)
+            self._send_html(status, payload, extra_headers)
         else:
             self.send_response(status)
+            for key, value in extra_headers.items():
+                self.send_header(key, value)
             self.end_headers()
             self.wfile.write(payload)
 
-    def _send_html(self, status, html):
+    def _send_html(self, status, html, extra_headers=None):
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(html.encode())
 
