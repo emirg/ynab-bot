@@ -252,6 +252,32 @@ class PostgresLearningRepository(LearningRepository):
         conn.commit()
         return cursor.rowcount > 0
 
+    def update_recent_transaction(
+        self,
+        telegram_id: int,
+        ynab_transaction_id: str,
+        *,
+        payee: str | None = None,
+        amount: float | None = None,
+        category_id: str | None = None,
+        category_name: str | None = None,
+    ) -> bool:
+        conn = self._db.get_connection()
+        cursor = conn.execute(
+            """
+            UPDATE recent_transactions
+            SET
+                payee = COALESCE(%s, payee),
+                amount = COALESCE(%s, amount),
+                category_id = COALESCE(%s, category_id),
+                category_name = COALESCE(%s, category_name)
+            WHERE telegram_id = %s AND ynab_transaction_id = %s
+            """,
+            (payee, amount, category_id, category_name, telegram_id, ynab_transaction_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
     def get_payee_category_distribution(self, telegram_id: int) -> Dict[str, List[Dict]]:
         conn = self._db.get_connection()
         rows = conn.execute(

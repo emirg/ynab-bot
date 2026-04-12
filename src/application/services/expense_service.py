@@ -1118,6 +1118,15 @@ class ExpenseService:
                     f"Recorded category correction: {payee} {old_category_id} -> {resolved_category_id}"
                 )
 
+            self.learning_repository.update_recent_transaction(
+                telegram_user_id,
+                ynab_transaction_id,
+                payee=new_payee,
+                amount=self._updated_recent_amount(transaction.get('amount'), new_amount),
+                category_id=resolved_category_id,
+                category_name=resolved_category_name,
+            )
+
             logger.info(f"Edited transaction {ynab_transaction_id}: fields={list(fields.keys())}")
             return {
                 'payee': payee,
@@ -1128,6 +1137,14 @@ class ExpenseService:
         except Exception as e:
             logger.error(f"Error editing transaction: {e}")
             return None
+
+    @staticmethod
+    def _updated_recent_amount(old_amount, new_amount: Optional[Decimal]) -> float | None:
+        if new_amount is None:
+            return None
+        if isinstance(old_amount, (int, float)) and old_amount < 0:
+            return float(new_amount) * -1
+        return float(new_amount)
 
     def undo_last_transaction(self, telegram_user_id: int) -> Optional[Dict]:
         """Delete the most recent transaction if within the allowed time window.

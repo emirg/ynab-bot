@@ -795,6 +795,14 @@ class TestEditLastTransaction:
             authorized_user.budget_id, 'txn-edit-1', {'amount': -30000}
         )
         mock_learning_repository.record_user_correction.assert_not_called()
+        mock_learning_repository.update_recent_transaction.assert_called_once_with(
+            TELEGRAM_ID,
+            'txn-edit-1',
+            payee=None,
+            amount=-30.0,
+            category_id=None,
+            category_name=None,
+        )
 
     # --- payee edit ---
 
@@ -840,6 +848,14 @@ class TestEditLastTransaction:
         assert call_args[1] == 'McDonalds'
         assert call_args[2] == 'cat-2'   # old category
         assert call_args[3] == 'cat-1'   # new category id
+        mock_learning_repository.update_recent_transaction.assert_called_once_with(
+            TELEGRAM_ID,
+            'txn-edit-1',
+            payee=None,
+            amount=None,
+            category_id='cat-1',
+            category_name='Groceries',
+        )
 
     def test_edit_category_fuzzy_match(
         self, service, mock_user_repository, mock_learning_repository,
@@ -931,6 +947,38 @@ class TestEditLastTransaction:
         assert 'payee_name' in fields_used
         assert 'category_id' in fields_used
         assert 'account_id' in fields_used
+        mock_learning_repository.update_recent_transaction.assert_called_once_with(
+            TELEGRAM_ID,
+            'txn-edit-1',
+            payee='Burger King',
+            amount=-50.0,
+            category_id='cat-1',
+            category_name='Groceries',
+        )
+
+    def test_undo_returns_updated_cached_fields_after_edit(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_ynab_repository.delete_transaction.return_value = True
+        original = self._recent_txn()
+        updated = {
+            **original,
+            'amount': -30000,
+            'category_id': 'cat-1',
+            'category_name': 'Groceries',
+        }
+        mock_learning_repository.get_recent_transactions.side_effect = [[original], [updated]]
+
+        edit_result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('30'), new_category='Groceries')
+        undo_result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert edit_result is not None
+        assert undo_result is not None
+        assert undo_result['amount'] == -30000
+        assert undo_result['category_name'] == 'Groceries'
 
     # --- transaction_index ---
 

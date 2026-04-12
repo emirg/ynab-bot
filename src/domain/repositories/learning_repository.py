@@ -58,6 +58,20 @@ class LearningRepository(ABC):
         pass
 
     @abstractmethod
+    def update_recent_transaction(
+        self,
+        telegram_id: int,
+        ynab_transaction_id: str,
+        *,
+        payee: str | None = None,
+        amount: float | None = None,
+        category_id: str | None = None,
+        category_name: str | None = None,
+    ) -> bool:
+        """Update cached recent transaction fields for a specific user/YNAB transaction."""
+        pass
+
+    @abstractmethod
     def get_payee_category_distribution(self, telegram_id: int) -> Dict[str, List[Dict]]:
         """Get the full category distribution for all known payees of a user.
 
