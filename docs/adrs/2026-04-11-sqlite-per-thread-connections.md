@@ -3,7 +3,7 @@
 ## Metadata
 - **Status:** Accepted
 - **Date:** 2026-04-11
-- **Related Spec:** `docs/specs/2026-04-11-sqlite-thread-safe-connection-management.md`
+- **Related Spec:** `docs/specs/archive/2026-04-11-sqlite-thread-safe-connection-management.md`
 - **Related Plan:** `docs/plans/archive/2026-04-11-sqlite-thread-safe-connection-management.md`
 - **Supersedes:** None
 - **Superseded By:** None

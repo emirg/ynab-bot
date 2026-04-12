@@ -98,10 +98,12 @@ When all groups are complete:
 
 Once review passes:
 1. Move the plan to `docs/plans/archive/`.
-2. Update `ROADMAP.md` to mark the feature as complete.
-3. Write or update the ADR if the feature introduced a significant architectural decision.
-4. If all features in a milestone are done, mark the milestone as complete.
-5. Update `docs/wip_state.md` to reflect current state.
+2. Move the implemented SPEC to `docs/specs/archive/`.
+3. Preserve references to the archived PLAN and SPEC in any related ADRs.
+4. Update `ROADMAP.md` to mark the feature as complete.
+5. Write or update the ADR if the feature introduced a significant architectural decision.
+6. If all features in a milestone are done, mark the milestone as complete.
+7. Update `docs/wip_state.md` to reflect current state.
 
 ---
 

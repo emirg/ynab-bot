@@ -62,7 +62,7 @@ The default workflow for non-trivial work is:
 4. Draft `PLAN` from the approved `SPEC`
 5. Implement against the `PLAN`
 6. Write `ADR` if a significant architectural decision was made or finalized
-7. Review implementation, archive the `PLAN`, and update handoff state
+7. Review implementation, archive the `PLAN` and implemented `SPEC`, and update handoff state
 
 Short version:
 
@@ -139,7 +139,11 @@ Completed implementation plans move to:
 
 - `docs/plans/archive/`
 
-Specs and ADRs usually remain in place as project memory unless explicitly superseded.
+Completed implementation specs move to:
+
+- `docs/specs/archive/`
+
+ADRs remain in place as project memory and must continue referencing the related PLAN and SPEC, even after the PLAN and SPEC have been archived.
 
 ---
 
@@ -214,7 +218,7 @@ When the user asks to build something new:
 3. Only after the SPEC is approved, create the PLAN.
 4. Only after the PLAN is approved, implement.
 5. If implementation locks in a significant design choice, write the ADR.
-6. After review passes, archive the PLAN and update `docs/wip_state.md`.
+6. After review passes, archive the PLAN, archive the implemented SPEC, preserve ADR references to that archived PLAN and SPEC, and update `docs/wip_state.md`.
 
 When the user asks to continue existing work:
 
@@ -241,4 +245,3 @@ If a decision is reversed:
 
 - do not edit the old ADR to erase history
 - create a new ADR that supersedes the old decision
-

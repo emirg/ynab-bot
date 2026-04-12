@@ -3,7 +3,7 @@
 ## Metadata
 - **Status:** Accepted
 - **Date:** 2026-04-11
-- **Related Spec:** `docs/specs/2026-04-11-typed-prepared-expense-flow.md`
+- **Related Spec:** `docs/specs/archive/2026-04-11-typed-prepared-expense-flow.md`
 - **Related Plan:** `docs/plans/archive/2026-04-11-typed-prepared-expense-flow.md`
 - **Supersedes:** None
 - **Superseded By:** None
