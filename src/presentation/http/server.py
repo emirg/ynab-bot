@@ -2,6 +2,7 @@ import json
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse
 
 from presentation.http.dev_api_handler import DevAPIHandler
 from presentation.http.handlers.advisor_api_handler import AdvisorAPIHandler
@@ -44,16 +45,23 @@ class HTTPAPIRouter:
         self.dev_endpoint_handler = dev_endpoint_handler
 
     def route(self, method: str, path: str, headers: dict, body: bytes) -> tuple[int, dict, dict]:
-        if path.startswith("/dev/"):
-            return self._route_dev(method, path, headers, body)
+        parsed = urlparse(path)
+        route_path = parsed.path
+        query_params = parse_qs(parsed.query)
 
-        if path == "/api/v1/advisor/bootstrap":
+        if route_path.startswith("/dev/"):
+            return self._route_dev(method, route_path, headers, body)
+
+        if route_path == "/api/v1/advisor/bootstrap":
             return self._route_advisor_bootstrap(method, headers)
 
-        if path == "/api/v1/advisor/logout":
+        if route_path == "/api/v1/advisor/dashboard":
+            return self._route_advisor_dashboard(method, headers, query_params)
+
+        if route_path == "/api/v1/advisor/logout":
             return self._route_advisor_logout(method, headers)
 
-        if path != "/api/v1/expenses/text":
+        if route_path != "/api/v1/expenses/text":
             return 404, {
                 "status": "error",
                 "error_code": "ROUTE_NOT_FOUND",
@@ -106,6 +114,26 @@ class HTTPAPIRouter:
                 "message": "The advisor handler is not configured.",
             }, {}
         return self.advisor_api_handler.handle_logout(headers)
+
+    def _route_advisor_dashboard(
+        self,
+        method: str,
+        headers: dict,
+        query_params: dict[str, list[str]],
+    ) -> tuple[int, dict, dict]:
+        if method != "GET":
+            return 405, {
+                "status": "error",
+                "error_code": "METHOD_NOT_ALLOWED",
+                "message": "This endpoint only accepts GET requests.",
+            }, {"Allow": "GET"}
+        if self.advisor_api_handler is None:
+            return 503, {
+                "status": "error",
+                "error_code": "HANDLER_NOT_CONFIGURED",
+                "message": "The advisor handler is not configured.",
+            }, {}
+        return self.advisor_api_handler.handle_dashboard(headers, query_params)
 
     def _route_dev(self, method: str, path: str, headers: dict, body: bytes) -> tuple[int, dict, dict]:
         if method != "POST":

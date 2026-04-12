@@ -42,7 +42,7 @@ def route_health_request(method: str, path: str, headers: dict | None = None, bo
         router = get_http_api_router()
         status, payload, extra_headers = router.route(
             method=method,
-            path=parsed.path,
+            path=path,
             headers=headers,
             body=body,
         )

@@ -69,3 +69,20 @@ class TestHTTPServer:
         assert status == 200
         assert body["kind"] == "command"
         assert extra_headers == {}
+
+    def test_advisor_dashboard_route_includes_query_params(self):
+        advisor_handler = MagicMock()
+        advisor_handler.handle_dashboard.return_value = (200, {"status": "ok", "selected_period": "semana"}, {})
+        router = HTTPAPIRouter(MagicMock(), advisor_api_handler=advisor_handler)
+
+        status, body, extra_headers = router.route(
+            method="GET",
+            path="/api/v1/advisor/dashboard?period=semana",
+            headers={"Cookie": "advisor_session=abc"},
+            body=b"",
+        )
+
+        assert status == 200
+        assert body["selected_period"] == "semana"
+        assert extra_headers == {}
+        advisor_handler.handle_dashboard.assert_called_once()
