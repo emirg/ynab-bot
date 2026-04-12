@@ -126,6 +126,10 @@ def test_migrates_all_tables(monkeypatch, sqlite_db):
     assert fake_connection.rollback_calls == 0
     assert any("INSERT INTO user_configurations" in sql for sql, _ in fake_connection.executed)
     assert any("SELECT setval" in sql for sql, _ in fake_connection.executed)
+    user_config_insert = next(
+        params for sql, params in fake_connection.executed if "INSERT INTO user_configurations" in sql
+    )
+    assert user_config_insert[-1] is True
 
 
 def test_raises_when_sqlite_source_missing(monkeypatch, tmp_path):

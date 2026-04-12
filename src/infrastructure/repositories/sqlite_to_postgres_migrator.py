@@ -85,10 +85,19 @@ class SQLiteToPostgresMigrator:
         upsert_sql = self._build_upsert_sql(table_name=table_name, columns=list(columns), placeholders=placeholders)
 
         for row in rows:
-            postgres_conn.execute(upsert_sql, tuple(row[column] for column in columns))
+            postgres_conn.execute(
+                upsert_sql,
+                tuple(self._normalize_value(table_name, column, row[column]) for column in columns),
+            )
 
         logger.info("Copied %s rows into PostgreSQL table %s", len(rows), table_name)
         return len(rows)
+
+    @staticmethod
+    def _normalize_value(table_name: str, column_name: str, value):
+        if table_name == "user_configurations" and column_name == "confirm_before_create":
+            return bool(value) if value is not None else None
+        return value
 
     @staticmethod
     def _build_upsert_sql(table_name: str, columns: list[str], placeholders: str) -> str:
