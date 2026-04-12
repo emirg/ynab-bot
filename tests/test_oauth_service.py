@@ -1,6 +1,6 @@
 """Tests for YNABOAuthService."""
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from application.services.oauth_service import YNABOAuthService
@@ -45,7 +45,7 @@ def user_with_token():
         status=UserStatus.AUTHORIZED,
         ynab_access_token='access-tok',
         ynab_refresh_token='refresh-tok',
-        ynab_token_expires_at=datetime.now() + timedelta(hours=1),
+        ynab_token_expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
     )
 
 
@@ -56,7 +56,7 @@ def user_with_expired_token():
         status=UserStatus.AUTHORIZED,
         ynab_access_token='old-access',
         ynab_refresh_token='refresh-tok',
-        ynab_token_expires_at=datetime.now() - timedelta(hours=1),
+        ynab_token_expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
 
 
@@ -193,7 +193,7 @@ class TestRefreshTokenIfNeeded:
         user = UserConfiguration(
             telegram_id=123,
             ynab_access_token='tok',
-            ynab_token_expires_at=datetime.now() - timedelta(hours=1),
+            ynab_token_expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
         )
         with pytest.raises(TokenExpiredException):
             service.refresh_token_if_needed(user)

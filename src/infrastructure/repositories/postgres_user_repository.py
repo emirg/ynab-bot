@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from domain.exceptions import YNABBotException
@@ -37,8 +37,8 @@ class PostgresUserRepository(UserRepository):
             first_name=row.get("first_name"),
             last_name=row.get("last_name"),
             timezone=row.get("timezone") or DEFAULT_TIMEZONE,
-            created_at=row.get("created_at") or datetime.now(),
-            updated_at=row.get("updated_at") or datetime.now(),
+            created_at=row.get("created_at") or datetime.now(timezone.utc),
+            updated_at=row.get("updated_at") or datetime.now(timezone.utc),
             approved_at=row.get("approved_at"),
             approved_by=row.get("approved_by"),
             ynab_access_token=access_token,
@@ -62,7 +62,7 @@ class PostgresUserRepository(UserRepository):
 
     def save(self, user_config: UserConfiguration) -> UserConfiguration:
         try:
-            user_config.updated_at = datetime.now()
+            user_config.updated_at = datetime.now(timezone.utc)
 
             access_token = user_config.ynab_access_token
             refresh_token = user_config.ynab_refresh_token

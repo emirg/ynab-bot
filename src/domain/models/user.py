@@ -8,6 +8,18 @@ from domain.time_utils import DEFAULT_TIMEZONE
 _TOKEN_EXPIRY_BUFFER = timedelta(minutes=5)
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _coerce_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class UserStatus(Enum):
     """User authorization status"""
     PENDING = "pending"      # Waiting for admin approval
@@ -27,8 +39,8 @@ class UserConfiguration:
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     timezone: str = DEFAULT_TIMEZONE
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
     approved_at: Optional[datetime] = None
     approved_by: Optional[int] = None
     ynab_access_token: Optional[str] = None
@@ -56,14 +68,14 @@ class UserConfiguration:
     def authorize(self, approved_by: int):
         """Authorize the user"""
         self.status = UserStatus.AUTHORIZED
-        self.approved_at = datetime.now()
+        self.approved_at = _utc_now()
         self.approved_by = approved_by
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
     
     def block(self):
         """Block the user"""
         self.status = UserStatus.BLOCKED
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
     
     def get_display_name(self) -> str:
         """Get user's display name"""
@@ -79,13 +91,13 @@ class UserConfiguration:
     def update_budget(self, budget_id: str):
         """Update budget configuration"""
         self.budget_id = budget_id
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
     
     def update_default_account(self, account_id: str, account_name: str = None):
         """Update default account configuration"""
         self.default_account_id = account_id
         self.default_account_name = account_name
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
     
     def update_profile(self, username: str = None, first_name: str = None, last_name: str = None):
         """Update user profile information"""
@@ -95,42 +107,43 @@ class UserConfiguration:
             self.first_name = first_name
         if last_name is not None:
             self.last_name = last_name
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
 
     def update_timezone(self, timezone: str):
         """Update user timezone (IANA timezone string)"""
         self.timezone = timezone
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
 
     def has_ynab_token(self) -> bool:
         return self.ynab_access_token is not None
 
     def is_token_expired(self) -> bool:
-        if self.ynab_token_expires_at is None:
+        expires_at = _coerce_utc(self.ynab_token_expires_at)
+        if expires_at is None:
             return True
-        return datetime.now() >= self.ynab_token_expires_at - _TOKEN_EXPIRY_BUFFER
+        return _utc_now() >= expires_at - _TOKEN_EXPIRY_BUFFER
 
     def update_ynab_tokens(self, access_token: str, refresh_token: str, expires_in_seconds: int):
         self.ynab_access_token = access_token
         self.ynab_refresh_token = refresh_token
-        self.ynab_token_expires_at = datetime.now() + timedelta(seconds=expires_in_seconds)
-        self.updated_at = datetime.now()
+        self.ynab_token_expires_at = _utc_now() + timedelta(seconds=expires_in_seconds)
+        self.updated_at = _utc_now()
 
     def clear_ynab_tokens(self):
         self.ynab_access_token = None
         self.ynab_refresh_token = None
         self.ynab_token_expires_at = None
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
 
     def mark_weekly_summary_sent(self):
         """Record that the weekly summary was sent now (UTC)."""
-        self.last_weekly_summary_sent = datetime.now(timezone.utc)
-        self.updated_at = datetime.now()
+        self.last_weekly_summary_sent = _utc_now()
+        self.updated_at = _utc_now()
 
     def toggle_confirmation(self, enabled: bool):
         """Enable or disable the confirmation-before-create flow."""
         self.confirm_before_create = enabled
-        self.updated_at = datetime.now()
+        self.updated_at = _utc_now()
 
 
 @dataclass

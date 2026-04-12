@@ -1,6 +1,6 @@
 """Tests for domain models: Expense, ExpenseResult, UserConfiguration, YNAB models, BudgetQuery."""
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from domain.models.expense import Expense, ExpenseResult, _UUID_PATTERN
@@ -573,7 +573,7 @@ class TestUserConfiguration:
         u = UserConfiguration(
             telegram_id=1,
             ynab_access_token='tok',
-            ynab_token_expires_at=datetime.now() + timedelta(hours=1),
+            ynab_token_expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
         )
         assert not u.is_token_expired()
 
@@ -581,7 +581,7 @@ class TestUserConfiguration:
         u = UserConfiguration(
             telegram_id=1,
             ynab_access_token='tok',
-            ynab_token_expires_at=datetime.now() + timedelta(minutes=3),
+            ynab_token_expires_at=datetime.now(timezone.utc) + timedelta(minutes=3),
         )
         assert u.is_token_expired()
 
@@ -591,7 +591,8 @@ class TestUserConfiguration:
         assert u.ynab_access_token == 'access'
         assert u.ynab_refresh_token == 'refresh'
         assert u.ynab_token_expires_at is not None
-        assert u.ynab_token_expires_at > datetime.now()
+        assert u.ynab_token_expires_at > datetime.now(timezone.utc)
+        assert u.ynab_token_expires_at.tzinfo is not None
 
     def test_clear_ynab_tokens(self):
         u = UserConfiguration(telegram_id=1, ynab_access_token='tok', ynab_refresh_token='ref')
@@ -620,7 +621,7 @@ class TestUserConfiguration:
         import time
         from datetime import timezone as tz
         u = UserConfiguration(telegram_id=1)
-        before = datetime.now()
+        before = datetime.now(tz.utc)
         time.sleep(0.01)
         u.mark_weekly_summary_sent()
         assert u.last_weekly_summary_sent is not None
