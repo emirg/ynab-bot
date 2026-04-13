@@ -134,3 +134,64 @@ def test_build_dashboard_without_transactions_returns_empty_dashboard(mock_today
     assert dashboard.has_transactions is False
     assert dashboard.summary.total_spent == 0
     assert dashboard.top_categories == []
+    assert dashboard.insights == []
+
+
+@patch("application.services.advisor_dashboard_service.user_today")
+def test_build_dashboard_emits_warning_insights_for_budget_pressure(mock_today, dashboard_service):
+    service, user_repository, ynab_factory = dashboard_service
+    user_repository.find_by_telegram_id.return_value = _configured_user()
+    mock_today.return_value = date(2026, 4, 12)
+
+    ynab_repo = MagicMock()
+    ynab_repo.get_transactions.return_value = [
+        _txn(-90_000, "2026-04-03", "Comida"),
+        _txn(-30_000, "2026-04-08", "Comida"),
+        _txn(-15_000, "2026-04-10", "Transporte"),
+    ]
+    ynab_repo.get_categories.return_value = [
+        YNABCategory(id="1", name="Comida", group_name="Casa", full_name="Casa -> Comida", budgeted=100_000, activity=-120_000),
+        YNABCategory(id="2", name="Transporte", group_name="Casa", full_name="Casa -> Transporte", budgeted=30_000, activity=-15_000),
+        YNABCategory(id="3", name="Ahorro viaje", group_name="Metas", full_name="Metas -> Ahorro viaje", budgeted=80_000, activity=0),
+    ]
+    ynab_factory.get_repository.return_value = ynab_repo
+
+    dashboard = service.build_dashboard(123, "mes")
+
+    insight_codes = {item.code for item in dashboard.insights}
+    assert "spending_concentration" in insight_codes
+    assert "monthly_pace_warning" in insight_codes
+    assert "overspent_category" in insight_codes
+    assert "inactive_budget" in insight_codes
+    assert "all_clear" not in insight_codes
+
+    concentration = next(item for item in dashboard.insights if item.code == "spending_concentration")
+    assert concentration.evidence["category_name"] == "Comida"
+    assert concentration.evidence["share_percent"] == 89
+
+
+@patch("application.services.advisor_dashboard_service.user_today")
+def test_build_dashboard_emits_all_clear_when_no_signals_are_detected(mock_today, dashboard_service):
+    service, user_repository, ynab_factory = dashboard_service
+    user_repository.find_by_telegram_id.return_value = _configured_user()
+    mock_today.return_value = date(2026, 4, 12)
+
+    ynab_repo = MagicMock()
+    ynab_repo.get_transactions.return_value = [
+        _txn(-20_000, "2026-04-03", "Comida"),
+        _txn(-18_000, "2026-04-08", "Transporte"),
+        _txn(-16_000, "2026-04-10", "Salud"),
+    ]
+    ynab_repo.get_categories.return_value = [
+        YNABCategory(id="1", name="Comida", group_name="Casa", full_name="Casa -> Comida", budgeted=120_000, activity=-20_000),
+        YNABCategory(id="2", name="Transporte", group_name="Casa", full_name="Casa -> Transporte", budgeted=100_000, activity=-18_000),
+        YNABCategory(id="3", name="Salud", group_name="Casa", full_name="Casa -> Salud", budgeted=90_000, activity=-16_000),
+    ]
+    ynab_factory.get_repository.return_value = ynab_repo
+
+    dashboard = service.build_dashboard(123, "mes")
+
+    assert [item.code for item in dashboard.insights] == ["all_clear"]
+    payload = dashboard.to_payload()
+    assert payload["insights"][0]["severity"] == "positive"
+    assert payload["insights"][0]["code"] == "all_clear"

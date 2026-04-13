@@ -35,6 +35,15 @@ _ADVISOR_APP_HTML = """<!DOCTYPE html>
     .metric-value { margin: 0; font-size: 1.8rem; }
     .metric-note { margin: 8px 0 0; color: var(--muted); }
     .content-grid { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+    .insights-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 18px; }
+    .insight-card { border-radius: 18px; padding: 18px; border: 1px solid var(--line); background: #f9f2e6; }
+    .insight-card.warning { background: #fff0e8; border-color: #efc9b3; }
+    .insight-card.info { background: #f4f0e8; }
+    .insight-card.positive { background: #edf7f2; border-color: #c8e6d8; }
+    .insight-kicker { margin: 0 0 8px; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
+    .insight-title { margin: 0 0 10px; font-size: 1.05rem; }
+    .insight-message { margin: 0; color: var(--ink); line-height: 1.5; }
+    .insight-evidence { margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
     .trend-bars { display: grid; grid-template-columns: repeat(auto-fit, minmax(14px, 1fr)); gap: 10px; align-items: end; min-height: 220px; margin-top: 18px; }
     .trend-bar-wrap { display: grid; justify-items: center; gap: 8px; }
     .trend-bar { width: 100%; max-width: 20px; min-height: 4px; border-radius: 999px; background: linear-gradient(180deg, #6bb89f 0%, var(--accent) 100%); }
@@ -86,6 +95,15 @@ _ADVISOR_APP_HTML = """<!DOCTYPE html>
         <div id="empty-state" class="empty" hidden></div>
         <div id="dashboard" hidden>
           <div class="metrics" id="metrics"></div>
+          <section class="card" style="margin-top:18px">
+            <div class="toolbar">
+              <div>
+                <h2>Insights del advisor</h2>
+                <p>Reglas simples para detectar alertas, concentraciones y presupuesto quieto sin salir del dashboard.</p>
+              </div>
+            </div>
+            <div class="insights-grid" id="insights-list"></div>
+          </section>
           <div class="content-grid" style="margin-top:18px">
             <section class="card">
               <div class="toolbar">
@@ -126,6 +144,7 @@ _ADVISOR_APP_HTML = """<!DOCTYPE html>
     const metricsEl = document.getElementById('metrics');
     const trendBarsEl = document.getElementById('trend-bars');
     const categoryListEl = document.getElementById('category-list');
+    const insightsListEl = document.getElementById('insights-list');
     const budgetCardEl = document.getElementById('budget-card');
     const budgetListEl = document.getElementById('budget-list');
     const dashboardEl = document.getElementById('dashboard');
@@ -203,6 +222,37 @@ _ADVISOR_APP_HTML = """<!DOCTYPE html>
       }).join('');
     }
 
+    function formatEvidence(insight) {
+      const evidence = insight.evidence || {};
+      if (insight.code === 'spending_concentration') {
+        return `${evidence.share_percent || 0}% del gasto en ${escapeHtml(evidence.category_name || 'una categoria')}`;
+      }
+      if (insight.code === 'monthly_pace_warning') {
+        return `Proyeccion: ${formatMoney(evidence.projected_spent)} vs presupuesto ${formatMoney(evidence.total_budgeted)}`;
+      }
+      if (insight.code === 'overspent_category') {
+        return `${escapeHtml(evidence.category_name || '')}: ${formatMoney(evidence.spent)} gastados vs ${formatMoney(evidence.budgeted)} presupuestados`;
+      }
+      if (insight.code === 'near_budget_limit') {
+        return `${escapeHtml(evidence.category_name || '')}: ${evidence.usage_percent || 0}% usado`;
+      }
+      if (insight.code === 'inactive_budget') {
+        return `${escapeHtml(evidence.category_name || '')}: ${formatMoney(evidence.budgeted)} sin actividad`;
+      }
+      return `${evidence.transaction_count || 0} gastos revisados`;
+    }
+
+    function renderInsights(insights) {
+      insightsListEl.innerHTML = (insights || []).map((insight) => `
+        <article class="insight-card ${escapeHtml(insight.severity || 'info')}">
+          <p class="insight-kicker">Insight</p>
+          <h3 class="insight-title">${escapeHtml(insight.title)}</h3>
+          <p class="insight-message">${escapeHtml(insight.message)}</p>
+          <div class="insight-evidence">${formatEvidence(insight)}</div>
+        </article>
+      `).join('');
+    }
+
     function renderBudgetStatus(items) {
       if (!items || !items.length) {
         budgetCardEl.hidden = true;
@@ -270,6 +320,7 @@ _ADVISOR_APP_HTML = """<!DOCTYPE html>
       }
       dashboardEl.hidden = false;
       renderMetrics(payload.summary);
+      renderInsights(payload.insights || []);
       renderTrend(payload.trend || []);
       renderCategories(payload.top_categories || []);
       renderBudgetStatus(payload.budget_status);
