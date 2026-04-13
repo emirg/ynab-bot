@@ -3,6 +3,7 @@ from typing import TypeVar, Callable, Dict, Any, Type
 
 from application.services.advisor_access_service import AdvisorAccessService
 from application.services.advisor_dashboard_service import AdvisorDashboardService
+from application.services.advisor_insights_service import AdvisorInsightsService
 from infrastructure.config.app_config import AppConfig
 from infrastructure.dev.stubbed_integrations import (
     StubLLMExpenseParser,
@@ -162,7 +163,13 @@ class DIContainer:
             lambda: AdvisorDashboardService(
                 user_repository=self.get(UserRepository),
                 ynab_factory=self.get(YNABRepositoryFactory),
+                advisor_insights_service=self.get(AdvisorInsightsService),
             )
+        )
+
+        self.register_transient(
+            AdvisorInsightsService,
+            lambda: AdvisorInsightsService()
         )
 
         # Register authentication service as singleton

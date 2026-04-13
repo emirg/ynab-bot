@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from application.services.advisor_dashboard_service import AdvisorDashboardService
+from application.services.advisor_insights_service import AdvisorInsightsService
 from domain.models.user import UserConfiguration, UserStatus, YNABCategory
 
 
@@ -11,7 +12,7 @@ from domain.models.user import UserConfiguration, UserStatus, YNABCategory
 def dashboard_service():
     user_repository = MagicMock()
     ynab_factory = MagicMock()
-    service = AdvisorDashboardService(user_repository, ynab_factory)
+    service = AdvisorDashboardService(user_repository, ynab_factory, AdvisorInsightsService())
     return service, user_repository, ynab_factory
 
 

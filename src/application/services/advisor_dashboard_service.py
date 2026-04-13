@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from application.services.advisor_insights_service import AdvisorInsightsService
 from domain.exceptions import AdvisorAuthenticationException
-from domain.models.advisor_dashboard import AdvisorDashboard
+from domain.models.advisor_dashboard import (
+    AdvisorBudgetStatus,
+    AdvisorDashboard,
+    AdvisorSummary,
+    AdvisorTrendPoint,
+)
+from domain.models.weekly_summary import CategorySpending
 from domain.time_utils import user_today
 from domain.repositories.user_repository import UserRepository
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
@@ -25,9 +32,11 @@ class AdvisorDashboardService:
         self,
         user_repository: UserRepository,
         ynab_factory: YNABRepositoryFactory,
+        advisor_insights_service: AdvisorInsightsService,
     ) -> None:
         self._user_repository = user_repository
         self._ynab_factory = ynab_factory
+        self._advisor_insights_service = advisor_insights_service
 
     @staticmethod
     def parse_period(period: str | None) -> str:
@@ -67,13 +76,47 @@ class AdvisorDashboardService:
         if period_type == "mes":
             budget_data = self._build_budget_data(ynab_repo.get_categories(user.budget_id))
 
-        return AdvisorDashboard.from_ynab_data(
+        expenses = [txn for txn in transactions if txn.get("amount", 0) < 0]
+        total_spent = abs(sum(txn["amount"] for txn in expenses))
+        transaction_count = len(expenses)
+        active_days = (period_end - period_start).days + 1
+
+        top_categories = self._build_top_categories(expenses)
+        budget_status = None if budget_data is None else self._build_budget_status(budget_data)
+        insights = self._advisor_insights_service.build_insights(
+            period_type=period_type,
+            period_start=period_start,
+            period_end=period_end,
+            total_spent=total_spent,
+            transaction_count=transaction_count,
+            top_categories=top_categories,
+            budget_data=budget_data,
+            budget_status=budget_status,
+        )
+        return AdvisorDashboard(
             period_type=period_type,
             period_label=period_label,
             period_start=period_start,
             period_end=period_end,
-            transactions=transactions,
-            budget_data=budget_data,
+            summary=AdvisorSummary(
+                period_label=period_label,
+                total_spent=total_spent,
+                transaction_count=transaction_count,
+                average_daily_spent=total_spent // active_days if active_days > 0 else 0,
+                top_category_name=top_categories[0].category_name if top_categories else None,
+                top_category_amount=top_categories[0].amount if top_categories else 0,
+                active_days=active_days,
+            ),
+            trend=self._build_trend(
+                period_type=period_type,
+                period_start=period_start,
+                period_end=period_end,
+                expenses=expenses,
+            ),
+            top_categories=top_categories,
+            budget_status=budget_status,
+            insights=insights,
+            has_transactions=transaction_count > 0,
         )
 
     @staticmethod
@@ -111,3 +154,77 @@ class AdvisorDashboardService:
             and not category.hidden
             and (category.budgeted > 0 or category.activity != 0)
         ]
+
+    @staticmethod
+    def _build_top_categories(expenses: list[dict]) -> list[CategorySpending]:
+        category_totals: dict[str, int] = {}
+        for txn in expenses:
+            category_name = txn.get("category_name") or "Sin categoría"
+            category_totals[category_name] = category_totals.get(category_name, 0) + abs(txn["amount"])
+
+        return sorted(
+            [
+                CategorySpending(category_name=name, amount=amount)
+                for name, amount in category_totals.items()
+            ],
+            key=lambda item: item.amount,
+            reverse=True,
+        )[:5]
+
+    @staticmethod
+    def _build_trend(
+        *,
+        period_type: str,
+        period_start: date,
+        period_end: date,
+        expenses: list[dict],
+    ) -> list[AdvisorTrendPoint]:
+        amounts_by_date: dict[str, int] = {}
+        for txn in expenses:
+            txn_date = txn.get("date")
+            if not txn_date:
+                continue
+            amounts_by_date[txn_date] = amounts_by_date.get(txn_date, 0) + abs(txn["amount"])
+
+        current = period_start
+        points: list[AdvisorTrendPoint] = []
+        while current <= period_end:
+            points.append(
+                AdvisorTrendPoint(
+                    date=current,
+                    label=AdvisorDashboardService._build_trend_label(period_type, current, period_start),
+                    amount=amounts_by_date.get(current.isoformat(), 0),
+                )
+            )
+            current += timedelta(days=1)
+        return points
+
+    @staticmethod
+    def _build_trend_label(period_type: str, point_date: date, period_start: date) -> str:
+        if period_type == "dia":
+            return "Hoy"
+        if period_type == "semana":
+            return _SPANISH_WEEKDAYS[point_date.weekday()]
+        if point_date == period_start:
+            return f"{point_date.day:02d}"
+        return str(point_date.day)
+
+    @staticmethod
+    def _build_budget_status(budget_data: list[dict]) -> list[AdvisorBudgetStatus]:
+        statuses: list[AdvisorBudgetStatus] = []
+        for entry in budget_data:
+            budgeted = entry.get("budgeted", 0)
+            spent = abs(entry.get("activity", 0))
+            remaining = budgeted - spent
+            statuses.append(
+                AdvisorBudgetStatus(
+                    category_name=entry["name"],
+                    budgeted=budgeted,
+                    spent=spent,
+                    remaining=remaining,
+                    status="overspent" if remaining < 0 else "within_budget",
+                )
+            )
+
+        statuses.sort(key=lambda item: item.spent, reverse=True)
+        return statuses[:5]
