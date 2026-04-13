@@ -92,6 +92,7 @@ class AdvisorAPIHandler:
             "trend": [],
             "top_categories": [],
             "budget_status": None,
+            "insights": [],
             "empty_state": self._build_empty_state(advisor_state, False, period),
         }
 

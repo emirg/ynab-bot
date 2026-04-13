@@ -71,7 +71,7 @@ def test_advisor_dashboard_route_delegates_to_api_handler():
     handler = MagicMock()
     handler.handle_dashboard.return_value = (
         200,
-        {"status": "ok", "selected_period": "mes"},
+        {"status": "ok", "selected_period": "mes", "insights": []},
         {},
     )
     set_advisor_api_handler(handler)
@@ -82,6 +82,27 @@ def test_advisor_dashboard_route_delegates_to_api_handler():
     assert response_type == "json"
     assert payload["selected_period"] == "mes"
     handler.handle_dashboard.assert_called_once()
+    set_advisor_api_handler(None)
+
+
+def test_advisor_dashboard_route_preserves_insights_payload():
+    handler = MagicMock()
+    handler.handle_dashboard.return_value = (
+        200,
+        {
+            "status": "ok",
+            "selected_period": "mes",
+            "insights": [{"code": "all_clear", "title": "Sin alertas"}],
+        },
+        {},
+    )
+    set_advisor_api_handler(handler)
+
+    status, response_type, payload, _ = _get("/api/v1/advisor/dashboard?period=mes", headers={"Cookie": "advisor_session=abc"})
+
+    assert status == 200
+    assert response_type == "json"
+    assert payload["insights"][0]["code"] == "all_clear"
     set_advisor_api_handler(None)
 
 
