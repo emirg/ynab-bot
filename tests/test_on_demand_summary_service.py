@@ -314,6 +314,36 @@ class TestGenerateSummary:
         assert summary.monthly_insight.status == "estable"
 
     @patch("application.services.on_demand_summary_service.user_today")
+    def test_mes_category_breakdown_uses_ynab_category_activity(self, mock_today):
+        mock_today.return_value = date(2026, 3, 19)
+        txns = [
+            _make_txn(-655_725_000, "Split (Multiple Categories)", "2026-03-10"),
+            _make_txn(-345_500_000, "Meal delivery", "2026-03-11"),
+        ]
+        categories = [
+            _make_category(
+                "Meal delivery",
+                budgeted=811_055_000,
+                activity=-655_725_000,
+                balance=155_330_000,
+            ),
+            _make_category(
+                "Groceries",
+                budgeted=900_000_000,
+                activity=-120_000_000,
+                balance=780_000_000,
+            ),
+        ]
+        service, _, _ = _make_service(transactions=txns, categories=categories)
+        user = _make_user()
+
+        summary = service.generate_summary(user, "mes")
+
+        assert summary.total_spent == 775_725_000
+        assert summary.category_breakdown[0].category_name == "Meal delivery"
+        assert summary.category_breakdown[0].amount == 655_725_000
+
+    @patch("application.services.on_demand_summary_service.user_today")
     def test_mes_without_budget_data_sets_fallback_status(self, mock_today):
         mock_today.return_value = date(2026, 3, 19)
         txns = [_make_txn(-30_000, "Comida", "2026-03-01")]

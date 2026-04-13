@@ -1,6 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from typing import Dict, List, Optional
+from typing import List, Optional
+
+from domain.services.spending_aggregation import (
+    aggregate_category_spending,
+    extract_expense_entries,
+)
 
 
 @dataclass
@@ -39,22 +44,19 @@ class WeeklySummary:
 
         Only expense transactions (amount < 0) are counted.
         """
-        current_expenses = [t for t in current_week_txns if t.get("amount", 0) < 0]
-        previous_expenses = [t for t in previous_week_txns if t.get("amount", 0) < 0]
+        current_expenses = extract_expense_entries(current_week_txns)
+        previous_expenses = extract_expense_entries(previous_week_txns)
 
         # Total spent — absolute value of the sum of negative amounts
         total_spent = abs(sum(t["amount"] for t in current_expenses))
         previous_week_total = abs(sum(t["amount"] for t in previous_expenses))
 
-        # Aggregate by category
-        category_totals: Dict[str, int] = {}
-        for txn in current_expenses:
-            name = txn.get("category_name") or "Sin categoría"
-            category_totals[name] = category_totals.get(name, 0) + abs(txn["amount"])
-
+        category_totals = aggregate_category_spending(current_expenses)
         category_breakdown = sorted(
-            [CategorySpending(category_name=name, amount=amount)
-             for name, amount in category_totals.items()],
+            [
+                CategorySpending(category_name=name, amount=amount)
+                for name, amount in category_totals.items()
+            ],
             key=lambda c: c.amount,
             reverse=True,
         )

@@ -303,6 +303,48 @@ class TestNegativeAmounts:
         category_names = {c.category_name for c in summary.category_breakdown}
         assert "Reembolso" not in category_names
 
+    def test_split_parent_is_expanded_into_real_categories(self):
+        txns = [
+            {
+                "amount": -120_000,
+                "category_name": "Split (Multiple Categories)",
+                "subtransactions": [
+                    {"amount": -80_000, "category_name": "Groceries"},
+                    {"amount": -40_000, "category_name": "Meal delivery"},
+                ],
+            }
+        ]
+        summary = WeeklySummary.from_transactions(
+            current_week_txns=txns,
+            previous_week_txns=[],
+            week_start=WEEK_START,
+            week_end=WEEK_END,
+        )
+
+        assert summary.total_spent == 120_000
+        assert [c.category_name for c in summary.category_breakdown] == ["Groceries", "Meal delivery"]
+
+    def test_zero_sum_split_transaction_is_not_counted_as_spending(self):
+        txns = [
+            {
+                "amount": 0,
+                "category_name": "Split (Multiple Categories)",
+                "subtransactions": [
+                    {"amount": -40_000, "category_name": "Meal delivery"},
+                    {"amount": 40_000, "category_name": "Reembolsos"},
+                ],
+            }
+        ]
+        summary = WeeklySummary.from_transactions(
+            current_week_txns=txns,
+            previous_week_txns=[],
+            week_start=WEEK_START,
+            week_end=WEEK_END,
+        )
+
+        assert summary.total_spent == 0
+        assert summary.category_breakdown == []
+
 
 # ---------------------------------------------------------------------------
 # Metadata fields

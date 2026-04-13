@@ -61,8 +61,8 @@ def test_build_dashboard_for_month_returns_metrics_and_budget_status(mock_today,
         _txn(-20_000, "2026-04-12", "Comida"),
     ]
     ynab_repo.get_categories.return_value = [
-        YNABCategory(id="1", name="Comida", group_name="Casa", full_name="Casa -> Comida", budgeted=100_000, activity=-50_000),
-        YNABCategory(id="2", name="Transporte", group_name="Casa", full_name="Casa -> Transporte", budgeted=40_000, activity=-10_000),
+        YNABCategory(id="1", name="Comida", group_name="Casa", full_name="Casa -> Comida", budgeted=100_000, activity=-50_000, balance=50_000),
+        YNABCategory(id="2", name="Transporte", group_name="Casa", full_name="Casa -> Transporte", budgeted=40_000, activity=-10_000, balance=30_000),
     ]
     ynab_factory.get_repository.return_value = ynab_repo
 
@@ -76,8 +76,49 @@ def test_build_dashboard_for_month_returns_metrics_and_budget_status(mock_today,
     assert dashboard.trend[0].label == "01"
     assert dashboard.budget_status is not None
     assert dashboard.budget_status[0].category_name == "Comida"
+    assert dashboard.budget_status[0].remaining == 50_000
     ynab_repo.get_transactions.assert_called_once_with("budget-1", since_date="2026-04-01")
     ynab_repo.get_categories.assert_called_once_with("budget-1")
+
+
+@patch("application.services.advisor_dashboard_service.user_today")
+def test_build_dashboard_for_month_prefers_ynab_category_activity_for_totals(mock_today, dashboard_service):
+    service, user_repository, ynab_factory = dashboard_service
+    user_repository.find_by_telegram_id.return_value = _configured_user()
+    mock_today.return_value = date(2026, 4, 12)
+
+    ynab_repo = MagicMock()
+    ynab_repo.get_transactions.return_value = [
+        _txn(-655_725, "2026-04-10", "Split (Multiple Categories)"),
+        _txn(-345_500, "2026-04-11", "Meal delivery"),
+    ]
+    ynab_repo.get_categories.return_value = [
+        YNABCategory(
+            id="1",
+            name="Meal delivery",
+            group_name="Casa",
+            full_name="Casa -> Meal delivery",
+            budgeted=811_055,
+            activity=-655_725,
+            balance=155_330,
+        ),
+        YNABCategory(
+            id="2",
+            name="Groceries",
+            group_name="Casa",
+            full_name="Casa -> Groceries",
+            budgeted=900_000,
+            activity=-120_000,
+            balance=780_000,
+        ),
+    ]
+    ynab_factory.get_repository.return_value = ynab_repo
+
+    dashboard = service.build_dashboard(123, "mes")
+
+    assert dashboard.summary.total_spent == 775_725
+    assert dashboard.summary.top_category_name == "Meal delivery"
+    assert dashboard.top_categories[0].amount == 655_725
 
 
 @patch("application.services.advisor_dashboard_service.user_today")
@@ -100,6 +141,33 @@ def test_build_dashboard_for_week_uses_monday_start_and_omits_budget_status(mock
     assert [point.label for point in dashboard.trend] == ["lun", "mar", "mié", "jue"]
     assert dashboard.budget_status is None
     ynab_repo.get_categories.assert_not_called()
+
+
+@patch("application.services.advisor_dashboard_service.user_today")
+def test_build_dashboard_for_week_expands_split_subtransactions(mock_today, dashboard_service):
+    service, user_repository, ynab_factory = dashboard_service
+    user_repository.find_by_telegram_id.return_value = _configured_user()
+    mock_today.return_value = date(2026, 4, 9)
+
+    ynab_repo = MagicMock()
+    ynab_repo.get_transactions.return_value = [
+        {
+            "amount": -120_000,
+            "date": "2026-04-06",
+            "category_name": "Split (Multiple Categories)",
+            "subtransactions": [
+                {"amount": -80_000, "category_name": "Groceries"},
+                {"amount": -40_000, "category_name": "Meal delivery"},
+            ],
+        }
+    ]
+    ynab_factory.get_repository.return_value = ynab_repo
+
+    dashboard = service.build_dashboard(123, "semana")
+
+    assert dashboard.summary.total_spent == 120_000
+    assert dashboard.top_categories[0].category_name == "Groceries"
+    assert dashboard.top_categories[1].category_name == "Meal delivery"
 
 
 @patch("application.services.advisor_dashboard_service.user_today")
@@ -151,8 +219,8 @@ def test_build_dashboard_emits_warning_insights_for_budget_pressure(mock_today, 
         _txn(-15_000, "2026-04-10", "Transporte"),
     ]
     ynab_repo.get_categories.return_value = [
-        YNABCategory(id="1", name="Comida", group_name="Casa", full_name="Casa -> Comida", budgeted=100_000, activity=-120_000),
-        YNABCategory(id="2", name="Transporte", group_name="Casa", full_name="Casa -> Transporte", budgeted=30_000, activity=-15_000),
+        YNABCategory(id="1", name="Comida", group_name="Casa", full_name="Casa -> Comida", budgeted=100_000, activity=-120_000, balance=-20_000),
+        YNABCategory(id="2", name="Transporte", group_name="Casa", full_name="Casa -> Transporte", budgeted=30_000, activity=-15_000, balance=15_000),
         YNABCategory(id="3", name="Ahorro viaje", group_name="Metas", full_name="Metas -> Ahorro viaje", budgeted=80_000, activity=0),
     ]
     ynab_factory.get_repository.return_value = ynab_repo
@@ -169,6 +237,34 @@ def test_build_dashboard_emits_warning_insights_for_budget_pressure(mock_today, 
     concentration = next(item for item in dashboard.insights if item.code == "spending_concentration")
     assert concentration.evidence["category_name"] == "Comida"
     assert concentration.evidence["share_percent"] == 89
+
+
+@patch("application.services.advisor_dashboard_service.user_today")
+def test_build_dashboard_month_uses_balance_for_overspending(mock_today, dashboard_service):
+    service, user_repository, ynab_factory = dashboard_service
+    user_repository.find_by_telegram_id.return_value = _configured_user()
+    mock_today.return_value = date(2026, 4, 12)
+
+    ynab_repo = MagicMock()
+    ynab_repo.get_transactions.return_value = [_txn(-172_390, "2026-04-10", "Energy")]
+    ynab_repo.get_categories.return_value = [
+        YNABCategory(
+            id="1",
+            name="Energy",
+            group_name="Servicios",
+            full_name="Servicios -> Energy",
+            budgeted=150_000,
+            activity=-172_390,
+            balance=29_831,
+        )
+    ]
+    ynab_factory.get_repository.return_value = ynab_repo
+
+    dashboard = service.build_dashboard(123, "mes")
+
+    assert dashboard.budget_status is not None
+    assert dashboard.budget_status[0].status == "within_budget"
+    assert "overspent_category" not in {item.code for item in dashboard.insights}
 
 
 @patch("application.services.advisor_dashboard_service.user_today")

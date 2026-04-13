@@ -142,6 +142,28 @@ class TestFromTransactionsMultipleCategories:
     def test_top_category_is_supermercado(self):
         assert self._build().category_breakdown[0].category_name == "Supermercado"
 
+    def test_split_subtransactions_are_grouped_by_real_category(self):
+        summary = OnDemandSummary.from_transactions(
+            transactions=[
+                {
+                    "amount": -100_000,
+                    "category_name": "Split (Multiple Categories)",
+                    "subtransactions": [
+                        {"amount": -70_000, "category_name": "Groceries"},
+                        {"amount": -30_000, "category_name": "Meal delivery"},
+                    ],
+                }
+            ],
+            period_type="semana",
+            period_label="Semana (lun 17/03 - mié 19/03)",
+            period_start=date(2026, 3, 17),
+            period_end=PERIOD_END,
+        )
+
+        assert summary.total_spent == 100_000
+        assert [c.category_name for c in summary.category_breakdown] == ["Groceries", "Meal delivery"]
+        assert [c.amount for c in summary.category_breakdown] == [70_000, 30_000]
+
 
 # ---------------------------------------------------------------------------
 # Expense filtering — positive amounts must be ignored
@@ -281,6 +303,36 @@ class TestBudgetComparison:
         )
         assert summary.budget_comparison == []
 
+    def test_monthly_spending_prefers_budget_activity_over_transaction_categories(self):
+        summary = OnDemandSummary.from_transactions(
+            transactions=[
+                make_txn(-655_725_000, "Split (Multiple Categories)"),
+                make_txn(-345_500_000, "Meal delivery"),
+            ],
+            period_type="mes",
+            period_label="Marzo 2026",
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            budget_data=[
+                {
+                    "name": "Meal delivery",
+                    "budgeted": 811_055_000,
+                    "activity": -655_725_000,
+                    "balance": 155_330_000,
+                },
+                {
+                    "name": "Groceries",
+                    "budgeted": 900_000_000,
+                    "activity": -120_000_000,
+                    "balance": 780_000_000,
+                },
+            ],
+        )
+
+        assert summary.total_spent == 775_725_000
+        assert summary.category_breakdown[0].category_name == "Meal delivery"
+        assert summary.category_breakdown[0].amount == 655_725_000
+
     def test_budget_comparison_none_for_dia_period(self):
         """budget_data is None (not passed) for non-monthly periods."""
         summary = OnDemandSummary.from_transactions(
@@ -318,7 +370,7 @@ class TestBudgetComparison:
             budget_data=self._budget_data(),
         )
         assert summary.monthly_insight is not None
-        assert summary.monthly_insight.top_categories[0].category_name == "Comida"
+        assert summary.monthly_insight.top_categories[0].category_name == "Supermercado"
 
 
 # ---------------------------------------------------------------------------
