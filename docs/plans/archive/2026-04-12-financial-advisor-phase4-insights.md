@@ -2,7 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
-- **Source Spec:** `docs/specs/2026-04-12-financial-advisor-phase4-insights.md`
+- **Source Spec:** `docs/specs/archive/2026-04-12-financial-advisor-phase4-insights.md`
 - **Goal:** Extend the authenticated advisor dashboard with deterministic, read-only financial insights built from the user's real YNAB data.
 - **Approach:** Add an advisor insights read model and rule evaluation layer on top of the existing dashboard aggregation, expose the resulting insights through the advisor dashboard payload, and render them in the current server-served advisor page without changing the auth/session baseline.
 
@@ -68,4 +68,4 @@
 
 ## Verification
 - [x] `.venv/bin/pytest tests/test_advisor_dashboard_service.py tests/test_advisor_http.py tests/test_http_server.py tests/test_advisor_page_handler.py tests/test_container.py`
-- [ ] Manual advisor smoke test through `/analisis` verifying insight cards for a configured user and onboarding/empty states for incomplete setups
+- [x] Manual advisor smoke test through `/analisis` verifying insight cards for a configured user and onboarding/empty states for incomplete setups

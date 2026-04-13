@@ -1,7 +1,7 @@
 # Spec: Financial Advisor Phase 4 Insights
 
 ## Metadata
-- **Status:** Approved
+- **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** Future Financial Advisor milestone
 - **Related Spec:** `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
@@ -71,15 +71,15 @@ The advisor remains web-first, read-only, and rooted in the existing Telegram-is
 - If YNAB data fetches fail for a valid session, the feature must fail without leaking another user's data or breaking unrelated advisor routes.
 
 ## Acceptance Criteria
-- [ ] The authenticated advisor dashboard exposes deterministic insight output in addition to Phase 3 metrics.
-- [ ] Users see Spanish insights for notable cases such as spending distribution concerns, projection warnings, and inactive budget categories when relevant.
-- [ ] When no notable conditions are detected, the advisor shows a Spanish no-issues or low-signal state instead of empty unexplained space.
-- [ ] Insight generation remains read-only, per-user isolated, and free of LLM-generated content.
-- [ ] Existing advisor auth, bootstrap, logout, and dashboard period switching continue to work.
-- [ ] The implementation does not introduce Telegram advisor flows, configurable rule management, or architecture changes outside the current advisor baseline.
+- [x] The authenticated advisor dashboard exposes deterministic insight output in addition to Phase 3 metrics.
+- [x] Users see Spanish insights for notable cases such as spending distribution concerns, projection warnings, and inactive budget categories when relevant.
+- [x] When no notable conditions are detected, the advisor shows a Spanish no-issues or low-signal state instead of empty unexplained space.
+- [x] Insight generation remains read-only, per-user isolated, and free of LLM-generated content.
+- [x] Existing advisor auth, bootstrap, logout, and dashboard period switching continue to work.
+- [x] The implementation does not introduce Telegram advisor flows, configurable rule management, or architecture changes outside the current advisor baseline.
 
 ## Open Questions
-- What exact deterministic mapping or heuristic should be used for any `50/30/20`-style classification without introducing user-configurable category grouping?
+- Phase 4 intentionally does not implement deterministic `50/30/20` classification because there is no defensible non-configurable category mapping in the current product model. A future phase can revisit this with explicit user-managed grouping or a separately approved heuristic.
 
 ## References
 - `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`

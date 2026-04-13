@@ -155,3 +155,13 @@ Se completó la primera entrada autenticada al advisor web sobre la base Postgre
 - Sesión por usuario en servidor con cookie HTTP-only
 - Landing page autenticada del advisor
 - Bootstrap/logout del advisor en el mismo servidor HTTP público actual
+
+### E.8 — Financial Advisor Phase 4 Insights [COMPLETADO]
+
+Se completó la primera capa de insights determinísticos sobre el dashboard del advisor:
+
+- Insights read-only dentro de `/advisor` sobre el dashboard existente
+- Alertas por concentración de gasto y ritmo mensual proyectado
+- Señales de categorías sobregastadas o cerca del límite
+- Detección de categorías con presupuesto asignado pero sin actividad
+- Estado explícito de "sin alertas fuertes" cuando no aparecen señales relevantes
