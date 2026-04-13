@@ -893,15 +893,7 @@ class OnDemandSummaryFormatter:
                     f"${abs(comp.remaining) / 1000:,.0f}"
                 )
 
-        if insight.at_risk_categories:
-            for comp in insight.at_risk_categories[:max(0, 3 - len(insight.overspent_categories))]:
-                total_available = comp.spent + max(comp.remaining, 0)
-                usage_pct = (comp.spent / total_available) * 100 if total_available else 0
-                lines.append(
-                    f"• 🟠 *{comp.category_name}* ya consumió {usage_pct:.0f}% del disponible"
-                )
-
-        if not insight.overspent_categories and not insight.at_risk_categories and insight.top_categories:
+        if not insight.overspent_categories and insight.top_categories:
             top = insight.top_categories[0]
             lines.append(
                 f"• ✅ Tu categoría más activa va en *{top.category_name}* "
@@ -952,12 +944,6 @@ class OnDemandSummaryFormatter:
             )
 
         exceptions = [comp for comp in comparisons if comp.remaining < 0]
-        warnings = [
-            comp for comp in comparisons
-            if comp.remaining >= 0
-            and (comp.spent + max(comp.remaining, 0)) > 0
-            and (comp.spent / (comp.spent + max(comp.remaining, 0))) >= 0.9
-        ]
         lines = [f"📈 *Presupuesto — {summary.period_label}*", ""]
 
         if exceptions:
@@ -970,24 +956,10 @@ class OnDemandSummaryFormatter:
                 )
             lines.append("")
 
-        if warnings:
-            lines.append("🟠 *En riesgo:*")
-            for comp in warnings[:5]:
-                total_available = comp.spent + max(comp.remaining, 0)
-                usage_pct = (comp.spent / total_available) * 100 if total_available else 0
-                lines.append(
-                    f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} asignado / "
-                    f"${comp.spent / 1000:,.0f} gastado / "
-                    f"{usage_pct:.0f}% del disponible usado / "
-                    f"${comp.remaining / 1000:,.0f} disponible"
-                )
-            lines.append("")
-
         healthy_count = sum(
             1 for comp in comparisons
             if (comp.spent > 0 or comp.budgeted > 0 or comp.remaining != 0)
             and comp not in exceptions
-            and comp not in warnings
         )
         lines.append(
             f"✅ *Dentro del presupuesto:* {healthy_count} categor"
@@ -997,7 +969,6 @@ class OnDemandSummaryFormatter:
             comp for comp in comparisons
             if (comp.spent > 0 or comp.budgeted > 0 or comp.remaining != 0)
             and comp not in exceptions
-            and comp not in warnings
         ]
         for comp in healthy_items[:3]:
             lines.append(

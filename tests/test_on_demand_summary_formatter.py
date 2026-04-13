@@ -31,12 +31,6 @@ def make_summary(
     monthly_insight = None
     if period_type == "mes" and has_transactions:
         overspent = [comp for comp in (budget_comparison or []) if comp.remaining < 0][:3]
-        at_risk = [
-            comp for comp in (budget_comparison or [])
-            if comp.remaining >= 0
-            and (comp.spent + max(comp.remaining, 0)) > 0
-            and (comp.spent / (comp.spent + max(comp.remaining, 0))) >= 0.9
-        ][:3]
         status_summary = "Tu mes va dentro del presupuesto por ahora."
         recommended_action = "Mantén el ritmo actual y revisa solo las categorías más activas."
         status = "estable"
@@ -44,15 +38,10 @@ def make_summary(
             status = "alerta"
             status_summary = f"Vas pasado en {len(overspent)} categoría{'s' if len(overspent) != 1 else ''}."
             recommended_action = "Revisa esas categorías antes de seguir gastando este mes."
-        elif at_risk:
-            status = "riesgo"
-            status_summary = f"Tienes {len(at_risk)} categoría{'s' if len(at_risk) != 1 else ''} al límite."
-            recommended_action = "Si puedes, frena gasto variable en esas categorías por unos días."
         monthly_insight = MonthlySummaryInsight(
             overspent_categories=overspent,
-            at_risk_categories=at_risk,
             top_categories=category_breakdown[:3],
-            healthy_categories_count=max(0, len(budget_comparison or []) - len(overspent) - len(at_risk)),
+            healthy_categories_count=max(0, len(budget_comparison or []) - len(overspent)),
             status=status,
             status_summary=status_summary,
             recommended_action=recommended_action,
@@ -263,7 +252,7 @@ class TestOverspentCategoryHighlighting:
         result = OnDemandSummaryFormatter.format_summary(summary)
         assert "$50" in result
 
-    def test_mixed_overspent_and_at_risk(self):
+    def test_mixed_healthy_and_overspent_month_only_warns_on_overspending(self):
         budget_comparison = [
             CategoryBudgetComparison(
                 category_name="Comida",
@@ -280,8 +269,8 @@ class TestOverspentCategoryHighlighting:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "🟠 *Comida* ya consumió 95% del disponible" in result
         assert "🔴 *Restaurantes* va pasado" in result
+        assert "Comida" not in result or "consumió" not in result
 
     def test_carryover_budget_is_not_flagged_as_overspent_or_risk(self):
         budget_comparison = [
@@ -299,7 +288,7 @@ class TestOverspentCategoryHighlighting:
         )
         result = OnDemandSummaryFormatter.format_summary(summary)
         assert "va pasado" not in result
-        assert "al límite" not in result
+        assert "riesgo" not in result.lower()
         assert "✅ Tu categoría más activa va en *Energy*" in result
 
 
@@ -401,3 +390,4 @@ class TestAmountFormatting:
         result = OnDemandSummaryFormatter.format_monthly_budget_detail(summary)
         assert "disponible" in result
         assert "asignado" in result
+        assert "En riesgo" not in result

@@ -271,7 +271,7 @@ class TestGenerateSummary:
         assert summary.monthly_insight is not None
 
     @patch("application.services.on_demand_summary_service.user_today")
-    def test_mes_builds_overspent_and_at_risk_insights(self, mock_today):
+    def test_mes_builds_only_overspent_insights(self, mock_today):
         mock_today.return_value = date(2026, 3, 19)
         txns = [
             _make_txn(-30_000, "Comida", "2026-03-01"),
@@ -289,7 +289,7 @@ class TestGenerateSummary:
 
         assert summary.monthly_insight is not None
         assert summary.monthly_insight.overspent_categories[0].category_name == "Restaurantes"
-        assert summary.monthly_insight.at_risk_categories[0].category_name == "Comida"
+        assert summary.monthly_insight.status == "alerta"
 
     @patch("application.services.on_demand_summary_service.user_today")
     def test_mes_uses_ynab_balance_for_carryover_instead_of_budgeted_minus_spent(self, mock_today):
@@ -311,7 +311,7 @@ class TestGenerateSummary:
         comp = summary.budget_comparison[0]
         assert comp.remaining == 29_831_830
         assert summary.monthly_insight.overspent_categories == []
-        assert summary.monthly_insight.at_risk_categories == []
+        assert summary.monthly_insight.status == "estable"
 
     @patch("application.services.on_demand_summary_service.user_today")
     def test_mes_without_budget_data_sets_fallback_status(self, mock_today):

@@ -18,7 +18,6 @@ class CategoryBudgetComparison:
 class MonthlySummaryInsight:
     """Derived insight bundle used to keep monthly formatting concise and useful."""
     overspent_categories: List[CategoryBudgetComparison] = field(default_factory=list)
-    at_risk_categories: List[CategoryBudgetComparison] = field(default_factory=list)
     top_categories: List[CategorySpending] = field(default_factory=list)
     healthy_categories_count: int = 0
     status: str = "sin_datos"

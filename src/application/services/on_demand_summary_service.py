@@ -7,7 +7,6 @@ from domain.time_utils import user_today
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 
 logger = logging.getLogger(__name__)
-_AT_RISK_USAGE_THRESHOLD = 0.9
 
 _SPANISH_MONTHS = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -122,31 +121,15 @@ class OnDemandSummaryService:
         """Derive concise monthly insights from budget data for the compact summary."""
         comparisons = summary.budget_comparison or []
 
-        def usage_ratio(comp):
-            total_available = comp.spent + max(comp.remaining, 0)
-            if total_available <= 0:
-                return 0
-            return comp.spent / total_available
-
         overspent = sorted(
             [comp for comp in comparisons if comp.remaining < 0],
             key=lambda comp: comp.remaining,
-        )
-        at_risk = sorted(
-            [
-                comp for comp in comparisons
-                if comp.remaining >= 0
-                and usage_ratio(comp) >= _AT_RISK_USAGE_THRESHOLD
-            ],
-            key=lambda comp: (usage_ratio(comp), comp.spent),
-            reverse=True,
         )
         healthy_categories_count = sum(
             1
             for comp in comparisons
             if (comp.spent > 0 or comp.budgeted > 0 or comp.remaining != 0)
             and comp not in overspent
-            and comp not in at_risk
         )
 
         if overspent:
@@ -158,15 +141,6 @@ class OnDemandSummaryService:
                 f"La mayor presión está en {worst.category_name}."
             )
             recommended_action = "Revisa esas categorías antes de seguir gastando este mes."
-        elif at_risk:
-            closest = at_risk[0]
-            status = "riesgo"
-            status_summary = (
-                f"No vas pasado, pero ya tienes {len(at_risk)} categor"
-                f"{'ía' if len(at_risk) == 1 else 'ías'} al límite. "
-                f"{closest.category_name} está muy cerca de agotarse."
-            )
-            recommended_action = "Si puedes, frena gasto variable en esas categorías por unos días."
         elif comparisons:
             status = "estable"
             if healthy_categories_count:
@@ -184,7 +158,6 @@ class OnDemandSummaryService:
 
         return MonthlySummaryInsight(
             overspent_categories=overspent[:3],
-            at_risk_categories=at_risk[:3],
             top_categories=summary.category_breakdown[:3],
             healthy_categories_count=healthy_categories_count,
             status=status,
