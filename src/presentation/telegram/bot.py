@@ -109,6 +109,10 @@ class YNABTelegramBot:
             self.expense_handler.handle_confirmation_callback,
             pattern=r"^(confirm|cancel)_expense$"
         ))
+        self.application.add_handler(CallbackQueryHandler(
+            self.summary_handler.handle_callback_query,
+            pattern=r"^resumen_mes_"
+        ))
         
         # Message handlers (order matters - more specific first)
         self.application.add_handler(MessageHandler(filters.VOICE, self.expense_handler.handle_voice_message))

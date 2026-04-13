@@ -18,7 +18,10 @@ def summary_service():
     """Return a pre-built summary service mock so tests and handler share same object."""
     svc = MagicMock()
     svc.parse_period.return_value = "mes"
-    svc.generate_summary.return_value = MagicMock()
+    summary = MagicMock()
+    summary.has_transactions = True
+    summary.period_type = "mes"
+    svc.generate_summary.return_value = summary
     return svc
 
 
@@ -54,6 +57,21 @@ def update():
     message_mock = AsyncMock(spec=Message)
     mock.message = message_mock
     mock.callback_query = None
+    return mock
+
+
+@pytest.fixture
+def callback_update():
+    mock = MagicMock(spec=Update)
+    mock.effective_user = MagicMock(spec=User)
+    mock.effective_user.id = 42
+    mock.effective_user.first_name = "TestUser"
+    mock.message = None
+    query = AsyncMock()
+    query.data = "resumen_mes_categorias"
+    query.from_user.id = 42
+    query.message = AsyncMock(spec=Message)
+    mock.callback_query = query
     return mock
 
 
@@ -167,8 +185,41 @@ async def test_resumen_mes_explicit(handler, auth_service, summary_service, upda
 
     summary_service.parse_period.assert_called_once_with("mes")
     summary_service.generate_summary.assert_called_once_with(user_config, "mes")
-    args, _ = update.message.reply_text.call_args
+    _, kwargs = update.message.reply_text.call_args
+    assert kwargs["reply_markup"] is not None
+
+
+@pytest.mark.anyio
+async def test_resumen_dia_has_no_monthly_keyboard(handler, auth_service, summary_service, update, context):
+    context.args = ["dia"]
+    user_config = _make_configured_user()
+    auth_service.register_user.return_value = user_config
+    summary_service.parse_period.return_value = "dia"
+    summary = MagicMock()
+    summary.has_transactions = True
+    summary.period_type = "dia"
+    summary_service.generate_summary.return_value = summary
+
+    with _patch_formatter("Resumen día"):
+        await handler.handle_resumen_command(update, context)
+
+    _, kwargs = update.message.reply_text.call_args
+    assert kwargs["reply_markup"] is None
+
+
+@pytest.mark.anyio
+async def test_resumen_mes_explicit_includes_keyboard(handler, auth_service, summary_service, update, context):
+    context.args = ["mes"]
+    user_config = _make_configured_user()
+    auth_service.register_user.return_value = user_config
+    summary_service.parse_period.return_value = "mes"
+
+    with _patch_formatter("Resumen mes"):
+        await handler.handle_resumen_command(update, context)
+
+    args, kwargs = update.message.reply_text.call_args
     assert "Resumen mes" in args[0]
+    assert kwargs["reply_markup"] is not None
 
 
 # ---------------------------------------------------------------------------
@@ -267,3 +318,38 @@ async def test_handle_delegates_to_resumen_command(handler, auth_service, summar
         await handler.handle(update, context)
 
     summary_service.generate_summary.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_monthly_callback_edits_message(handler, auth_service, summary_service, callback_update, context):
+    auth_service.user_repository.find_by_telegram_id.return_value = _make_configured_user()
+    summary = MagicMock()
+    summary.has_transactions = True
+    summary_service.generate_summary.return_value = summary
+
+    import presentation.telegram.formatters as fmt_module
+
+    original = fmt_module.OnDemandSummaryFormatter.format_monthly_categories_detail
+    fmt_module.OnDemandSummaryFormatter.format_monthly_categories_detail = staticmethod(lambda s: "Detalle categorías")
+    try:
+        await handler.handle_callback_query(callback_update, context)
+    finally:
+        fmt_module.OnDemandSummaryFormatter.format_monthly_categories_detail = original
+
+    summary_service.generate_summary.assert_called_once()
+    callback_update.callback_query.edit_message_text.assert_called_once()
+    args, kwargs = callback_update.callback_query.edit_message_text.call_args
+    assert "Detalle categorías" in args[0]
+    assert kwargs["reply_markup"] is not None
+
+
+@pytest.mark.anyio
+async def test_invalid_monthly_callback_is_rejected(handler, auth_service, callback_update, context):
+    auth_service.user_repository.find_by_telegram_id.return_value = _make_configured_user()
+    callback_update.callback_query.data = "resumen_mes_invalido"
+
+    await handler.handle_callback_query(callback_update, context)
+
+    callback_update.callback_query.edit_message_text.assert_called_once()
+    args, _ = callback_update.callback_query.edit_message_text.call_args
+    assert "ya no es válida" in args[0]

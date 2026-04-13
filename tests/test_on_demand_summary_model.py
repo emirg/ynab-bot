@@ -291,6 +291,21 @@ class TestBudgetComparison:
         for item in summary.budget_comparison:
             assert isinstance(item, CategoryBudgetComparison)
 
+    def test_monthly_summary_gets_default_top_categories_insight(self):
+        summary = OnDemandSummary.from_transactions(
+            transactions=[
+                make_txn(-50_000, "Comida"),
+                make_txn(-10_000, "Transporte"),
+            ],
+            period_type="mes",
+            period_label="Marzo 2026",
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            budget_data=self._budget_data(),
+        )
+        assert summary.monthly_insight is not None
+        assert summary.monthly_insight.top_categories[0].category_name == "Comida"
+
 
 # ---------------------------------------------------------------------------
 # CategorySpending reuse

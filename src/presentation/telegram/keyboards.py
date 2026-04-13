@@ -164,3 +164,18 @@ def build_confirmation_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
+def build_monthly_summary_keyboard(view: str = "resumen") -> InlineKeyboardMarkup:
+    """Build inline buttons for monthly /resumen drill-down views."""
+    keyboard = []
+
+    if view != "resumen":
+        keyboard.append([InlineKeyboardButton("🔙 Volver al resumen", callback_data="resumen_mes_resumen")])
+
+    if view != "categorias":
+        keyboard.append([InlineKeyboardButton("📋 Ver categorías", callback_data="resumen_mes_categorias")])
+
+    if view != "presupuesto":
+        keyboard.append([InlineKeyboardButton("📈 Ver presupuesto", callback_data="resumen_mes_presupuesto")])
+
+    return InlineKeyboardMarkup(keyboard)

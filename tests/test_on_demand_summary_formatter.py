@@ -4,7 +4,11 @@ import pytest
 from datetime import date
 from typing import List, Optional
 
-from domain.models.on_demand_summary import OnDemandSummary, CategoryBudgetComparison
+from domain.models.on_demand_summary import (
+    CategoryBudgetComparison,
+    MonthlySummaryInsight,
+    OnDemandSummary,
+)
 from domain.models.weekly_summary import CategorySpending
 from presentation.telegram.formatters import OnDemandSummaryFormatter
 
@@ -24,6 +28,33 @@ def make_summary(
             CategorySpending(category_name="Comida", amount=300_000),
             CategorySpending(category_name="Transporte", amount=200_000),
         ]
+    monthly_insight = None
+    if period_type == "mes" and has_transactions:
+        overspent = [comp for comp in (budget_comparison or []) if comp.remaining < 0][:3]
+        at_risk = [
+            comp for comp in (budget_comparison or [])
+            if comp.remaining >= 0 and comp.budgeted > 0 and (comp.spent / comp.budgeted) >= 0.9
+        ][:3]
+        status_summary = "Tu mes va dentro del presupuesto por ahora."
+        recommended_action = "Mantén el ritmo actual y revisa solo las categorías más activas."
+        status = "estable"
+        if overspent:
+            status = "alerta"
+            status_summary = f"Vas pasado en {len(overspent)} categoría{'s' if len(overspent) != 1 else ''}."
+            recommended_action = "Revisa esas categorías antes de seguir gastando este mes."
+        elif at_risk:
+            status = "riesgo"
+            status_summary = f"Tienes {len(at_risk)} categoría{'s' if len(at_risk) != 1 else ''} al límite."
+            recommended_action = "Si puedes, frena gasto variable en esas categorías por unos días."
+        monthly_insight = MonthlySummaryInsight(
+            overspent_categories=overspent,
+            at_risk_categories=at_risk,
+            top_categories=category_breakdown[:3],
+            healthy_categories_count=max(0, len(budget_comparison or []) - len(overspent) - len(at_risk)),
+            status=status,
+            status_summary=status_summary,
+            recommended_action=recommended_action,
+        )
     return OnDemandSummary(
         period_type=period_type,
         period_label=period_label,
@@ -33,6 +64,7 @@ def make_summary(
         has_transactions=has_transactions,
         period_start=period_start,
         period_end=period_end,
+        monthly_insight=monthly_insight,
     )
 
 
@@ -149,7 +181,7 @@ class TestMonthSummaryWithBudgetComparison:
         result = OnDemandSummaryFormatter.format_summary(summary)
         assert "/resumen mes" not in result
 
-    def test_month_summary_budget_comparison_section_present(self):
+    def test_month_summary_has_status_section(self):
         budget_comparison = [
             CategoryBudgetComparison(
                 category_name="Comida",
@@ -160,9 +192,9 @@ class TestMonthSummaryWithBudgetComparison:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "📈 *Presupuesto vs. Gasto:*" in result
+        assert "🧭 *Estado del mes:*" in result
 
-    def test_budget_comparison_shows_budgeted_spent_remaining(self):
+    def test_month_summary_shows_next_step(self):
         budget_comparison = [
             CategoryBudgetComparison(
                 category_name="Comida",
@@ -173,12 +205,9 @@ class TestMonthSummaryWithBudgetComparison:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "Comida" in result
-        assert "$400" in result
-        assert "$300" in result
-        assert "$100" in result
+        assert "💡 *Siguiente paso:*" in result
 
-    def test_underspent_category_has_green_emoji(self):
+    def test_healthy_month_can_highlight_top_category(self):
         budget_comparison = [
             CategoryBudgetComparison(
                 category_name="Transporte",
@@ -189,10 +218,9 @@ class TestMonthSummaryWithBudgetComparison:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        # Green emoji for remaining >= 0
-        assert "✅ *Transporte:*" in result
+        assert "✅ Tu categoría más activa va en" in result
 
-    def test_exactly_zero_remaining_has_green_emoji(self):
+    def test_month_summary_avoids_full_budget_dump(self):
         budget_comparison = [
             CategoryBudgetComparison(
                 category_name="Ropa",
@@ -203,7 +231,7 @@ class TestMonthSummaryWithBudgetComparison:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "✅ *Ropa:*" in result
+        assert "Presupuesto vs. Gasto" not in result
 
 
 class TestOverspentCategoryHighlighting:
@@ -218,7 +246,7 @@ class TestOverspentCategoryHighlighting:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "🔴 *Restaurantes:*" in result
+        assert "🔴 *Restaurantes* va pasado" in result
 
     def test_overspent_shows_negative_remaining(self):
         budget_comparison = [
@@ -231,15 +259,15 @@ class TestOverspentCategoryHighlighting:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "-$50" in result
+        assert "$50" in result
 
-    def test_mixed_overspent_and_underspent(self):
+    def test_mixed_overspent_and_at_risk(self):
         budget_comparison = [
             CategoryBudgetComparison(
                 category_name="Comida",
                 budgeted=400_000,
-                spent=300_000,
-                remaining=100_000,
+                spent=380_000,
+                remaining=20_000,
             ),
             CategoryBudgetComparison(
                 category_name="Restaurantes",
@@ -250,8 +278,8 @@ class TestOverspentCategoryHighlighting:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "✅ *Comida:*" in result
-        assert "🔴 *Restaurantes:*" in result
+        assert "🟠 *Comida* ya consumió 95% del presupuesto" in result
+        assert "🔴 *Restaurantes* va pasado" in result
 
 
 class TestMonthSummaryWithoutBudgetData:
@@ -260,16 +288,16 @@ class TestMonthSummaryWithoutBudgetData:
         result = OnDemandSummaryFormatter.format_summary(summary)
         assert "Presupuesto vs. Gasto" not in result
 
-    def test_month_summary_without_budget_still_shows_categories(self):
+    def test_month_summary_without_budget_still_shows_actionable_signal(self):
         summary = make_summary(budget_comparison=None)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "📋 *Desglose por categoría:*" in result
+        assert "🧭 *Estado del mes:*" in result
         assert "Comida" in result
 
 
 class TestCategoryBreakdownOrdering:
-    def test_categories_listed_in_order(self):
-        """Categories must appear in descending order of spending."""
+    def test_monthly_detail_categories_listed_in_order(self):
+        """Monthly detail categories must appear in descending order of spending."""
         breakdown = [
             CategorySpending(category_name="Comida", amount=500_000),
             CategorySpending(category_name="Transporte", amount=200_000),
@@ -279,31 +307,32 @@ class TestCategoryBreakdownOrdering:
             total_spent=750_000,
             category_breakdown=breakdown,
         )
-        result = OnDemandSummaryFormatter.format_summary(summary)
+        result = OnDemandSummaryFormatter.format_monthly_categories_detail(summary)
         pos_comida = result.index("Comida")
         pos_transporte = result.index("Transporte")
         pos_ocio = result.index("Ocio")
         assert pos_comida < pos_transporte < pos_ocio
 
-    def test_all_categories_shown(self):
-        """All categories in breakdown must appear in output (not just top 3)."""
+    def test_detail_categories_capped_with_extra_note(self):
+        """Detail view should cap long lists and explain there is more."""
         breakdown = [
             CategorySpending(category_name=f"Cat{i}", amount=(10 - i) * 10_000)
             for i in range(6)
         ]
         summary = make_summary(total_spent=300_000, category_breakdown=breakdown)
-        result = OnDemandSummaryFormatter.format_summary(summary)
+        result = OnDemandSummaryFormatter.format_monthly_categories_detail(summary)
         for i in range(6):
             assert f"Cat{i}" in result
+        assert "vista resumida" not in result
 
-    def test_categories_numbered_correctly(self):
+    def test_detail_categories_numbered_correctly(self):
         breakdown = [
             CategorySpending(category_name="A", amount=300_000),
             CategorySpending(category_name="B", amount=200_000),
             CategorySpending(category_name="C", amount=100_000),
         ]
         summary = make_summary(total_spent=600_000, category_breakdown=breakdown)
-        result = OnDemandSummaryFormatter.format_summary(summary)
+        result = OnDemandSummaryFormatter.format_monthly_categories_detail(summary)
         assert "1. A" in result
         assert "2. B" in result
         assert "3. C" in result
@@ -329,7 +358,7 @@ class TestAmountFormatting:
             )
         ]
         summary = make_summary(budget_comparison=budget_comparison)
-        result = OnDemandSummaryFormatter.format_summary(summary)
+        result = OnDemandSummaryFormatter.format_monthly_budget_detail(summary)
         assert "$2,000" in result
         assert "$1,500" in result
         assert "$500" in result

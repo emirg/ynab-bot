@@ -1,12 +1,13 @@
 import logging
 from datetime import date, timedelta
 
-from domain.models.on_demand_summary import OnDemandSummary
+from domain.models.on_demand_summary import MonthlySummaryInsight, OnDemandSummary
 from domain.models.user import UserConfiguration
 from domain.time_utils import user_today
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
 
 logger = logging.getLogger(__name__)
+_AT_RISK_USAGE_THRESHOLD = 0.9
 
 _SPANISH_MONTHS = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -99,7 +100,7 @@ class OnDemandSummaryService:
                 and (cat.budgeted > 0 or cat.activity != 0)
             ]
 
-        return OnDemandSummary.from_transactions(
+        summary = OnDemandSummary.from_transactions(
             transactions=transactions,
             period_type=period_type,
             period_label=period_label,
@@ -107,10 +108,80 @@ class OnDemandSummaryService:
             period_end=period_end,
             budget_data=budget_data,
         )
+        if period_type == "mes":
+            summary.monthly_insight = self._build_monthly_insight(summary)
+        return summary
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_monthly_insight(summary: OnDemandSummary) -> MonthlySummaryInsight:
+        """Derive concise monthly insights from budget data for the compact summary."""
+        comparisons = summary.budget_comparison or []
+        overspent = sorted(
+            [comp for comp in comparisons if comp.remaining < 0],
+            key=lambda comp: comp.remaining,
+        )
+        at_risk = sorted(
+            [
+                comp for comp in comparisons
+                if comp.remaining >= 0
+                and comp.budgeted > 0
+                and (comp.spent / comp.budgeted) >= _AT_RISK_USAGE_THRESHOLD
+            ],
+            key=lambda comp: ((comp.spent / comp.budgeted) if comp.budgeted else 0, comp.spent),
+            reverse=True,
+        )
+        healthy_categories_count = sum(
+            1
+            for comp in comparisons
+            if comp.budgeted > 0 and comp not in overspent and comp not in at_risk
+        )
+
+        if overspent:
+            worst = overspent[0]
+            status = "alerta"
+            status_summary = (
+                f"Vas pasado en {len(overspent)} categor"
+                f"{'ía' if len(overspent) == 1 else 'ías'}. "
+                f"La mayor presión está en {worst.category_name}."
+            )
+            recommended_action = "Revisa esas categorías antes de seguir gastando este mes."
+        elif at_risk:
+            closest = at_risk[0]
+            status = "riesgo"
+            status_summary = (
+                f"No vas pasado, pero ya tienes {len(at_risk)} categor"
+                f"{'ía' if len(at_risk) == 1 else 'ías'} al límite. "
+                f"{closest.category_name} está muy cerca de agotarse."
+            )
+            recommended_action = "Si puedes, frena gasto variable en esas categorías por unos días."
+        elif comparisons:
+            status = "estable"
+            if healthy_categories_count:
+                status_summary = (
+                    f"Tu mes va dentro del presupuesto en {healthy_categories_count} categor"
+                    f"{'ía' if healthy_categories_count == 1 else 'ías'} activas."
+                )
+            else:
+                status_summary = "Tu mes va dentro del presupuesto por ahora."
+            recommended_action = "Mantén el ritmo actual y revisa solo las categorías más activas."
+        else:
+            status = "sin_presupuesto"
+            status_summary = "Puedo mostrarte en qué has gastado, pero no pude comparar contra presupuesto."
+            recommended_action = "Usa el detalle por categorías para revisar dónde se fue el gasto."
+
+        return MonthlySummaryInsight(
+            overspent_categories=overspent[:3],
+            at_risk_categories=at_risk[:3],
+            top_categories=summary.category_breakdown[:3],
+            healthy_categories_count=healthy_categories_count,
+            status=status,
+            status_summary=status_summary,
+            recommended_action=recommended_action,
+        )
 
     @staticmethod
     def _compute_date_range(period_type: str, today: date) -> tuple:

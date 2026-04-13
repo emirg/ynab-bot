@@ -823,6 +823,9 @@ class OnDemandSummaryFormatter:
         if not summary.has_transactions:
             return f"No hubo gastos en {summary.period_label}."
 
+        if summary.period_type == "mes":
+            return OnDemandSummaryFormatter.format_monthly_summary(summary)
+
         total_display = summary.total_spent / 1000
 
         lines = [
@@ -859,4 +862,141 @@ class OnDemandSummaryFormatter:
                 "💡 _La comparación con presupuesto está disponible con_ `/resumen mes`"
             )
 
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_monthly_summary(summary: OnDemandSummary) -> str:
+        """Format a compact monthly summary focused on budget health."""
+        total_display = summary.total_spent / 1000
+        insight = summary.monthly_insight
+
+        lines = [
+            f"📊 *Resumen — {summary.period_label}*",
+            "",
+            f"💰 *Total gastado:* ${total_display:,.0f}",
+        ]
+
+        if not insight:
+            return "\n".join(lines)
+
+        lines.extend([
+            "",
+            f"🧭 *Estado del mes:* {insight.status_summary}",
+            "",
+            "🔎 *Lo más importante:*",
+        ])
+
+        if insight.overspent_categories:
+            for comp in insight.overspent_categories:
+                lines.append(
+                    f"• 🔴 *{comp.category_name}* va pasado por "
+                    f"${abs(comp.remaining) / 1000:,.0f}"
+                )
+
+        if insight.at_risk_categories:
+            for comp in insight.at_risk_categories[:max(0, 3 - len(insight.overspent_categories))]:
+                usage_pct = (comp.spent / comp.budgeted) * 100 if comp.budgeted else 0
+                lines.append(
+                    f"• 🟠 *{comp.category_name}* ya consumió {usage_pct:.0f}% del presupuesto"
+                )
+
+        if not insight.overspent_categories and not insight.at_risk_categories and insight.top_categories:
+            top = insight.top_categories[0]
+            lines.append(
+                f"• ✅ Tu categoría más activa va en *{top.category_name}* "
+                f"con ${top.amount / 1000:,.0f}"
+            )
+            if insight.healthy_categories_count:
+                lines.append(
+                    f"• ✅ Tienes {insight.healthy_categories_count} categorías activas dentro del presupuesto"
+                )
+
+        if insight.recommended_action:
+            lines.extend([
+                "",
+                f"💡 *Siguiente paso:* {insight.recommended_action}",
+            ])
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_monthly_categories_detail(summary: OnDemandSummary) -> str:
+        """Format the monthly category ranking as a drill-down view."""
+        total_display = summary.total_spent / 1000
+        lines = [
+            f"📊 *Categorías — {summary.period_label}*",
+            "",
+            f"💰 *Total gastado:* ${total_display:,.0f}",
+            "",
+            "📋 *Top categorías:*",
+        ]
+        for i, cat in enumerate(summary.category_breakdown[:8], 1):
+            lines.append(f"{i}. {cat.category_name} — ${cat.amount / 1000:,.0f}")
+        if len(summary.category_breakdown) > 8:
+            restantes = len(summary.category_breakdown) - 8
+            lines.extend([
+                "",
+                f"_Hay {restantes} categorías adicionales fuera de esta vista resumida._",
+            ])
+        return "\n".join(lines)
+
+    @staticmethod
+    def format_monthly_budget_detail(summary: OnDemandSummary) -> str:
+        """Format the monthly budget health detail with exceptions first."""
+        comparisons = summary.budget_comparison or []
+        if not comparisons:
+            return (
+                f"📈 *Presupuesto — {summary.period_label}*\n\n"
+                "No pude comparar contra presupuesto en este momento."
+            )
+
+        exceptions = [comp for comp in comparisons if comp.remaining < 0]
+        warnings = [
+            comp for comp in comparisons
+            if comp.remaining >= 0
+            and comp.budgeted > 0
+            and (comp.spent / comp.budgeted) >= 0.9
+        ]
+        lines = [f"📈 *Presupuesto — {summary.period_label}*", ""]
+
+        if exceptions:
+            lines.append("🔴 *Pasadas de presupuesto:*")
+            for comp in exceptions[:5]:
+                lines.append(
+                    f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} presup. / "
+                    f"${comp.spent / 1000:,.0f} gastado / "
+                    f"-${abs(comp.remaining) / 1000:,.0f} restante"
+                )
+            lines.append("")
+
+        if warnings:
+            lines.append("🟠 *En riesgo:*")
+            for comp in warnings[:5]:
+                usage_pct = (comp.spent / comp.budgeted) * 100 if comp.budgeted else 0
+                lines.append(
+                    f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} presup. / "
+                    f"${comp.spent / 1000:,.0f} gastado / "
+                    f"{usage_pct:.0f}% usado / "
+                    f"${comp.remaining / 1000:,.0f} restante"
+                )
+            lines.append("")
+
+        healthy_count = sum(
+            1 for comp in comparisons
+            if comp.budgeted > 0 and comp not in exceptions and comp not in warnings
+        )
+        lines.append(
+            f"✅ *Dentro del presupuesto:* {healthy_count} categor"
+            f"{'ía' if healthy_count == 1 else 'ías'} activas"
+        )
+        healthy_items = [
+            comp for comp in comparisons
+            if comp.budgeted > 0 and comp not in exceptions and comp not in warnings
+        ]
+        for comp in healthy_items[:3]:
+            lines.append(
+                f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} presup. / "
+                f"${comp.spent / 1000:,.0f} gastado / "
+                f"${comp.remaining / 1000:,.0f} restante"
+            )
         return "\n".join(lines)

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Dict, List, Optional
 
@@ -15,6 +15,18 @@ class CategoryBudgetComparison:
 
 
 @dataclass
+class MonthlySummaryInsight:
+    """Derived insight bundle used to keep monthly formatting concise and useful."""
+    overspent_categories: List[CategoryBudgetComparison] = field(default_factory=list)
+    at_risk_categories: List[CategoryBudgetComparison] = field(default_factory=list)
+    top_categories: List[CategorySpending] = field(default_factory=list)
+    healthy_categories_count: int = 0
+    status: str = "sin_datos"
+    status_summary: Optional[str] = None
+    recommended_action: Optional[str] = None
+
+
+@dataclass
 class OnDemandSummary:
     """Aggregated spending summary for an on-demand period (day, week, or month)."""
     period_type: str                                        # "dia" | "semana" | "mes"
@@ -25,6 +37,7 @@ class OnDemandSummary:
     has_transactions: bool
     period_start: date
     period_end: date
+    monthly_insight: Optional[MonthlySummaryInsight] = None
 
     @classmethod
     def from_transactions(
@@ -90,6 +103,9 @@ class OnDemandSummary:
             total_spent=total_spent,
             category_breakdown=category_breakdown,
             budget_comparison=budget_comparison,
+            monthly_insight=MonthlySummaryInsight(
+                top_categories=category_breakdown[:3],
+            ) if period_type == "mes" else None,
             has_transactions=len(expenses) > 0,
             period_start=period_start,
             period_end=period_end,

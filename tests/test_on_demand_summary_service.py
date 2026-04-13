@@ -267,6 +267,40 @@ class TestGenerateSummary:
         # Only 2 categories have budgeted > 0 or activity != 0
         assert summary.budget_comparison is not None
         assert len(summary.budget_comparison) == 2
+        assert summary.monthly_insight is not None
+
+    @patch("application.services.on_demand_summary_service.user_today")
+    def test_mes_builds_overspent_and_at_risk_insights(self, mock_today):
+        mock_today.return_value = date(2026, 3, 19)
+        txns = [
+            _make_txn(-30_000, "Comida", "2026-03-01"),
+            _make_txn(-10_000, "Transporte", "2026-03-10"),
+        ]
+        categories = [
+            _make_category("Comida", budgeted=100_000, activity=-95_000),
+            _make_category("Restaurantes", budgeted=50_000, activity=-70_000),
+            _make_category("Transporte", budgeted=60_000, activity=-10_000),
+        ]
+        service, _, _ = _make_service(transactions=txns, categories=categories)
+        user = _make_user()
+
+        summary = service.generate_summary(user, "mes")
+
+        assert summary.monthly_insight is not None
+        assert summary.monthly_insight.overspent_categories[0].category_name == "Restaurantes"
+        assert summary.monthly_insight.at_risk_categories[0].category_name == "Comida"
+
+    @patch("application.services.on_demand_summary_service.user_today")
+    def test_mes_without_budget_data_sets_fallback_status(self, mock_today):
+        mock_today.return_value = date(2026, 3, 19)
+        txns = [_make_txn(-30_000, "Comida", "2026-03-01")]
+        service, _, _ = _make_service(transactions=txns, categories=[])
+        user = _make_user()
+
+        summary = service.generate_summary(user, "mes")
+
+        assert summary.monthly_insight is not None
+        assert summary.monthly_insight.status == "sin_presupuesto"
 
     @patch("application.services.on_demand_summary_service.user_today")
     def test_budget_data_not_fetched_for_dia(self, mock_today):
