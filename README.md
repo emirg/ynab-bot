@@ -91,166 +91,29 @@ ynab-bot/
 └── tests/                           # Pytest suite
 ```
 
-## 🚀 Installation & Setup
+## 🚀 Setup & Local Development
 
-### 1. Clone the repository
+The detailed setup and local development guide now lives in [docs/dev/README.md](docs/dev/README.md).
+
+Use that guide for:
+
+- first-time project bootstrap
+- local `http-dev` workflow
+- environment configuration
+- Docker profiles and PostgreSQL setup
+- dev harness scripts and Postman usage
+
+Minimal bootstrap:
+
 ```bash
 git clone <repository-url>
 cd ynab-bot
-```
-
-### 2. Create virtual environment and install dependencies
-```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-After the environment exists, prefer project commands through `.venv/bin/...` (for example `.venv/bin/python main.py` and `.venv/bin/pytest`).
-
-### 3. Choose a runtime profile
-
-The project now supports multiple runtime modes:
-
-- `APP_MODE=full`: production-style runtime, public HTTP server plus Telegram polling
-- `APP_MODE=http-dev`: default local DX, public HTTP server plus `/dev/*`, no Telegram polling
-- `APP_MODE=http-live`: HTTP-only mode with live OpenAI and YNAB integrations
-- `APP_MODE=test`: test-oriented runtime
-
-For day-to-day local work, use `http-dev`. For Railway deployment, use `full`.
-
-### 4. Configure environment variables
-
-#### Production / full mode
-```bash
-cp config/.env.example config/.env
-```
-
-Edit `config/.env` with your tokens:
-
-| Variable | Description | Required |
-|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token (via [@BotFather](https://t.me/botfather)) | Yes |
-| `OPENAI_API_KEY` | OpenAI API key ([API Keys](https://platform.openai.com/api-keys)) | Yes |
-| `ADMIN_IDS` | Telegram user IDs for admins (comma-separated) | Yes |
-| `YNAB_CLIENT_ID` | YNAB OAuth app client ID ([Developer Settings](https://app.ynab.com/settings/developer)) | Yes |
-| `YNAB_CLIENT_SECRET` | YNAB OAuth app client secret | Yes |
-| `YNAB_REDIRECT_URI` | OAuth callback URL (e.g. `https://your-domain.up.railway.app/oauth/callback`) | Yes |
-| `TOKEN_ENCRYPTION_KEY` | Fernet key for encrypting tokens at rest (see below) | Yes |
-| `HTTP_API_KEY` | Bearer token required for authenticated HTTP API endpoints | Yes |
-| `POSTGRES_DSN` | PostgreSQL DSN used by the runtime app | Yes |
-| `DATABASE_PATH` | Path to legacy SQLite database used only for migration tooling | No |
-
-**Generate a Fernet encryption key:**
-```bash
-.venv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-#### Local `http-dev` profile
-
-```bash
-cp config/.env.dev.example config/.env.dev
-```
-
-At minimum, set:
-
-- `TOKEN_ENCRYPTION_KEY`
-- `HTTP_API_KEY`
-- `DEV_API_KEY`
-- `ADMIN_IDS`
-- `POSTGRES_DSN`
-
-In `http-dev`, Telegram polling is disabled and OpenAI/YNAB integrations are stubbed by default, so live external credentials are not required.
-
-### 5. Run
-
-#### Production-style local run
-```bash
-.venv/bin/python main.py
-```
-
-#### Default local development
-
-```bash
-docker compose up app-dev
-```
-
-This starts `APP_MODE=http-dev` on `127.0.0.1:8080` with:
-
-- no Telegram polling
-- stubbed OpenAI and YNAB integrations
-- `/dev/*` routes enabled
-- PostgreSQL persistence from your configured `POSTGRES_DSN`
-
-## Local Development
-
-Daily local development is HTTP-first and should not compete with the Railway Telegram polling instance.
-
-Detailed documentation lives in `docs/dev/`.
-Postman artifacts for the current HTTP surface live in `docs/dev/postman/`.
-The production PostgreSQL cutover runbook lives in [docs/dev/railway-postgres-cutover.md](/home/emirg/Proyectos/ynab-bot/docs/dev/railway-postgres-cutover.md).
-
-### Default local profile: HTTP-only dev mode
-
-```bash
-cp config/.env.dev.example config/.env.dev
-docker compose up app-dev
-```
-
-This starts the public HTTP server and local dev harness in `http-dev` mode:
-- Telegram polling is disabled
-- PostgreSQL is the runtime database baseline
-- OpenAI and YNAB integrations are stubbed by default
-- Dev-only routes are enabled under `/dev/*` only because `ENABLE_DEV_ROUTES=true` is set in the local env/profile
-- Ports are bound to `127.0.0.1`, not the whole network
-
-### Local dev harness
-
-Bootstrap a local user:
-
-```bash
-.venv/bin/python scripts/dev/bootstrap_user.py --dev-api-key "$DEV_API_KEY"
-```
-
-Send a synthetic command or expense message:
-
-```bash
-.venv/bin/python scripts/dev/send_message.py "/start" --dev-api-key "$DEV_API_KEY"
-.venv/bin/python scripts/dev/send_message.py "Gaste 25k en Carulla" --dev-api-key "$DEV_API_KEY"
-```
-
-The dev harness reuses the current service layer and returns JSON responses from `/dev/messages/text`.
-If you prefer an API client instead of curl or helper scripts, import the committed Postman bundle documented in `docs/dev/postman.md`.
-
-### Optional profiles
-
-Run local Postgres for migration or integration work:
-
-```bash
-docker compose --profile postgres up postgres
-```
-
-From your host machine, connect to it with:
-
-```bash
-export POSTGRES_DSN=postgresql://ynab:ynab@127.0.0.1:5432/ynab_bot
-```
-
-If the app is running inside `docker compose`, use the service name instead:
-
-```env
-POSTGRES_DSN=postgresql://ynab:ynab@postgres:5432/ynab_bot
-```
-
-For `app-dev`, start both services with the profile enabled and set `POSTGRES_DSN=postgresql://ynab:ynab@postgres:5432/ynab_bot` in `config/.env.dev`.
-
-Run HTTP mode with live OpenAI/YNAB integrations:
-
-```bash
-docker compose --profile live-integrations up app-live
-```
-
-For that profile, fill in the live credentials in `config/.env.dev`.
+After the environment exists, prefer project commands through `.venv/bin/...` such as `.venv/bin/python main.py` and `.venv/bin/pytest`.
 
 ## HTTP API
 

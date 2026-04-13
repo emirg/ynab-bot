@@ -1,6 +1,6 @@
-# Local Development Guide
+# Development Guide
 
-This directory documents the local developer experience for the project.
+This guide owns first-time setup and the local developer experience for the project.
 
 The current preferred workflow is `HTTP-first` local development:
 
@@ -14,8 +14,73 @@ Related docs:
 - `docs/dev/http-dev-harness.md` — local `/dev/*` endpoints and helper scripts
 - `docs/dev/postman.md` — Postman collection, environments, and request order
 - `docs/dev/railway-postgres-cutover.md` — production migration and rollback runbook
-- `README.md` — project overview and high-level commands
+- `README.md` — project overview and feature summary
 - `docs/ARCHITECTURE.md` — runtime architecture
+
+## Initial Setup
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd ynab-bot
+```
+
+### 2. Create the virtual environment and install dependencies
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+After the environment exists, prefer project commands through `.venv/bin/...` such as `.venv/bin/python main.py` and `.venv/bin/pytest`.
+
+### 3. Choose a runtime profile
+
+The project supports multiple runtime modes:
+
+- `APP_MODE=full`
+  Production-style runtime. Starts the public HTTP server and Telegram polling.
+- `APP_MODE=http-dev`
+  Default local development mode. Starts the public HTTP server, enables `/dev/*`, and disables Telegram polling.
+- `APP_MODE=http-live`
+  HTTP-only mode with live OpenAI and YNAB integrations.
+- `APP_MODE=test`
+  Test-oriented mode.
+
+For day-to-day local work, use `http-dev`. For Railway deployment, use `full`.
+
+## Environment Configuration
+
+### Production-style / full mode
+
+Copy the production template:
+
+```bash
+cp config/.env.example config/.env
+```
+
+Edit `config/.env` with:
+
+| Variable | Description | Required |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token (via [@BotFather](https://t.me/botfather)) | Yes |
+| `OPENAI_API_KEY` | OpenAI API key ([API Keys](https://platform.openai.com/api-keys)) | Yes |
+| `ADMIN_IDS` | Telegram user IDs for admins (comma-separated) | Yes |
+| `YNAB_CLIENT_ID` | YNAB OAuth app client ID ([Developer Settings](https://app.ynab.com/settings/developer)) | Yes |
+| `YNAB_CLIENT_SECRET` | YNAB OAuth app client secret | Yes |
+| `YNAB_REDIRECT_URI` | OAuth callback URL (for example `https://your-domain.up.railway.app/oauth/callback`) | Yes |
+| `TOKEN_ENCRYPTION_KEY` | Fernet key for encrypting tokens at rest | Yes |
+| `HTTP_API_KEY` | Bearer token required for authenticated HTTP API endpoints | Yes |
+| `POSTGRES_DSN` | PostgreSQL DSN used by the runtime app | Yes |
+| `DATABASE_PATH` | Path to legacy SQLite database used only for migration tooling | No |
+
+Generate a Fernet encryption key with:
+
+```bash
+.venv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
 ## Goals
 
@@ -35,13 +100,7 @@ You need:
 - Python `3.12+`
 - the project virtual environment at `.venv`
 
-Recommended local bootstrap:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+Recommended local bootstrap is covered in [Initial Setup](#initial-setup).
 
 ## Local Modes
 
@@ -95,6 +154,27 @@ Notes:
 - `HTTP_API_KEY` still protects the real `/api/v1/expenses/text` endpoint even in local mode.
 - In `http-dev` mode, Telegram, OpenAI, and YNAB credentials are not required.
 - `DATABASE_PATH` is no longer part of the runtime baseline; keep it only if you need SQLite migration tooling.
+
+## Running the App
+
+### Production-style local run
+
+```bash
+.venv/bin/python main.py
+```
+
+### Default local development
+
+```bash
+docker compose up app-dev
+```
+
+This starts `APP_MODE=http-dev` on `127.0.0.1:8080` with:
+
+- no Telegram polling
+- stubbed OpenAI and YNAB integrations
+- `/dev/*` routes enabled
+- PostgreSQL persistence from your configured `POSTGRES_DSN`
 
 ## Docker Workflows
 
