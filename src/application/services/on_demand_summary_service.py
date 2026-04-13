@@ -93,6 +93,7 @@ class OnDemandSummaryService:
                     "name": cat.name,
                     "budgeted": cat.budgeted,
                     "activity": cat.activity,
+                    "balance": cat.balance,
                 }
                 for cat in categories
                 if not cat.deleted
@@ -120,6 +121,13 @@ class OnDemandSummaryService:
     def _build_monthly_insight(summary: OnDemandSummary) -> MonthlySummaryInsight:
         """Derive concise monthly insights from budget data for the compact summary."""
         comparisons = summary.budget_comparison or []
+
+        def usage_ratio(comp):
+            total_available = comp.spent + max(comp.remaining, 0)
+            if total_available <= 0:
+                return 0
+            return comp.spent / total_available
+
         overspent = sorted(
             [comp for comp in comparisons if comp.remaining < 0],
             key=lambda comp: comp.remaining,
@@ -128,16 +136,17 @@ class OnDemandSummaryService:
             [
                 comp for comp in comparisons
                 if comp.remaining >= 0
-                and comp.budgeted > 0
-                and (comp.spent / comp.budgeted) >= _AT_RISK_USAGE_THRESHOLD
+                and usage_ratio(comp) >= _AT_RISK_USAGE_THRESHOLD
             ],
-            key=lambda comp: ((comp.spent / comp.budgeted) if comp.budgeted else 0, comp.spent),
+            key=lambda comp: (usage_ratio(comp), comp.spent),
             reverse=True,
         )
         healthy_categories_count = sum(
             1
             for comp in comparisons
-            if comp.budgeted > 0 and comp not in overspent and comp not in at_risk
+            if (comp.spent > 0 or comp.budgeted > 0 or comp.remaining != 0)
+            and comp not in overspent
+            and comp not in at_risk
         )
 
         if overspent:

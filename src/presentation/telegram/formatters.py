@@ -895,9 +895,10 @@ class OnDemandSummaryFormatter:
 
         if insight.at_risk_categories:
             for comp in insight.at_risk_categories[:max(0, 3 - len(insight.overspent_categories))]:
-                usage_pct = (comp.spent / comp.budgeted) * 100 if comp.budgeted else 0
+                total_available = comp.spent + max(comp.remaining, 0)
+                usage_pct = (comp.spent / total_available) * 100 if total_available else 0
                 lines.append(
-                    f"• 🟠 *{comp.category_name}* ya consumió {usage_pct:.0f}% del presupuesto"
+                    f"• 🟠 *{comp.category_name}* ya consumió {usage_pct:.0f}% del disponible"
                 )
 
         if not insight.overspent_categories and not insight.at_risk_categories and insight.top_categories:
@@ -954,8 +955,8 @@ class OnDemandSummaryFormatter:
         warnings = [
             comp for comp in comparisons
             if comp.remaining >= 0
-            and comp.budgeted > 0
-            and (comp.spent / comp.budgeted) >= 0.9
+            and (comp.spent + max(comp.remaining, 0)) > 0
+            and (comp.spent / (comp.spent + max(comp.remaining, 0))) >= 0.9
         ]
         lines = [f"📈 *Presupuesto — {summary.period_label}*", ""]
 
@@ -963,27 +964,30 @@ class OnDemandSummaryFormatter:
             lines.append("🔴 *Pasadas de presupuesto:*")
             for comp in exceptions[:5]:
                 lines.append(
-                    f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} presup. / "
+                    f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} asignado / "
                     f"${comp.spent / 1000:,.0f} gastado / "
-                    f"-${abs(comp.remaining) / 1000:,.0f} restante"
+                    f"-${abs(comp.remaining) / 1000:,.0f} disponible"
                 )
             lines.append("")
 
         if warnings:
             lines.append("🟠 *En riesgo:*")
             for comp in warnings[:5]:
-                usage_pct = (comp.spent / comp.budgeted) * 100 if comp.budgeted else 0
+                total_available = comp.spent + max(comp.remaining, 0)
+                usage_pct = (comp.spent / total_available) * 100 if total_available else 0
                 lines.append(
-                    f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} presup. / "
+                    f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} asignado / "
                     f"${comp.spent / 1000:,.0f} gastado / "
-                    f"{usage_pct:.0f}% usado / "
-                    f"${comp.remaining / 1000:,.0f} restante"
+                    f"{usage_pct:.0f}% del disponible usado / "
+                    f"${comp.remaining / 1000:,.0f} disponible"
                 )
             lines.append("")
 
         healthy_count = sum(
             1 for comp in comparisons
-            if comp.budgeted > 0 and comp not in exceptions and comp not in warnings
+            if (comp.spent > 0 or comp.budgeted > 0 or comp.remaining != 0)
+            and comp not in exceptions
+            and comp not in warnings
         )
         lines.append(
             f"✅ *Dentro del presupuesto:* {healthy_count} categor"
@@ -991,12 +995,14 @@ class OnDemandSummaryFormatter:
         )
         healthy_items = [
             comp for comp in comparisons
-            if comp.budgeted > 0 and comp not in exceptions and comp not in warnings
+            if (comp.spent > 0 or comp.budgeted > 0 or comp.remaining != 0)
+            and comp not in exceptions
+            and comp not in warnings
         ]
         for comp in healthy_items[:3]:
             lines.append(
-                f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} presup. / "
+                f"• *{comp.category_name}:* ${comp.budgeted / 1000:,.0f} asignado / "
                 f"${comp.spent / 1000:,.0f} gastado / "
-                f"${comp.remaining / 1000:,.0f} restante"
+                f"${comp.remaining / 1000:,.0f} disponible"
             )
         return "\n".join(lines)

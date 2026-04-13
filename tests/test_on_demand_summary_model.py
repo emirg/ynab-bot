@@ -203,9 +203,9 @@ class TestExpenseFiltering:
 class TestBudgetComparison:
     def _budget_data(self):
         return [
-            {"name": "Supermercado", "budgeted": 500_000, "activity": -350_000},
-            {"name": "Restaurantes", "budgeted": 200_000, "activity": -250_000},  # overspent
-            {"name": "Transporte",   "budgeted": 100_000, "activity": 0},
+            {"name": "Supermercado", "budgeted": 500_000, "activity": -350_000, "balance": 150_000},
+            {"name": "Restaurantes", "budgeted": 200_000, "activity": -250_000, "balance": -50_000},  # overspent
+            {"name": "Transporte",   "budgeted": 100_000, "activity": 0, "balance": 100_000},
         ]
 
     def test_budget_comparison_none_when_not_provided(self):
@@ -255,6 +255,20 @@ class TestBudgetComparison:
         )
         restaurantes = next(c for c in summary.budget_comparison if c.category_name == "Restaurantes")
         assert restaurantes.remaining == -50_000
+
+    def test_balance_is_used_when_present_in_budget_data(self):
+        summary = OnDemandSummary.from_transactions(
+            transactions=[make_txn(-10_000)],
+            period_type="mes",
+            period_label="Marzo 2026",
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            budget_data=[
+                {"name": "Energy", "budgeted": 150_000_000, "activity": -172_390_000, "balance": 29_831_830},
+            ],
+        )
+        energy = summary.budget_comparison[0]
+        assert energy.remaining == 29_831_830
 
     def test_empty_budget_data_gives_empty_list(self):
         summary = OnDemandSummary.from_transactions(

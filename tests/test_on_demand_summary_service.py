@@ -40,6 +40,7 @@ def _make_category(
     name: str,
     budgeted: int = 0,
     activity: int = 0,
+    balance: int | None = None,
     hidden: bool = False,
     deleted: bool = False,
 ) -> YNABCategory:
@@ -50,7 +51,7 @@ def _make_category(
         full_name=f"Group: {name}",
         budgeted=budgeted,
         activity=activity,
-        balance=budgeted + activity,
+        balance=(budgeted + activity) if balance is None else balance,
         hidden=hidden,
         deleted=deleted,
     )
@@ -289,6 +290,28 @@ class TestGenerateSummary:
         assert summary.monthly_insight is not None
         assert summary.monthly_insight.overspent_categories[0].category_name == "Restaurantes"
         assert summary.monthly_insight.at_risk_categories[0].category_name == "Comida"
+
+    @patch("application.services.on_demand_summary_service.user_today")
+    def test_mes_uses_ynab_balance_for_carryover_instead_of_budgeted_minus_spent(self, mock_today):
+        mock_today.return_value = date(2026, 3, 19)
+        txns = [_make_txn(-172_390_000, "Energy", "2026-03-10")]
+        categories = [
+            _make_category(
+                "Energy",
+                budgeted=150_000_000,
+                activity=-172_390_000,
+                balance=29_831_830,
+            )
+        ]
+        service, _, _ = _make_service(transactions=txns, categories=categories)
+        user = _make_user()
+
+        summary = service.generate_summary(user, "mes")
+
+        comp = summary.budget_comparison[0]
+        assert comp.remaining == 29_831_830
+        assert summary.monthly_insight.overspent_categories == []
+        assert summary.monthly_insight.at_risk_categories == []
 
     @patch("application.services.on_demand_summary_service.user_today")
     def test_mes_without_budget_data_sets_fallback_status(self, mock_today):

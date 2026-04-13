@@ -33,7 +33,9 @@ def make_summary(
         overspent = [comp for comp in (budget_comparison or []) if comp.remaining < 0][:3]
         at_risk = [
             comp for comp in (budget_comparison or [])
-            if comp.remaining >= 0 and comp.budgeted > 0 and (comp.spent / comp.budgeted) >= 0.9
+            if comp.remaining >= 0
+            and (comp.spent + max(comp.remaining, 0)) > 0
+            and (comp.spent / (comp.spent + max(comp.remaining, 0))) >= 0.9
         ][:3]
         status_summary = "Tu mes va dentro del presupuesto por ahora."
         recommended_action = "Mantén el ritmo actual y revisa solo las categorías más activas."
@@ -278,8 +280,27 @@ class TestOverspentCategoryHighlighting:
         ]
         summary = make_summary(budget_comparison=budget_comparison)
         result = OnDemandSummaryFormatter.format_summary(summary)
-        assert "🟠 *Comida* ya consumió 95% del presupuesto" in result
+        assert "🟠 *Comida* ya consumió 95% del disponible" in result
         assert "🔴 *Restaurantes* va pasado" in result
+
+    def test_carryover_budget_is_not_flagged_as_overspent_or_risk(self):
+        budget_comparison = [
+            CategoryBudgetComparison(
+                category_name="Energy",
+                budgeted=150_000_000,
+                spent=172_390_000,
+                remaining=29_831_830,
+            )
+        ]
+        summary = make_summary(
+            total_spent=172_390_000,
+            category_breakdown=[CategorySpending(category_name="Energy", amount=172_390_000)],
+            budget_comparison=budget_comparison,
+        )
+        result = OnDemandSummaryFormatter.format_summary(summary)
+        assert "va pasado" not in result
+        assert "al límite" not in result
+        assert "✅ Tu categoría más activa va en *Energy*" in result
 
 
 class TestMonthSummaryWithoutBudgetData:
@@ -362,3 +383,21 @@ class TestAmountFormatting:
         assert "$2,000" in result
         assert "$1,500" in result
         assert "$500" in result
+
+    def test_budget_detail_uses_disponible_wording(self):
+        budget_comparison = [
+            CategoryBudgetComparison(
+                category_name="Energy",
+                budgeted=150_000_000,
+                spent=172_390_000,
+                remaining=29_831_830,
+            )
+        ]
+        summary = make_summary(
+            total_spent=172_390_000,
+            category_breakdown=[CategorySpending(category_name="Energy", amount=172_390_000)],
+            budget_comparison=budget_comparison,
+        )
+        result = OnDemandSummaryFormatter.format_monthly_budget_detail(summary)
+        assert "disponible" in result
+        assert "asignado" in result

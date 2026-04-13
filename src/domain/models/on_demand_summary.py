@@ -7,11 +7,11 @@ from domain.models.weekly_summary import CategorySpending
 
 @dataclass
 class CategoryBudgetComparison:
-    """Budget vs. actual spending for a single category (milliunits)."""
+    """YNAB category budget snapshot for a single category (milliunits)."""
     category_name: str
-    budgeted: int   # milliunits, positive
-    spent: int      # milliunits, positive (abs of activity)
-    remaining: int  # milliunits, can be negative if overspent
+    budgeted: int   # milliunits assigned this month, positive
+    spent: int      # milliunits spent this month, positive (abs of activity)
+    remaining: int  # YNAB available balance, can be negative if overspent
 
 
 @dataclass
@@ -60,6 +60,7 @@ class OnDemandSummary:
           - name: str
           - budgeted: int (milliunits, positive)
           - activity: int (milliunits, negative for spending)
+          - balance: int (milliunits, YNAB available amount)
 
         Only expense transactions (amount < 0) are counted.
         """
@@ -88,7 +89,7 @@ class OnDemandSummary:
                 budgeted = entry.get("budgeted", 0)
                 activity = entry.get("activity", 0)
                 spent = abs(activity)
-                remaining = budgeted - spent
+                remaining = entry.get("balance", budgeted - spent)
                 comparisons.append(CategoryBudgetComparison(
                     category_name=entry["name"],
                     budgeted=budgeted,
