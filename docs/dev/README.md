@@ -2,6 +2,14 @@
 
 This guide owns first-time setup and the local developer experience for the project.
 
+## Core Principle
+
+YNAB is the source of truth for financial state.
+
+- The bot can capture and submit data, but users may still change transactions, categories, splits, and balances directly in YNAB.
+- Local development and debugging should assume YNAB-backed values are authoritative whenever the API provides them.
+- If a local summary or dashboard disagrees with YNAB, treat that as an application bug unless proven otherwise.
+
 The current preferred workflow is `HTTP-first` local development:
 
 - run the app locally without competing with the Railway Telegram polling instance

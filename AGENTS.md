@@ -31,6 +31,13 @@ All Python commands must be run using the `.venv` virtual environment.
 .venv/bin/pytest -k "keyword"      # Filter
 ```
 
+## Source Of Truth
+YNAB is the financial source of truth for this project.
+
+- Assume users can create, edit, split, recategorize, and reconcile transactions directly in YNAB outside the bot.
+- When YNAB exposes category activity, balances, availability, or transaction structure, prefer that data over local guesses or bot-only history.
+- If a local computation disagrees with YNAB, the implementation should be corrected to reconcile with YNAB.
+
 ## Shared Skills
 Reusable cross-agent skills live in `.agents/skills/`.
 

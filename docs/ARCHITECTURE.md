@@ -11,6 +11,15 @@ main.py → DIContainer (infrastructure/container.py)
         → YNABTelegramBot only when APP_MODE=full
 ```
 
+## Source Of Truth Rule
+
+YNAB is the authoritative financial system for this project.
+
+- The bot is an input and guidance surface, not an independent ledger.
+- Users can create or modify transactions directly in YNAB web or mobile clients at any time.
+- When YNAB exposes category activity, available balance, account balance, or split transaction structure, the app should prefer that data over locally inferred aggregates.
+- Any disagreement between local app calculations and YNAB should be treated as a correctness bug in the app.
+
 ## Phase 1 Advisor Baseline
 
 Financial Advisor Phase 1 starts from the current shipped runtime, not from an assumed future repo split or mandatory multi-service topology.

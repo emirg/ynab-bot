@@ -28,6 +28,7 @@ Non-negotiable rules. Flag violations immediately during review.
 | Invariant | Detail |
 |---|---|
 | Milliunits | YNAB amounts are ×1000. Expenses are negative. |
+| YNAB source of truth | When YNAB provides the relevant financial state, prefer it over locally inferred or cached interpretations. |
 | Dependency Injection | Use `YNABRepositoryFactory` per-user. Never singletons. |
 | Per-user isolation | All SQLite queries and YNAB calls scoped to authenticated user. |
 | UI language | All user-facing strings in Spanish. |
@@ -136,3 +137,4 @@ Each AI assistant maps these logical roles to their own specific capabilities (s
 1. **One step at a time.** Never implement multiple unrelated steps in a single tool call.
 2. **Review via Code Reviewer after final implementation.**
 3. **Never edit `src/` or `tests/` directly.** Always act through the appropriate implementation role/sub-agent to ensure quality and test coverage.
+4. **Treat YNAB as authoritative.** If users can also change data directly in YNAB, the app must reconcile to YNAB rather than assume the bot's local interpretation is complete.

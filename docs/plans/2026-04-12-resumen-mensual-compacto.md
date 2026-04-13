@@ -4,15 +4,20 @@
 - **Status:** Completed
 - **Source Spec:** `docs/specs/2026-04-12-resumen-mensual-compacto.md`
 - **Goal:** Deliver a compact, budget-health-first monthly `/resumen` experience with inline drill-down views for monthly details.
-- **Approach:** Keep the existing `/resumen` command and YNAB data flow, but add monthly insight derivation, a compact formatter path, and callback-driven Telegram drill-down views.
+- **Approach:** Keep the existing `/resumen` command and YNAB data flow, but add monthly insight derivation, a compact formatter path, callback-driven Telegram drill-down views, and a shared source-of-truth aggregation rule across `/resumen`, weekly summaries, and advisor dashboard views.
 
 ## Affected Components
-- `src/domain/models/on_demand_summary.py` — extend monthly summary data with derived insight groups
+- `src/domain/models/on_demand_summary.py` — extend monthly summary data with derived insight groups and keep monthly totals aligned with YNAB category activity
+- `src/domain/models/weekly_summary.py` — keep day/week category breakdowns split-aware while preserving period-scoped totals
 - `src/application/services/on_demand_summary_service.py` — derive monthly insight signals from existing transaction and category data
+- `src/application/services/advisor_dashboard_service.py` — align monthly advisor totals, top categories, and budget status with YNAB category activity/balance
 - `src/presentation/telegram/formatters.py` — add compact monthly formatter and detail-view formatters
 - `src/presentation/telegram/keyboards.py` — add monthly summary drill-down keyboard
 - `src/presentation/telegram/handlers/summary_handler.py` — send reply markup and handle monthly summary callbacks
 - `src/presentation/telegram/bot.py` — register summary callback handler
+- `src/domain/services/...` or equivalent shared helper — flatten split transactions for period-scoped category views
+- `tests/test_weekly_summary_model.py`
+- `tests/test_advisor_dashboard_service.py`
 - `tests/test_on_demand_summary_model.py`
 - `tests/test_on_demand_summary_service.py`
 - `tests/test_on_demand_summary_formatter.py`
@@ -66,6 +71,18 @@
 - **Action:** Update user-facing help text only if necessary to mention that monthly summaries now include drill-down buttons. Do not change the command syntax.
 - **Tests:** Extend formatter/help tests only if copy changes are made.
 
+### Group 5
+
+#### [x] Step 8: Add split-aware transaction aggregation for day/week views
+- **Files:** `src/domain/models/on_demand_summary.py`, `src/domain/models/weekly_summary.py`, shared aggregation helper module, related tests
+- **Action:** Introduce a shared helper that expands negative split subtransactions into their real categories while ignoring parent split buckets for category ranking. Use it for day/week on-demand summaries and weekly summary generation so category totals remain period-scoped and split-aware.
+- **Tests:** `tests/test_on_demand_summary_model.py`, `tests/test_weekly_summary_model.py` — verify split parent categories do not swallow real subcategory totals.
+
+#### [x] Step 9: Align advisor monthly metrics with YNAB category snapshots
+- **Files:** `src/application/services/advisor_dashboard_service.py`, `src/domain/models/advisor_dashboard.py`, `tests/test_advisor_dashboard_service.py`
+- **Action:** For monthly advisor views, derive `total_spent`, `top_categories`, and budget status from YNAB category `activity`/`balance` instead of only top-level transactions. Keep day/week advisor views transaction-scoped but split-aware. Preserve trend calculations from dated transactions.
+- **Tests:** `tests/test_advisor_dashboard_service.py` — verify monthly totals/top categories match category activity, carryover-positive categories are not marked overspent, and day/week split transactions group correctly.
+
 ## Constraints & Architecture
 - Keep all user-facing strings in Spanish.
 - Preserve milliunit invariants and existing YNAB transaction filtering behavior.
@@ -78,6 +95,9 @@
 - [x] `/resumen` and `/resumen mes` return the new compact monthly summary with inline buttons.
 - [x] Overspent categories appear before all other signals in the first monthly screen.
 - [x] Categories with positive YNAB available are not shown as risky in the Telegram summary.
+- [x] Monthly category totals shown in `Ver categorías` align with YNAB category activity, including split-backed spending.
+- [x] Day and week category breakdowns count split transaction subcategories correctly.
+- [x] Advisor monthly totals, top categories, and overspending state align with YNAB category activity and balance.
 - [x] `Ver categorías` shows monthly category detail without reopening the command.
 - [x] `Ver presupuesto` shows budget exceptions first and allows returning to the summary.
 - [x] `/resumen dia` still renders the current day summary as before.

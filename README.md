@@ -2,6 +2,16 @@
 
 A multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using OpenAI GPT-4o-mini for natural language parsing and Whisper for voice transcription. Targeted at Spanish-speaking users managing budgets in Colombian pesos.
 
+## Source Of Truth
+
+YNAB is the source of truth for the product.
+
+- Users may register expenses through the bot, but they may also create, edit, split, move, or reconcile transactions directly in YNAB.
+- Any spending view, budget status, category total, or advisor signal must prefer YNAB data over locally inferred state whenever YNAB provides the relevant information.
+- Local bot state exists to help capture and route data, not to compete with or override YNAB's financial reality.
+
+This rule matters for users, developers, and AI assistants working on the codebase.
+
 ## ✨ Features
 
 - 🎤 **Voice Recognition**: Send audio messages and the bot transcribes them automatically with Whisper
