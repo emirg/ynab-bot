@@ -54,7 +54,9 @@ The app must treat YNAB as the authoritative financial system for all app-wide f
 - YNAB is the financial source of truth.
 - If YNAB provides the relevant financial value directly, prefer YNAB over local derivation.
 - Spending semantics and budget semantics are different and must not share one calculation path by default.
-- "Reflect-compatible spending" means transaction-based spending totals and category rankings that expand split subtransactions and exclude non-spending artifacts.
+- "Reflect-compatible spending" means transaction-based monthly spending that expands split subtransactions, excludes non-spending artifacts such as transfers, and uses net category activity for totals.
+- For monthly totals specifically, negative category activity increases spending, real categorized inflows can offset spending, but `Inflow: Ready to Assign` must not offset spending.
+- Monthly category rankings should show categories whose net activity remains negative after the monthly netting step.
 - Monthly category budget health uses category snapshots, not transaction aggregation.
 - Local recent-transaction state is convenience metadata only.
 - All user-facing strings remain in Spanish.

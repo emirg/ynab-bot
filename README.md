@@ -15,6 +15,8 @@ This rule matters for users, developers, and AI assistants working on the codeba
 ### Financial Read Matrix
 
 - Spending totals, category rankings, and spend trends use YNAB transactions with split subtransactions expanded and non-spending bookkeeping ignored.
+- Monthly `Total gastado` follows Reflect-style net category activity: negative category activity increases spending, real categorized inflows can offset it, transfers are ignored, and `Inflow: Ready to Assign` does not reduce spending.
+- Monthly top categories come from negative-net category activity after that netting step; positive-only reimbursement categories should not appear as spending leaders.
 - Budget status, category availability, overspending, and monthly activity use YNAB category snapshot fields `budgeted`, `activity`, and `balance`.
 - Account balances use YNAB account balance fields directly.
 - `/recent`, `/editar`, and `/deshacer` are workflow conveniences backed by recent bot references, not canonical financial reporting.

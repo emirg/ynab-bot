@@ -29,7 +29,9 @@ YNAB is the financial source of truth for this project.
 The implementation must follow these rules:
 
 - When YNAB exposes the relevant financial state directly, prefer YNAB data over locally inferred or cached interpretations.
-- Monthly category totals should prefer YNAB category activity when monthly category snapshots are available.
+- Monthly budget-health and availability decisions should prefer YNAB category activity/balance when monthly category snapshots are available.
+- Monthly spending totals still come from transactions, but they must follow Reflect-style net category activity semantics rather than a raw "sum all negative rows" rule.
+- Under that rule, real categorized inflows may offset monthly spending, while bookkeeping flows such as transfers and `Inflow: Ready to Assign` must not reduce spending.
 - Budget remaining or overspending decisions should prefer YNAB category balance/available amount when available.
 - Period-scoped views that must still rely on transactions, such as day or week category breakdowns, must interpret YNAB transaction structure faithfully, including split subtransactions.
 - Local persistence, summaries, and advisor logic are supporting views and workflows, not an independent ledger.

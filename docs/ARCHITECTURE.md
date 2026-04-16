@@ -23,6 +23,12 @@ YNAB is the authoritative financial system for this project.
 ### Financial Read Matrix
 
 - Spending totals, category rankings, and trend series come from YNAB transactions, with split subtransactions expanded into their real categories and bookkeeping-only zero-sum flows excluded.
+- Monthly spending totals use Reflect-style net category activity from transactions:
+  - negative category activity increases spending
+  - real categorized inflows reduce spending
+  - transfers do not count
+  - `Inflow: Ready to Assign` must never offset spending
+- Monthly category rankings should be built from categories whose net activity remains negative after that netting step.
 - Budget-health views come from YNAB category snapshots: `budgeted`, `activity`, and especially `balance` for remaining available and overspending.
 - Account balances come from YNAB account balance fields.
 - Bot-local recent/edit/undo state is convenience metadata only and must not be treated as canonical financial state.
