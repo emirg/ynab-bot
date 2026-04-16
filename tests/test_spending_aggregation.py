@@ -138,6 +138,23 @@ def test_summarize_transaction_net_spending_offsets_category_inflows():
     assert category_totals == {"Meal delivery": 120_000}
 
 
+def test_summarize_transaction_net_spending_ignores_ready_to_assign_inflows():
+    total_spent, category_totals = summarize_transaction_net_spending(
+        [
+            {"amount": -120_000, "date": "2026-04-12", "category_name": "Meal delivery"},
+            {
+                "amount": 500_000,
+                "date": "2026-04-12",
+                "category_id": "cat-income",
+                "category_name": "Inflow: Ready to Assign",
+            },
+        ]
+    )
+
+    assert total_spent == 120_000
+    assert category_totals == {"Meal delivery": 120_000}
+
+
 def test_summarize_transaction_net_spending_nets_split_tracking_inflows_against_month_total():
     total_spent, category_totals = summarize_transaction_net_spending(
         [

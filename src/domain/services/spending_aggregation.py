@@ -76,7 +76,7 @@ def summarize_transaction_net_spending(transactions: List[dict]) -> tuple[int, D
                 amount = sub.get("amount", 0)
                 if amount == 0:
                     continue
-                if amount > 0 and not sub.get("category_id"):
+                if amount > 0 and not _should_count_positive_category_inflow(sub):
                     continue
                 key = _category_key(sub)
                 net_activity_by_key[key] = net_activity_by_key.get(key, 0) + amount
@@ -86,7 +86,7 @@ def summarize_transaction_net_spending(transactions: List[dict]) -> tuple[int, D
         amount = txn.get("amount", 0)
         if amount == 0:
             continue
-        if amount > 0 and not txn.get("category_id"):
+        if amount > 0 and not _should_count_positive_category_inflow(txn):
             continue
 
         key = _category_key(txn)
@@ -156,6 +156,14 @@ def _category_key(transaction: dict) -> str:
     if category_id:
         return f"id:{category_id}"
     return f"name:{_category_name(transaction)}"
+
+
+def _should_count_positive_category_inflow(transaction: dict) -> bool:
+    category_id = transaction.get("category_id")
+    if not category_id:
+        return False
+    category_name = _category_name(transaction)
+    return not category_name.startswith("Inflow:")
 
 
 def _read_category_field(category: Any, field_name: str, default: Any) -> Any:
