@@ -353,3 +353,15 @@ async def test_invalid_monthly_callback_is_rejected(handler, auth_service, callb
     callback_update.callback_query.edit_message_text.assert_called_once()
     args, _ = callback_update.callback_query.edit_message_text.call_args
     assert "ya no es válida" in args[0]
+
+
+@pytest.mark.anyio
+async def test_removed_budget_monthly_callback_is_rejected(handler, auth_service, callback_update, context):
+    auth_service.user_repository.find_by_telegram_id.return_value = _make_configured_user()
+    callback_update.callback_query.data = "resumen_mes_presupuesto"
+
+    await handler.handle_callback_query(callback_update, context)
+
+    callback_update.callback_query.edit_message_text.assert_called_once()
+    args, _ = callback_update.callback_query.edit_message_text.call_args
+    assert "ya no es válida" in args[0]

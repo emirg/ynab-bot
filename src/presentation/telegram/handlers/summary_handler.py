@@ -119,7 +119,7 @@ class SummaryHandler(BaseHandler):
             return
 
         data = query.data or ""
-        if data not in {"resumen_mes_resumen", "resumen_mes_categorias", "resumen_mes_presupuesto"}:
+        if data not in {"resumen_mes_resumen", "resumen_mes_categorias"}:
             await query.edit_message_text("❌ Esta acción ya no es válida.")
             return
 

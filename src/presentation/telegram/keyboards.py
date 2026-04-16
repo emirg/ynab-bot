@@ -175,7 +175,4 @@ def build_monthly_summary_keyboard(view: str = "resumen") -> InlineKeyboardMarku
     if view != "categorias":
         keyboard.append([InlineKeyboardButton("📋 Ver categorías", callback_data="resumen_mes_categorias")])
 
-    if view != "presupuesto":
-        keyboard.append([InlineKeyboardButton("📈 Ver presupuesto", callback_data="resumen_mes_presupuesto")])
-
     return InlineKeyboardMarkup(keyboard)
