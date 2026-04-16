@@ -194,6 +194,35 @@ class TestBudgetSummary:
             'balance': 300000,
         }
 
+    def test_budget_summary_nets_category_inflows_from_transactions(self, service, categories, accounts):
+        result = service.execute_query(
+            'budget_summary',
+            None,
+            categories,
+            accounts,
+            transactions=[
+                {
+                    'amount': -80_000,
+                    'date': '2026-04-03',
+                    'category_name': 'Split (Multiple Categories)',
+                    'subtransactions': [
+                        {'amount': -50_000, 'category_id': 'cat-groceries', 'category_name': 'Groceries'},
+                        {'amount': -30_000, 'category_id': 'cat-split', 'category_name': 'Splitwise'},
+                    ],
+                },
+                {
+                    'amount': 60_000,
+                    'date': '2026-04-10',
+                    'category_id': 'cat-split',
+                    'category_name': 'Splitwise',
+                },
+            ],
+        )
+
+        assert result.data['total_spent'] == 20_000
+        assert result.data['top_spending'][0]['name'] == 'Groceries'
+        assert result.data['top_spending'][0]['spent'] == 50_000
+
 
 class TestInvalidQueryType:
 

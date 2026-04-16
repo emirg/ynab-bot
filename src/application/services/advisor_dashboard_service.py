@@ -14,6 +14,7 @@ from domain.models.weekly_summary import CategorySpending
 from domain.services.spending_aggregation import (
     extract_expense_entries,
     normalize_budget_category_snapshots,
+    summarize_transaction_net_spending,
     summarize_transaction_spending,
 )
 from domain.time_utils import user_today
@@ -87,7 +88,7 @@ class AdvisorDashboardService:
         transaction_count = len(expenses)
         active_days = (period_end - period_start).days + 1
 
-        total_spent, top_categories = self._build_top_categories(transactions)
+        total_spent, top_categories = self._build_top_categories(transactions, period_type)
         budget_status = None if budget_data is None else self._build_budget_status(budget_data)
         insights = self._advisor_insights_service.build_insights(
             period_type=period_type,
@@ -148,8 +149,14 @@ class AdvisorDashboardService:
         raise ValueError(f"period_type desconocido: '{period_type}'")
 
     @staticmethod
-    def _build_top_categories(transactions: list[dict]) -> tuple[int, list[CategorySpending]]:
-        total_spent, category_totals = summarize_transaction_spending(transactions)
+    def _build_top_categories(
+        transactions: list[dict],
+        period_type: str,
+    ) -> tuple[int, list[CategorySpending]]:
+        if period_type == "mes":
+            total_spent, category_totals = summarize_transaction_net_spending(transactions)
+        else:
+            total_spent, category_totals = summarize_transaction_spending(transactions)
         categories = sorted(
             [
                 CategorySpending(category_name=name, amount=amount)

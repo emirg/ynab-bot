@@ -413,6 +413,35 @@ class TestGenerateSummary:
         assert [c.amount for c in summary.category_breakdown] == [45_000]
 
     @patch("application.services.on_demand_summary_service.user_today")
+    def test_mes_total_spent_nets_category_inflows_like_reflect(self, mock_today):
+        mock_today.return_value = date(2026, 3, 19)
+        txns = [
+            {
+                "amount": -80_000,
+                "category_name": "Split (Multiple Categories)",
+                "date": "2026-03-10",
+                "subtransactions": [
+                    {"amount": -50_000, "category_id": "cat-meal", "category_name": "Restaurantes"},
+                    {"amount": -30_000, "category_id": "cat-split", "category_name": "Splitwise"},
+                ],
+            },
+            {
+                "amount": 60_000,
+                "category_id": "cat-split",
+                "category_name": "Splitwise",
+                "date": "2026-03-11",
+            },
+        ]
+        service, _, _ = _make_service(transactions=txns, categories=[])
+        user = _make_user()
+
+        summary = service.generate_summary(user, "mes")
+
+        assert summary.total_spent == 20_000
+        assert [c.category_name for c in summary.category_breakdown] == ["Restaurantes", "Splitwise"]
+        assert [c.amount for c in summary.category_breakdown] == [50_000, 30_000]
+
+    @patch("application.services.on_demand_summary_service.user_today")
     def test_mes_without_budget_data_sets_fallback_status(self, mock_today):
         mock_today.return_value = date(2026, 3, 19)
         txns = [_make_txn(-30_000, "Comida", "2026-03-01")]

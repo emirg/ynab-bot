@@ -2,7 +2,10 @@ import logging
 from datetime import date, timedelta
 
 from domain.models.on_demand_summary import MonthlySummaryInsight, OnDemandSummary
-from domain.services.spending_aggregation import normalize_budget_category_snapshots
+from domain.services.spending_aggregation import (
+    normalize_budget_category_snapshots,
+    summarize_transaction_net_spending,
+)
 from domain.models.user import UserConfiguration
 from domain.time_utils import user_today
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
@@ -100,6 +103,7 @@ class OnDemandSummaryService:
             budget_data=budget_data,
         )
         if period_type == "mes":
+            summary.total_spent, _ = summarize_transaction_net_spending(transactions)
             summary.monthly_insight = self._build_monthly_insight(summary)
         return summary
 

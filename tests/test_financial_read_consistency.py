@@ -45,6 +45,27 @@ def _month_transactions() -> list[dict]:
     ]
 
 
+def _month_transactions_with_category_inflow() -> list[dict]:
+    return [
+        {
+            "amount": -80_000,
+            "date": "2026-04-10",
+            "category_name": "Split (Multiple Categories)",
+            "subtransactions": [
+                {"amount": -50_000, "category_id": "cat-groceries", "category_name": "Groceries"},
+                {"amount": -30_000, "category_id": "cat-split", "category_name": "Splitwise"},
+            ],
+        },
+        {
+            "amount": 60_000,
+            "date": "2026-04-11",
+            "category_id": "cat-split",
+            "category_name": "Splitwise",
+            "deleted": False,
+        },
+    ]
+
+
 def _month_categories() -> list[YNABCategory]:
     return [
         YNABCategory(
@@ -123,6 +144,58 @@ def test_monthly_spending_is_consistent_across_summary_advisor_and_budget_query(
     assert advisor_dashboard.top_categories[0].amount == 501_225
     assert budget_summary.data["top_spending"][0]["name"] == "Meal delivery"
     assert budget_summary.data["top_spending"][0]["spent"] == 501_225
+
+
+@patch("application.services.on_demand_summary_service.user_today")
+@patch("application.services.advisor_dashboard_service.user_today")
+def test_monthly_totals_net_category_inflows_consistently_across_surfaces(
+    mock_advisor_today,
+    mock_summary_today,
+):
+    mock_summary_today.return_value = date(2026, 4, 12)
+    mock_advisor_today.return_value = date(2026, 4, 12)
+
+    user = _configured_user()
+    transactions = _month_transactions_with_category_inflow()
+    categories = _month_categories()
+
+    summary_repo = MagicMock()
+    summary_repo.get_transactions.return_value = transactions
+    summary_repo.get_categories.return_value = categories
+    summary_factory = MagicMock()
+    summary_factory.get_repository.return_value = summary_repo
+    summary_service = OnDemandSummaryService(summary_factory)
+
+    advisor_repo = MagicMock()
+    advisor_repo.get_transactions.return_value = transactions
+    advisor_repo.get_categories.return_value = categories
+    advisor_factory = MagicMock()
+    advisor_factory.get_repository.return_value = advisor_repo
+    user_repository = MagicMock()
+    user_repository.find_by_telegram_id.return_value = user
+    advisor_service = AdvisorDashboardService(
+        user_repository,
+        advisor_factory,
+        AdvisorInsightsService(),
+    )
+
+    budget_query_service = BudgetQueryService()
+
+    monthly_summary = summary_service.generate_summary(user, "mes")
+    advisor_dashboard = advisor_service.build_dashboard(user.telegram_id, "mes")
+    budget_summary = budget_query_service.execute_query(
+        "budget_summary",
+        None,
+        categories,
+        [],
+        transactions=transactions,
+    )
+
+    assert monthly_summary.total_spent == 20_000
+    assert advisor_dashboard.summary.total_spent == monthly_summary.total_spent
+    assert budget_summary.data["total_spent"] == monthly_summary.total_spent
+    assert monthly_summary.category_breakdown[0].category_name == "Groceries"
+    assert monthly_summary.category_breakdown[0].amount == 50_000
 
 
 @patch("application.services.on_demand_summary_service.user_today")

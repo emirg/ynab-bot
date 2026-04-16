@@ -56,6 +56,56 @@ def summarize_transaction_spending(transactions: List[dict]) -> tuple[int, Dict[
     return summarize_spending(extract_expense_entries(transactions))
 
 
+def summarize_transaction_net_spending(transactions: List[dict]) -> tuple[int, Dict[str, int]]:
+    """Return Reflect-like net spending plus visible negative-net category totals.
+
+    Total spending is derived from net category activity for the period:
+    outflows increase spending and category inflows reduce it. Visible category
+    totals only include categories whose net activity is still negative.
+    """
+    net_activity_by_key: Dict[str, int] = {}
+    category_name_by_key: Dict[str, str] = {}
+
+    for txn in transactions:
+        if _is_bookkeeping_transaction(txn):
+            continue
+
+        subtransactions = txn.get("subtransactions") or []
+        if subtransactions:
+            for sub in subtransactions:
+                amount = sub.get("amount", 0)
+                if amount == 0:
+                    continue
+                if amount > 0 and not sub.get("category_id"):
+                    continue
+                key = _category_key(sub)
+                net_activity_by_key[key] = net_activity_by_key.get(key, 0) + amount
+                category_name_by_key[key] = _category_name(sub)
+            continue
+
+        amount = txn.get("amount", 0)
+        if amount == 0:
+            continue
+        if amount > 0 and not txn.get("category_id"):
+            continue
+
+        key = _category_key(txn)
+        net_activity_by_key[key] = net_activity_by_key.get(key, 0) + amount
+        category_name_by_key[key] = _category_name(txn)
+
+    net_total = sum(net_activity_by_key.values())
+    total_spent = max(0, -net_total)
+
+    visible_category_totals: Dict[str, int] = {}
+    for key, net_amount in net_activity_by_key.items():
+        if net_amount >= 0:
+            continue
+        name = category_name_by_key[key]
+        visible_category_totals[name] = visible_category_totals.get(name, 0) + abs(net_amount)
+
+    return total_spent, visible_category_totals
+
+
 def normalize_budget_category_snapshots(categories: List[Any]) -> List[dict]:
     snapshots: List[dict] = []
     for category in categories:
@@ -95,6 +145,17 @@ def _is_bookkeeping_transaction(transaction: dict) -> bool:
         transaction.get("transfer_account_id")
         or transaction.get("transfer_transaction_id")
     )
+
+
+def _category_name(transaction: dict) -> str:
+    return transaction.get("category_name") or "Sin categoría"
+
+
+def _category_key(transaction: dict) -> str:
+    category_id = transaction.get("category_id")
+    if category_id:
+        return f"id:{category_id}"
+    return f"name:{_category_name(transaction)}"
 
 
 def _read_category_field(category: Any, field_name: str, default: Any) -> Any:

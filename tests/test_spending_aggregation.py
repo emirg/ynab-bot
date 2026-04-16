@@ -2,6 +2,7 @@ from domain.models.user import YNABCategory
 from domain.services.spending_aggregation import (
     extract_expense_entries,
     normalize_budget_category_snapshots,
+    summarize_transaction_net_spending,
     summarize_transaction_spending,
 )
 
@@ -118,6 +119,56 @@ def test_summarize_transaction_spending_ignores_transfer_transactions():
 
     assert total_spent == 40_000
     assert category_totals == {"Meal delivery": 40_000}
+
+
+def test_summarize_transaction_net_spending_offsets_category_inflows():
+    total_spent, category_totals = summarize_transaction_net_spending(
+        [
+            {"amount": -120_000, "date": "2026-04-12", "category_name": "Meal delivery"},
+            {
+                "amount": 40_000,
+                "date": "2026-04-12",
+                "category_id": "cat-refunds",
+                "category_name": "Reembolsos",
+            },
+        ]
+    )
+
+    assert total_spent == 80_000
+    assert category_totals == {"Meal delivery": 120_000}
+
+
+def test_summarize_transaction_net_spending_nets_split_tracking_inflows_against_month_total():
+    total_spent, category_totals = summarize_transaction_net_spending(
+        [
+            {
+                "amount": -80_000,
+                "date": "2026-04-12",
+                "category_name": "Split (Multiple Categories)",
+                "subtransactions": [
+                    {
+                        "amount": -50_000,
+                        "category_id": "cat-meal",
+                        "category_name": "Meal delivery",
+                    },
+                    {
+                        "amount": -30_000,
+                        "category_id": "cat-split",
+                        "category_name": "Splitwise",
+                    },
+                ],
+            },
+            {
+                "amount": 60_000,
+                "date": "2026-04-13",
+                "category_id": "cat-split",
+                "category_name": "Splitwise",
+            },
+        ]
+    )
+
+    assert total_spent == 20_000
+    assert category_totals == {"Meal delivery": 50_000}
 
 
 def test_normalize_budget_category_snapshots_filters_inactive_hidden_and_deleted():

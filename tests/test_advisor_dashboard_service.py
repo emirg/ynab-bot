@@ -265,6 +265,42 @@ def test_build_dashboard_for_month_ignores_transfer_outflows(mock_today, dashboa
 
 
 @patch("application.services.advisor_dashboard_service.user_today")
+def test_build_dashboard_for_month_nets_category_inflows_like_reflect(mock_today, dashboard_service):
+    service, user_repository, ynab_factory = dashboard_service
+    user_repository.find_by_telegram_id.return_value = _configured_user()
+    mock_today.return_value = date(2026, 4, 12)
+
+    ynab_repo = MagicMock()
+    ynab_repo.get_transactions.return_value = [
+        {
+            "amount": -80_000,
+            "date": "2026-04-10",
+            "category_name": "Split (Multiple Categories)",
+            "subtransactions": [
+                {"amount": -50_000, "category_id": "cat-meal", "category_name": "Restaurantes"},
+                {"amount": -30_000, "category_id": "cat-split", "category_name": "Splitwise"},
+            ],
+        },
+        {
+            "amount": 60_000,
+            "date": "2026-04-11",
+            "category_id": "cat-split",
+            "category_name": "Splitwise",
+        },
+    ]
+    ynab_repo.get_categories.return_value = []
+    ynab_factory.get_repository.return_value = ynab_repo
+
+    dashboard = service.build_dashboard(123, "mes")
+
+    assert dashboard.summary.total_spent == 20_000
+    assert dashboard.summary.transaction_count == 2
+    assert dashboard.summary.top_category_name == "Restaurantes"
+    assert dashboard.top_categories[0].amount == 50_000
+    assert len(dashboard.top_categories) == 1
+
+
+@patch("application.services.advisor_dashboard_service.user_today")
 def test_build_dashboard_for_day_creates_single_trend_point(mock_today, dashboard_service):
     service, user_repository, ynab_factory = dashboard_service
     user_repository.find_by_telegram_id.return_value = _configured_user()

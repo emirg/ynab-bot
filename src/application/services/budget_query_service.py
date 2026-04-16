@@ -4,7 +4,10 @@ from typing import List, Optional
 
 from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABCategory, YNABAccount
-from domain.services.spending_aggregation import summarize_transaction_spending
+from domain.services.spending_aggregation import (
+    summarize_transaction_net_spending,
+    summarize_transaction_spending,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +86,7 @@ class BudgetQueryService:
         total_spent = abs(total_activity)
         top_spending = []
         if transactions is not None:
-            total_spent, category_totals = summarize_transaction_spending(transactions)
+            total_spent, category_totals = summarize_transaction_net_spending(transactions)
             category_balances = {category.name: category.balance for category in active}
             top_spending = [
                 {
