@@ -337,7 +337,7 @@ class BudgetQueryFormatter:
     @staticmethod
     def _format_budget_summary(data: dict) -> str:
         total_budgeted = data['total_budgeted'] / 1000
-        total_activity = data['total_activity'] / 1000
+        total_spent = data.get('total_spent', abs(data['total_activity'])) / 1000
         total_balance = data['total_balance'] / 1000
         balance_emoji = "✅" if total_balance > 0 else "⚠️"
 
@@ -345,7 +345,7 @@ class BudgetQueryFormatter:
 {balance_emoji} *Resumen de presupuesto*
 
 💰 *Total presupuestado:* ${total_budgeted:,.0f}
-📉 *Total gastado:* ${abs(total_activity):,.0f}
+📉 *Total gastado:* ${total_spent:,.0f}
 💵 *Total disponible:* ${total_balance:,.0f}
 📊 *Categorías activas:* {data['category_count']}
         """.strip()
@@ -354,7 +354,7 @@ class BudgetQueryFormatter:
         if top:
             message += "\n\n📊 *Top gastos:*"
             for i, cat in enumerate(top, 1):
-                spent = abs(cat['activity'] / 1000)
+                spent = cat.get('spent', abs(cat.get('activity', 0))) / 1000
                 remaining = cat['balance'] / 1000
                 message += f"\n{i}. *{cat['name']}* — ${spent:,.0f} gastado, ${remaining:,.0f} disponible"
 
@@ -527,6 +527,14 @@ class LearningResponseFormatter:
     def format_no_recent_transaction_error() -> str:
         """Error shown when there are no recent transactions to modify"""
         return "❌ No hay transacciones recientes para modificar."
+
+    @staticmethod
+    def format_recent_transaction_sync_error() -> str:
+        """Error shown when the cached recent reference drifted from live YNAB state."""
+        return (
+            "❌ Esa referencia reciente ya no coincide con el estado actual en YNAB. "
+            "Revisa `/recent` o ajusta la transacción directamente en YNAB."
+        )
 
     @staticmethod
     def format_edit_help() -> str:

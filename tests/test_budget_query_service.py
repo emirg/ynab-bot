@@ -151,6 +151,7 @@ class TestBudgetSummary:
         # Only active categories (c1, c2, c3 — hidden and deleted excluded)
         assert result.data['total_budgeted'] == 1000000
         assert result.data['total_activity'] == -430000
+        assert result.data['total_spent'] == 430000
         assert result.data['total_balance'] == 570000
         assert result.data['category_count'] == 3
 
@@ -158,9 +159,40 @@ class TestBudgetSummary:
         result = service.execute_query('budget_summary', None, categories, accounts)
         top = result.data['top_spending']
         assert len(top) == 3
-        # Sorted by activity ascending (most negative first)
+        # Fallback mode still orders by the largest category activity
         assert top[0]['name'] == 'Groceries'
-        assert top[0]['activity'] == -200000
+        assert top[0]['spent'] == 200000
+
+    def test_budget_summary_uses_transactions_for_spending_totals_and_top_categories(self, service, categories, accounts):
+        result = service.execute_query(
+            'budget_summary',
+            None,
+            categories,
+            accounts,
+            transactions=[
+                {
+                    'amount': -250000,
+                    'date': '2026-04-03',
+                    'category_name': 'Split (Multiple Categories)',
+                    'subtransactions': [
+                        {'amount': -120000, 'category_name': 'Groceries'},
+                        {'amount': -130000, 'category_name': '🍔 Restaurants'},
+                    ],
+                },
+                {
+                    'amount': -150000,
+                    'date': '2026-04-10',
+                    'category_name': 'Groceries',
+                },
+            ],
+        )
+
+        assert result.data['total_spent'] == 400000
+        assert result.data['top_spending'][0] == {
+            'name': 'Groceries',
+            'spent': 270000,
+            'balance': 300000,
+        }
 
 
 class TestInvalidQueryType:

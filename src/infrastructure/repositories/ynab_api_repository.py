@@ -181,6 +181,28 @@ class YNABApiRepository(YNABRepository):
             logger.error(f"Failed to get transactions for budget {budget_id}: {e}", extra={"operation": "get_transactions"})
             raise YNABApiException(f"Failed to get transactions: {e}")
 
+    def get_transaction_by_id(self, budget_id: str, transaction_id: str) -> Optional[dict]:
+        """Get a single transaction by ID. Returns None when it no longer exists."""
+        try:
+            response = self.client.get(f"/budgets/{budget_id}/transactions/{transaction_id}")
+            if response.status_code == 404:
+                return None
+
+            response.raise_for_status()
+            transaction = response.json()["data"]["transaction"]
+            if transaction.get("deleted", False):
+                return None
+            return transaction
+
+        except YNABApiException:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Failed to get transaction {transaction_id} for budget {budget_id}: {e}",
+                extra={"operation": "get_transaction_by_id"},
+            )
+            raise YNABApiException(f"Failed to get transaction: {e}")
+
     def delete_transaction(self, budget_id: str, transaction_id: str) -> bool:
         """Delete a transaction. Returns True if deletion succeeded."""
         try:

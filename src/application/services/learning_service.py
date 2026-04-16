@@ -193,7 +193,10 @@ class LearningService:
         if not transactions:
             return "📋 No hay transacciones recientes registradas."
 
-        message = f"📋 *Últimas {len(transactions)} transacciones:*\n\n"
+        message = (
+            f"📋 *Últimas {len(transactions)} transacciones del bot:*\n\n"
+            "_Esta lista es una referencia rápida para `/editar` y `/deshacer`, no un historial canónico de YNAB._\n\n"
+        )
 
         for i, transaction in enumerate(transactions):
             payee = transaction.get('payee', 'Desconocido')
@@ -211,6 +214,6 @@ class LearningService:
             message += f"{i+1}. *{payee}* - ${amount:,.0f}\n"
             message += f"   📁 {category_name} {source_emoji} ({confidence:.0f}% confianza)\n\n"
 
-        message += "💡 Usa `/corregir <número>` para corregir una categoría"
+        message += "💡 Usa `/editar <número> ...` o `/deshacer` solo si esa referencia sigue coincidiendo con YNAB."
 
         return message

@@ -82,14 +82,22 @@ def test_build_dashboard_for_month_returns_metrics_and_budget_status(mock_today,
 
 
 @patch("application.services.advisor_dashboard_service.user_today")
-def test_build_dashboard_for_month_prefers_ynab_category_activity_for_totals(mock_today, dashboard_service):
+def test_build_dashboard_for_month_uses_transaction_splits_for_totals(mock_today, dashboard_service):
     service, user_repository, ynab_factory = dashboard_service
     user_repository.find_by_telegram_id.return_value = _configured_user()
     mock_today.return_value = date(2026, 4, 12)
 
     ynab_repo = MagicMock()
     ynab_repo.get_transactions.return_value = [
-        _txn(-655_725, "2026-04-10", "Split (Multiple Categories)"),
+        {
+            "amount": -655_725,
+            "date": "2026-04-10",
+            "category_name": "Split (Multiple Categories)",
+            "subtransactions": [
+                {"amount": -500_000, "category_name": "Groceries"},
+                {"amount": -155_725, "category_name": "Meal delivery"},
+            ],
+        },
         _txn(-345_500, "2026-04-11", "Meal delivery"),
     ]
     ynab_repo.get_categories.return_value = [
@@ -116,9 +124,9 @@ def test_build_dashboard_for_month_prefers_ynab_category_activity_for_totals(moc
 
     dashboard = service.build_dashboard(123, "mes")
 
-    assert dashboard.summary.total_spent == 775_725
+    assert dashboard.summary.total_spent == 1_001_225
     assert dashboard.summary.top_category_name == "Meal delivery"
-    assert dashboard.top_categories[0].amount == 655_725
+    assert dashboard.top_categories[0].amount == 501_225
 
 
 @patch("application.services.advisor_dashboard_service.user_today")

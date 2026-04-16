@@ -1,4 +1,9 @@
-from domain.services.spending_aggregation import extract_expense_entries
+from domain.models.user import YNABCategory
+from domain.services.spending_aggregation import (
+    extract_expense_entries,
+    normalize_budget_category_snapshots,
+    summarize_transaction_spending,
+)
 
 
 def test_extract_expense_entries_expands_negative_split_subtransactions():
@@ -38,3 +43,67 @@ def test_extract_expense_entries_ignores_zero_sum_split_parents():
     )
 
     assert entries == []
+
+
+def test_summarize_transaction_spending_uses_expanded_split_entries():
+    total_spent, category_totals = summarize_transaction_spending(
+        [
+            {
+                "amount": -100_000,
+                "date": "2026-04-12",
+                "category_name": "Split (Multiple Categories)",
+                "subtransactions": [
+                    {"amount": -70_000, "category_name": "Groceries"},
+                    {"amount": -30_000, "category_name": "Meal delivery"},
+                ],
+            },
+            {"amount": -20_000, "date": "2026-04-12", "category_name": "Groceries"},
+        ]
+    )
+
+    assert total_spent == 120_000
+    assert category_totals == {"Groceries": 90_000, "Meal delivery": 30_000}
+
+
+def test_normalize_budget_category_snapshots_filters_inactive_hidden_and_deleted():
+    snapshots = normalize_budget_category_snapshots(
+        [
+            YNABCategory(
+                id="1",
+                name="Comida",
+                group_name="Casa",
+                full_name="Casa -> Comida",
+                budgeted=100_000,
+                activity=-20_000,
+                balance=80_000,
+            ),
+            YNABCategory(
+                id="2",
+                name="Oculta",
+                group_name="Casa",
+                full_name="Casa -> Oculta",
+                budgeted=50_000,
+                activity=-10_000,
+                balance=40_000,
+                hidden=True,
+            ),
+            YNABCategory(
+                id="3",
+                name="Sin movimiento",
+                group_name="Casa",
+                full_name="Casa -> Sin movimiento",
+                budgeted=0,
+                activity=0,
+                balance=0,
+            ),
+        ]
+    )
+
+    assert snapshots == [
+        {
+            "name": "Comida",
+            "budgeted": 100_000,
+            "activity": -20_000,
+            "balance": 80_000,
+        }
+    ]

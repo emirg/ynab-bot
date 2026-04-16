@@ -29,6 +29,7 @@ Non-negotiable rules. Flag violations immediately during review.
 |---|---|
 | Milliunits | YNAB amounts are ×1000. Expenses are negative. |
 | YNAB source of truth | When YNAB provides the relevant financial state, prefer it over locally inferred or cached interpretations. |
+| Financial read matrix | Spending totals use transactions, budget health uses category snapshots, account balances use account fields, and recent/edit/undo state is convenience-only. |
 | Dependency Injection | Use `YNABRepositoryFactory` per-user. Never singletons. |
 | Per-user isolation | All SQLite queries and YNAB calls scoped to authenticated user. |
 | UI language | All user-facing strings in Spanish. |

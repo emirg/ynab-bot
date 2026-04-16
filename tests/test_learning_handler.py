@@ -323,6 +323,19 @@ async def test_handle_edit_command_no_recent_transactions(handler, update, conte
 
 
 @pytest.mark.anyio
+async def test_handle_edit_command_sync_error(handler, update, context):
+    context.args = ['monto', '10000']
+    handler.expense_service.edit_last_transaction.return_value = {
+        'error': 'ynab_transaction_stale',
+    }
+    await handler.handle_edit_command(update, context)
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'ynab' in args[0].lower()
+    assert 'coincide' in args[0].lower()
+
+
+@pytest.mark.anyio
 async def test_handle_edit_command_index_out_of_range(handler, update, context):
     """Index out of range error is handled."""
     context.args = ['99', 'monto', '10000']
@@ -418,6 +431,20 @@ async def test_handle_undo_command_time_window_error(handler, update, context):
     args, _ = update.message.reply_text.call_args
     # Should use format_time_window_error() message
     assert 'minutos' in args[0].lower() or '5 minutos' in args[0] or 'modificar' in args[0].lower()
+
+
+@pytest.mark.anyio
+async def test_handle_undo_command_sync_error(handler, update, context):
+    handler.expense_service.undo_last_transaction.return_value = {
+        'error': 'ynab_transaction_missing',
+    }
+
+    await handler.handle_undo_command(update, context)
+
+    update.message.reply_text.assert_called_once()
+    args, _ = update.message.reply_text.call_args
+    assert 'ynab' in args[0].lower()
+    assert 'coincide' in args[0].lower()
 
 
 @pytest.mark.anyio

@@ -44,6 +44,11 @@ class YNABRepository(ABC):
         pass
 
     @abstractmethod
+    def get_transaction_by_id(self, budget_id: str, transaction_id: str) -> Optional[dict]:
+        """Get a single transaction by ID. Returns the raw YNAB transaction dict or None."""
+        pass
+
+    @abstractmethod
     def delete_transaction(self, budget_id: str, transaction_id: str) -> bool:
         """Delete a transaction. Returns True if deletion succeeded."""
         pass

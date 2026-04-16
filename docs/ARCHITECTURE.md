@@ -20,6 +20,13 @@ YNAB is the authoritative financial system for this project.
 - When YNAB exposes category activity, available balance, account balance, or split transaction structure, the app should prefer that data over locally inferred aggregates.
 - Any disagreement between local app calculations and YNAB should be treated as a correctness bug in the app.
 
+### Financial Read Matrix
+
+- Spending totals, category rankings, and trend series come from YNAB transactions, with split subtransactions expanded into their real categories and bookkeeping-only zero-sum flows excluded.
+- Budget-health views come from YNAB category snapshots: `budgeted`, `activity`, and especially `balance` for remaining available and overspending.
+- Account balances come from YNAB account balance fields.
+- Bot-local recent/edit/undo state is convenience metadata only and must not be treated as canonical financial state.
+
 ## Phase 1 Advisor Baseline
 
 Financial Advisor Phase 1 starts from the current shipped runtime, not from an assumed future repo split or mandatory multi-service topology.

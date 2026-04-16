@@ -2,6 +2,7 @@ import logging
 from datetime import date, timedelta
 
 from domain.models.on_demand_summary import MonthlySummaryInsight, OnDemandSummary
+from domain.services.spending_aggregation import normalize_budget_category_snapshots
 from domain.models.user import UserConfiguration
 from domain.time_utils import user_today
 from infrastructure.repositories.ynab_api_repository import YNABRepositoryFactory
@@ -86,19 +87,9 @@ class OnDemandSummaryService:
         # For monthly period, also fetch categories for budget comparison
         budget_data = None
         if period_type == "mes":
-            categories = ynab_repo.get_categories(budget_id)
-            budget_data = [
-                {
-                    "name": cat.name,
-                    "budgeted": cat.budgeted,
-                    "activity": cat.activity,
-                    "balance": cat.balance,
-                }
-                for cat in categories
-                if not cat.deleted
-                and not cat.hidden
-                and (cat.budgeted > 0 or cat.activity != 0)
-            ]
+            budget_data = normalize_budget_category_snapshots(
+                ynab_repo.get_categories(budget_id)
+            )
 
         summary = OnDemandSummary.from_transactions(
             transactions=transactions,

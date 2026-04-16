@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from domain.models.expense import Expense, ExpenseResult, PreparedExpense
 from domain.models.budget_query import BudgetQueryResult, MessageResult
 from domain.models.user import UserConfiguration, YNABCategory, YNABPayee
-from domain.time_utils import user_now, DEFAULT_TIMEZONE
+from domain.time_utils import user_now, user_today, DEFAULT_TIMEZONE
 from domain.repositories.user_repository import UserRepository
 from domain.repositories.learning_repository import LearningRepository
 from domain.exceptions import (
@@ -87,11 +87,21 @@ class ExpenseService:
                 raise ExpenseParsingException(message, 0.0)
 
             if parsed.get('intent') == 'query':
+                transactions = None
+                if parsed.get('query_type') == 'budget_summary':
+                    today = user_today(user_tz)
+                    since_date = today.replace(day=1).isoformat()
+                    transactions = [
+                        txn
+                        for txn in ynab_repository.get_transactions(user_config.budget_id, since_date=since_date)
+                        if since_date <= txn.get('date', '') <= today.isoformat()
+                    ]
                 query_result = self.budget_query_service.execute_query(
                     parsed.get('query_type', ''),
                     parsed.get('query_target'),
                     categories,
                     accounts,
+                    transactions=transactions,
                 )
                 return MessageResult(intent='query', query_result=query_result)
 
@@ -1055,6 +1065,13 @@ class ExpenseService:
             # Create YNAB repository
             ynab_repository = self.ynab_factory.get_repository(user_config)
             budget_id = user_config.budget_id
+            _live_transaction, reconciliation_error = self._get_live_transaction_state(
+                ynab_repository,
+                budget_id,
+                transaction,
+            )
+            if reconciliation_error:
+                return {"error": reconciliation_error}
 
             # Build fields dict for YNAB update
             fields: Dict = {}
@@ -1146,6 +1163,36 @@ class ExpenseService:
             return float(new_amount) * -1
         return float(new_amount)
 
+    def _get_live_transaction_state(
+        self,
+        ynab_repository,
+        budget_id: str,
+        cached_transaction: dict,
+    ) -> tuple[dict | None, str | None]:
+        transaction_id = cached_transaction.get('ynab_transaction_id')
+        if not transaction_id:
+            return None, "no_ynab_transaction_id"
+
+        live_transaction = ynab_repository.get_transaction_by_id(budget_id, transaction_id)
+        if live_transaction is None:
+            return None, "ynab_transaction_missing"
+
+        cached_amount = cached_transaction.get('amount')
+        if cached_amount is not None and live_transaction.get('amount') != cached_amount:
+            return None, "ynab_transaction_stale"
+
+        cached_payee = cached_transaction.get('payee')
+        live_payee = live_transaction.get('payee_name') or ''
+        if cached_payee and cached_payee != live_payee:
+            return None, "ynab_transaction_stale"
+
+        cached_category_id = cached_transaction.get('category_id')
+        live_category_id = live_transaction.get('category_id')
+        if cached_category_id and cached_category_id != live_category_id:
+            return None, "ynab_transaction_stale"
+
+        return live_transaction, None
+
     def undo_last_transaction(self, telegram_user_id: int) -> Optional[Dict]:
         """Delete the most recent transaction if within the allowed time window.
 
@@ -1177,6 +1224,13 @@ class ExpenseService:
 
             # Delete from YNAB
             ynab_repository = self.ynab_factory.get_repository(user_config)
+            _live_transaction, reconciliation_error = self._get_live_transaction_state(
+                ynab_repository,
+                user_config.budget_id,
+                transaction,
+            )
+            if reconciliation_error:
+                return {"error": reconciliation_error}
             deleted = ynab_repository.delete_transaction(user_config.budget_id, ynab_transaction_id)
             if not deleted:
                 return {"error": "ynab_delete_failed"}

@@ -4,8 +4,7 @@ from typing import List, Optional
 
 from domain.models.weekly_summary import CategorySpending
 from domain.services.spending_aggregation import (
-    aggregate_category_spending,
-    extract_expense_entries,
+    summarize_transaction_spending,
 )
 
 
@@ -67,7 +66,7 @@ class OnDemandSummary:
 
         Only expense transactions (amount < 0) are counted.
         """
-        expenses = [t for t in transactions if t.get("amount", 0) < 0]
+        total_spent, category_breakdown = cls._build_spending_from_transactions(transactions)
 
         # Build budget comparison if budget_data is provided
         budget_comparison: Optional[List[CategoryBudgetComparison]] = None
@@ -77,7 +76,7 @@ class OnDemandSummary:
                 budgeted = entry.get("budgeted", 0)
                 activity = entry.get("activity", 0)
                 spent = abs(activity)
-                remaining = entry.get("balance", budgeted - spent)
+                remaining = entry["balance"]
                 comparisons.append(CategoryBudgetComparison(
                     category_name=entry["name"],
                     budgeted=budgeted,
@@ -85,13 +84,6 @@ class OnDemandSummary:
                     remaining=remaining,
                 ))
             budget_comparison = comparisons
-
-        if period_type == "mes" and budget_comparison is not None:
-            total_spent, category_breakdown = cls._build_monthly_spending_from_budget_data(
-                budget_comparison
-            )
-        else:
-            total_spent, category_breakdown = cls._build_spending_from_transactions(expenses)
 
         return cls(
             period_type=period_type,
@@ -102,7 +94,7 @@ class OnDemandSummary:
             monthly_insight=MonthlySummaryInsight(
                 top_categories=category_breakdown[:3],
             ) if period_type == "mes" else None,
-            has_transactions=len(expenses) > 0,
+            has_transactions=total_spent > 0,
             period_start=period_start,
             period_end=period_end,
         )
@@ -111,9 +103,7 @@ class OnDemandSummary:
     def _build_spending_from_transactions(
         transactions: List[dict],
     ) -> tuple[int, List[CategorySpending]]:
-        expenses = extract_expense_entries(transactions)
-        total_spent = abs(sum(t["amount"] for t in expenses))
-        category_totals = aggregate_category_spending(expenses)
+        total_spent, category_totals = summarize_transaction_spending(transactions)
         category_breakdown = sorted(
             [
                 CategorySpending(category_name=name, amount=amount)
@@ -123,16 +113,3 @@ class OnDemandSummary:
             reverse=True,
         )
         return total_spent, category_breakdown
-
-    @staticmethod
-    def _build_monthly_spending_from_budget_data(
-        comparisons: List[CategoryBudgetComparison],
-    ) -> tuple[int, List[CategorySpending]]:
-        activity_categories = [
-            CategorySpending(category_name=comp.category_name, amount=comp.spent)
-            for comp in comparisons
-            if comp.spent > 0
-        ]
-        activity_categories.sort(key=lambda c: c.amount, reverse=True)
-        total_spent = sum(cat.amount for cat in activity_categories)
-        return total_spent, activity_categories

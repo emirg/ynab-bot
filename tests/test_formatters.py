@@ -796,6 +796,11 @@ class TestLearningResponseFormatter:
         assert 'recientes' in msg
         assert '❌' in msg
 
+    def test_format_recent_transaction_sync_error(self):
+        msg = LearningResponseFormatter.format_recent_transaction_sync_error()
+        assert 'ya no coincide' in msg
+        assert 'YNAB' in msg
+
     def test_format_edit_help(self):
         msg = LearningResponseFormatter.format_edit_help()
         assert 'monto' in msg
@@ -927,11 +932,12 @@ class TestBudgetQueryFormatter:
         result = BudgetQueryResult.success_result('budget_summary', {
             'total_budgeted': 1000000,
             'total_activity': -430000,
+            'total_spent': 430000,
             'total_balance': 570000,
             'category_count': 5,
             'top_spending': [
-                {'name': 'Groceries', 'activity': -200000, 'balance': 300000},
-                {'name': 'Restaurants', 'activity': -150000, 'balance': 150000},
+                {'name': 'Groceries', 'spent': 200000, 'balance': 300000},
+                {'name': 'Restaurants', 'spent': 150000, 'balance': 150000},
             ],
         })
         msg = BudgetQueryFormatter.format_response(result)
@@ -946,6 +952,7 @@ class TestBudgetQueryFormatter:
         result = BudgetQueryResult.success_result('budget_summary', {
             'total_budgeted': 1000000,
             'total_activity': 0,
+            'total_spent': 0,
             'total_balance': 1000000,
             'category_count': 3,
             'top_spending': [],
@@ -1050,4 +1057,3 @@ class TestSplitConfigResponseFormatter:
         
         msg_no_group = SplitConfigResponseFormatter.format_ask_alias()
         assert 'alias' in msg_no_group
-

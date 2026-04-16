@@ -36,6 +36,8 @@ YNAB is the financial source of truth for this project.
 
 - Assume users can create, edit, split, recategorize, and reconcile transactions directly in YNAB outside the bot.
 - When YNAB exposes category activity, balances, availability, or transaction structure, prefer that data over local guesses or bot-only history.
+- Apply the financial read matrix consistently: spending totals and category rankings come from transactions, budget health comes from category snapshots, and account balances come from account fields.
+- Treat `/recent`, `/editar`, and `/deshacer` as workflow conveniences, not authoritative reporting surfaces.
 - If a local computation disagrees with YNAB, the implementation should be corrected to reconcile with YNAB.
 
 ## Shared Skills

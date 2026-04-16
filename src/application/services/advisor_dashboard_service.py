@@ -12,8 +12,9 @@ from domain.models.advisor_dashboard import (
 )
 from domain.models.weekly_summary import CategorySpending
 from domain.services.spending_aggregation import (
-    aggregate_category_spending,
     extract_expense_entries,
+    normalize_budget_category_snapshots,
+    summarize_transaction_spending,
 )
 from domain.time_utils import user_today
 from domain.repositories.user_repository import UserRepository
@@ -78,19 +79,16 @@ class AdvisorDashboardService:
 
         budget_data = None
         if period_type == "mes":
-            budget_data = self._build_budget_data(ynab_repo.get_categories(user.budget_id))
+            budget_data = normalize_budget_category_snapshots(
+                ynab_repo.get_categories(user.budget_id)
+            )
 
         expenses = extract_expense_entries(transactions)
         raw_expense_transactions = [txn for txn in transactions if txn.get("amount", 0) < 0]
         transaction_count = len(raw_expense_transactions)
         active_days = (period_end - period_start).days + 1
 
-        if period_type == "mes" and budget_data is not None:
-            total_spent = sum(abs(entry.get("activity", 0)) for entry in budget_data if entry.get("activity", 0) < 0)
-            top_categories = self._build_top_categories_from_budget_data(budget_data)
-        else:
-            total_spent = abs(sum(txn["amount"] for txn in expenses))
-            top_categories = self._build_top_categories(expenses)
+        total_spent, top_categories = self._build_top_categories(transactions)
         budget_status = None if budget_data is None else self._build_budget_status(budget_data)
         insights = self._advisor_insights_service.build_insights(
             period_type=period_type,
@@ -151,41 +149,17 @@ class AdvisorDashboardService:
         raise ValueError(f"period_type desconocido: '{period_type}'")
 
     @staticmethod
-    def _build_budget_data(categories: list) -> list[dict]:
-        return [
-            {
-                "name": category.name,
-                "budgeted": category.budgeted,
-                "activity": category.activity,
-                "balance": category.balance,
-            }
-            for category in categories
-            if not category.deleted
-            and not category.hidden
-            and (category.budgeted > 0 or category.activity != 0)
-        ]
-
-    @staticmethod
-    def _build_top_categories(expenses: list[dict]) -> list[CategorySpending]:
-        category_totals = aggregate_category_spending(expenses)
-        return sorted(
+    def _build_top_categories(transactions: list[dict]) -> tuple[int, list[CategorySpending]]:
+        total_spent, category_totals = summarize_transaction_spending(transactions)
+        categories = sorted(
             [
                 CategorySpending(category_name=name, amount=amount)
                 for name, amount in category_totals.items()
             ],
             key=lambda item: item.amount,
             reverse=True,
-        )[:5]
-
-    @staticmethod
-    def _build_top_categories_from_budget_data(budget_data: list[dict]) -> list[CategorySpending]:
-        categories = [
-            CategorySpending(category_name=entry["name"], amount=abs(entry.get("activity", 0)))
-            for entry in budget_data
-            if entry.get("activity", 0) < 0
-        ]
-        categories.sort(key=lambda item: item.amount, reverse=True)
-        return categories[:5]
+        )
+        return total_spent, categories[:5]
 
     @staticmethod
     def _build_trend(
@@ -231,7 +205,7 @@ class AdvisorDashboardService:
         for entry in budget_data:
             budgeted = entry.get("budgeted", 0)
             spent = abs(entry.get("activity", 0))
-            remaining = entry.get("balance", budgeted - spent)
+            remaining = entry["balance"]
             statuses.append(
                 AdvisorBudgetStatus(
                     category_name=entry["name"],

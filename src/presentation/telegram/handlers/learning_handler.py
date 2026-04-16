@@ -179,6 +179,8 @@ class LearningHandler(BaseHandler):
                     await self.send_error_message(update, self.formatter.format_time_window_error())
                 elif error_code == "no_recent_transactions":
                     await self.send_error_message(update, self.formatter.format_no_recent_transaction_error())
+                elif error_code in ("ynab_transaction_missing", "ynab_transaction_stale"):
+                    await self.send_error_message(update, self.formatter.format_recent_transaction_sync_error())
                 elif error_code == "index_out_of_range":
                     await self.send_error_message(update, "El indice de transaccion esta fuera de rango.")
                 elif error_code in ("category_not_found", "account_not_found"):
@@ -214,6 +216,8 @@ class LearningHandler(BaseHandler):
                     await self.send_error_message(update, self.formatter.format_time_window_error())
                 elif error_code == 'no_recent_transactions':
                     await self.send_error_message(update, self.formatter.format_no_recent_transaction_error())
+                elif error_code in ('ynab_transaction_missing', 'ynab_transaction_stale'):
+                    await self.send_error_message(update, self.formatter.format_recent_transaction_sync_error())
                 else:
                     await self.send_error_message(update, error_code)
                 return

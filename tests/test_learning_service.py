@@ -106,6 +106,8 @@ class TestFormatRecentTransactionsMessage:
         assert 'Carulla' in msg
         assert '🤖' in msg  # llm emoji
         assert '🧠' in msg  # learning emoji
+        assert 'no un historial canónico de YNAB' in msg
+        assert '/editar <número>' in msg
 
     def test_unknown_parser_source(self, service, mock_learning_repository):
         mock_learning_repository.get_recent_transactions.return_value = [

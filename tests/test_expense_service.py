@@ -587,6 +587,39 @@ class TestUndoLastTransaction:
             TELEGRAM_ID, 'txn-undo-1'
         )
 
+    def test_missing_live_ynab_transaction_returns_sync_error(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.get_transaction_by_id.side_effect = None
+        mock_ynab_repository.get_transaction_by_id.return_value = None
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result == {'error': 'ynab_transaction_missing'}
+        mock_ynab_repository.delete_transaction.assert_not_called()
+
+    def test_stale_live_ynab_transaction_blocks_undo(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.get_transaction_by_id.side_effect = None
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-undo-1',
+            'amount': -30000,
+            'payee_name': 'McDonalds',
+            'category_id': 'cat-2',
+        }
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.undo_last_transaction(TELEGRAM_ID)
+
+        assert result == {'error': 'ynab_transaction_stale'}
+        mock_ynab_repository.delete_transaction.assert_not_called()
+
     def test_no_recent_transactions_returns_error(
         self, service, mock_user_repository, mock_learning_repository, authorized_user,
     ):
@@ -610,6 +643,39 @@ class TestUndoLastTransaction:
 
         assert result is not None
         assert result.get('error') == 'no_ynab_transaction_id'
+
+    def test_missing_live_ynab_transaction_blocks_edit(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.get_transaction_by_id.side_effect = None
+        mock_ynab_repository.get_transaction_by_id.return_value = None
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result == {'error': 'ynab_transaction_missing'}
+        mock_ynab_repository.update_transaction.assert_not_called()
+
+    def test_stale_live_ynab_transaction_blocks_edit(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.get_transaction_by_id.side_effect = None
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-1',
+            'amount': -25000,
+            'payee_name': 'Otro comercio',
+            'category_id': 'cat-2',
+        }
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result == {'error': 'ynab_transaction_stale'}
+        mock_ynab_repository.update_transaction.assert_not_called()
 
     def test_transaction_too_old_returns_time_window_error(
         self, service, mock_user_repository, mock_learning_repository, authorized_user,
@@ -656,6 +722,13 @@ class TestUndoLastTransaction:
             'ynab_transaction_id': 'txn-today-1',
             'timestamp': timestamp,
         }]
+        mock_ynab_repository.get_transaction_by_id.side_effect = None
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-today-1',
+            'amount': -50000,
+            'payee_name': 'Carulla',
+            'category_id': 'cat-1',
+        }
 
         result = service.undo_last_transaction(TELEGRAM_ID)
 
@@ -677,6 +750,13 @@ class TestUndoLastTransaction:
             'ynab_transaction_id': 'txn-pg-1',
             'timestamp': datetime.now(timezone.utc) - timedelta(minutes=1),
         }]
+        mock_ynab_repository.get_transaction_by_id.side_effect = None
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-pg-1',
+            'amount': -50000,
+            'payee_name': 'Carulla',
+            'category_id': 'cat-1',
+        }
 
         result = service.undo_last_transaction(TELEGRAM_ID)
 
@@ -971,6 +1051,20 @@ class TestEditLastTransaction:
             'category_name': 'Groceries',
         }
         mock_learning_repository.get_recent_transactions.side_effect = [[original], [updated]]
+        mock_ynab_repository.get_transaction_by_id.side_effect = [
+            {
+                'id': 'txn-edit-1',
+                'amount': -25000,
+                'payee_name': 'McDonalds',
+                'category_id': 'cat-2',
+            },
+            {
+                'id': 'txn-edit-1',
+                'amount': -30000,
+                'payee_name': 'McDonalds',
+                'category_id': 'cat-1',
+            },
+        ]
 
         edit_result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('30'), new_category='Groceries')
         undo_result = service.undo_last_transaction(TELEGRAM_ID)
@@ -991,6 +1085,13 @@ class TestEditLastTransaction:
         txn0 = self._recent_txn()
         txn1 = {**self._recent_txn(), 'ynab_transaction_id': 'txn-edit-2', 'payee': 'Carulla'}
         mock_learning_repository.get_recent_transactions.return_value = [txn0, txn1]
+        mock_ynab_repository.get_transaction_by_id.side_effect = None
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-2',
+            'amount': -25000,
+            'payee_name': 'Carulla',
+            'category_id': 'cat-2',
+        }
 
         result = service.edit_last_transaction(TELEGRAM_ID, transaction_index=1, new_amount=Decimal('10'))
 
@@ -1124,6 +1225,44 @@ class TestProcessMessage:
         assert result.query_result is not None
         assert result.query_result.success is True
         mock_budget_query_service.execute_query.assert_called_once()
+
+    @patch("application.services.expense_service.user_today")
+    def test_budget_summary_query_passes_current_month_transactions(
+        self,
+        mock_today,
+        service,
+        mock_llm_parser,
+        mock_budget_query_service,
+        mock_ynab_repository,
+        authorized_user,
+    ):
+        from domain.models.budget_query import BudgetQueryResult
+
+        authorized_user.timezone = "America/Bogota"
+        mock_today.return_value = datetime(2026, 4, 12).date()
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'query',
+            'query_type': 'budget_summary',
+            'query_target': None,
+            'confidence': 0.9,
+        }
+        mock_ynab_repository.get_transactions.return_value = [
+            {'amount': -100000, 'date': '2026-04-05', 'category_name': 'Groceries'},
+            {'amount': -50000, 'date': '2026-03-31', 'category_name': 'Groceries'},
+        ]
+        mock_budget_query_service.execute_query.return_value = BudgetQueryResult.success_result(
+            'budget_summary',
+            {'total_budgeted': 0, 'total_activity': 0, 'total_spent': 0, 'total_balance': 0, 'category_count': 0, 'top_spending': []},
+        )
+
+        service.process_message(TELEGRAM_ID, '¿Cómo va mi presupuesto?')
+
+        mock_ynab_repository.get_transactions.assert_called_once_with(authorized_user.budget_id, since_date='2026-04-01')
+        mock_budget_query_service.execute_query.assert_called_once()
+        call_args = mock_budget_query_service.execute_query.call_args
+        assert call_args.kwargs['transactions'] == [
+            {'amount': -100000, 'date': '2026-04-05', 'category_name': 'Groceries'},
+        ]
 
     def test_parse_failure(self, service, mock_llm_parser):
         mock_llm_parser.parse_message.return_value = None

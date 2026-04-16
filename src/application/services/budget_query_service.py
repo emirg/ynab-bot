@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from domain.models.budget_query import BudgetQueryResult
 from domain.models.user import YNABCategory, YNABAccount
+from domain.services.spending_aggregation import summarize_transaction_spending
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +20,14 @@ class BudgetQueryService:
         query_target: Optional[str],
         categories: List[YNABCategory],
         accounts: List[YNABAccount],
+        transactions: Optional[List[dict]] = None,
     ) -> BudgetQueryResult:
         if query_type == 'category_balance':
             return self._query_category_balance(categories, query_target)
         elif query_type == 'account_balance':
             return self._query_account_balance(accounts, query_target)
         elif query_type == 'budget_summary':
-            return self._query_budget_summary(categories)
+            return self._query_budget_summary(categories, transactions)
         else:
             return BudgetQueryResult.error_result(query_type, f"Tipo de consulta no soportado: {query_type}")
 
@@ -67,24 +69,46 @@ class BudgetQueryService:
             'uncleared_balance': account.uncleared_balance,
         })
 
-    def _query_budget_summary(self, categories: List[YNABCategory]) -> BudgetQueryResult:
+    def _query_budget_summary(
+        self,
+        categories: List[YNABCategory],
+        transactions: Optional[List[dict]] = None,
+    ) -> BudgetQueryResult:
         active = [c for c in categories if not c.deleted and not c.hidden]
 
         total_budgeted = sum(c.budgeted for c in active)
         total_activity = sum(c.activity for c in active)
         total_balance = sum(c.balance for c in active)
 
-        # Top categories by spending (activity is negative for expenses)
-        by_spending = sorted(active, key=lambda c: c.activity)
-        top_spending = [
-            {'name': c.name, 'activity': c.activity, 'balance': c.balance}
-            for c in by_spending[:5]
-            if c.activity < 0
-        ]
+        total_spent = abs(total_activity)
+        top_spending = []
+        if transactions is not None:
+            total_spent, category_totals = summarize_transaction_spending(transactions)
+            category_balances = {category.name: category.balance for category in active}
+            top_spending = [
+                {
+                    'name': name,
+                    'spent': amount,
+                    'balance': category_balances.get(name, 0),
+                }
+                for name, amount in sorted(
+                    category_totals.items(),
+                    key=lambda item: item[1],
+                    reverse=True,
+                )[:5]
+            ]
+        else:
+            by_spending = sorted(active, key=lambda c: c.activity)
+            top_spending = [
+                {'name': c.name, 'spent': abs(c.activity), 'balance': c.balance}
+                for c in by_spending[:5]
+                if c.activity < 0
+            ]
 
         return BudgetQueryResult.success_result('budget_summary', {
             'total_budgeted': total_budgeted,
             'total_activity': total_activity,
+            'total_spent': total_spent,
             'total_balance': total_balance,
             'category_count': len(active),
             'top_spending': top_spending,

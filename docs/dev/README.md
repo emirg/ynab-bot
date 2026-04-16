@@ -10,6 +10,12 @@ YNAB is the source of truth for financial state.
 - Local development and debugging should assume YNAB-backed values are authoritative whenever the API provides them.
 - If a local summary or dashboard disagrees with YNAB, treat that as an application bug unless proven otherwise.
 
+### Financial Read Matrix
+
+- Spending totals, top categories, and trend charts should be validated against YNAB transactions, including split subtransactions.
+- Budget-health checks should be validated against YNAB category snapshot fields, especially `balance`.
+- Account balance behavior should be validated against YNAB account payloads, not derived locally.
+
 The current preferred workflow is `HTTP-first` local development:
 
 - run the app locally without competing with the Railway Telegram polling instance

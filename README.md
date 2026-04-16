@@ -12,6 +12,13 @@ YNAB is the source of truth for the product.
 
 This rule matters for users, developers, and AI assistants working on the codebase.
 
+### Financial Read Matrix
+
+- Spending totals, category rankings, and spend trends use YNAB transactions with split subtransactions expanded and non-spending bookkeeping ignored.
+- Budget status, category availability, overspending, and monthly activity use YNAB category snapshot fields `budgeted`, `activity`, and `balance`.
+- Account balances use YNAB account balance fields directly.
+- `/recent`, `/editar`, and `/deshacer` are workflow conveniences backed by recent bot references, not canonical financial reporting.
+
 ## ✨ Features
 
 - 🎤 **Voice Recognition**: Send audio messages and the bot transcribes them automatically with Whisper
