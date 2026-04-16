@@ -84,8 +84,7 @@ class AdvisorDashboardService:
             )
 
         expenses = extract_expense_entries(transactions)
-        raw_expense_transactions = [txn for txn in transactions if txn.get("amount", 0) < 0]
-        transaction_count = len(raw_expense_transactions)
+        transaction_count = len(expenses)
         active_days = (period_end - period_start).days + 1
 
         total_spent, top_categories = self._build_top_categories(transactions)

@@ -86,6 +86,40 @@ def test_summarize_transaction_spending_uses_expanded_split_entries():
     assert category_totals == {"Groceries": 90_000, "Meal delivery": 30_000}
 
 
+def test_extract_expense_entries_ignores_transfer_transactions():
+    entries = extract_expense_entries(
+        [
+            {
+                "amount": -250_000,
+                "date": "2026-04-12",
+                "category_name": None,
+                "transfer_account_id": "acct-2",
+                "transfer_transaction_id": "txn-2",
+            }
+        ]
+    )
+
+    assert entries == []
+
+
+def test_summarize_transaction_spending_ignores_transfer_transactions():
+    total_spent, category_totals = summarize_transaction_spending(
+        [
+            {
+                "amount": -250_000,
+                "date": "2026-04-12",
+                "category_name": None,
+                "transfer_account_id": "acct-2",
+                "transfer_transaction_id": "txn-2",
+            },
+            {"amount": -40_000, "date": "2026-04-12", "category_name": "Meal delivery"},
+        ]
+    )
+
+    assert total_spent == 40_000
+    assert category_totals == {"Meal delivery": 40_000}
+
+
 def test_normalize_budget_category_snapshots_filters_inactive_hidden_and_deleted():
     snapshots = normalize_budget_category_snapshots(
         [

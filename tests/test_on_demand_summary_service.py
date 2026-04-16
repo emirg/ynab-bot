@@ -391,6 +391,28 @@ class TestGenerateSummary:
         assert summary.category_breakdown[1].category_name == "Cafe"
 
     @patch("application.services.on_demand_summary_service.user_today")
+    def test_mes_total_spent_ignores_transfer_outflows(self, mock_today):
+        mock_today.return_value = date(2026, 3, 19)
+        txns = [
+            {
+                "amount": -300_000,
+                "category_name": None,
+                "date": "2026-03-10",
+                "transfer_account_id": "acct-savings",
+                "transfer_transaction_id": "txn-savings",
+            },
+            _make_txn(-45_000, "Restaurantes", "2026-03-11"),
+        ]
+        service, _, _ = _make_service(transactions=txns, categories=[])
+        user = _make_user()
+
+        summary = service.generate_summary(user, "mes")
+
+        assert summary.total_spent == 45_000
+        assert [c.category_name for c in summary.category_breakdown] == ["Restaurantes"]
+        assert [c.amount for c in summary.category_breakdown] == [45_000]
+
+    @patch("application.services.on_demand_summary_service.user_today")
     def test_mes_without_budget_data_sets_fallback_status(self, mock_today):
         mock_today.return_value = date(2026, 3, 19)
         txns = [_make_txn(-30_000, "Comida", "2026-03-01")]

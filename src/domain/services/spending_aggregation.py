@@ -11,6 +11,7 @@ def extract_expense_entries(transactions: List[dict]) -> List[dict]:
     parent ``Split (Multiple Categories)`` bucket. This includes zero-sum shared
     transactions where the parent amount is ``0`` but a negative subtransaction
     still represents the user's expense. Positive balancing legs are ignored.
+    Transfer rows and other bookkeeping-only transactions are excluded.
     """
     entries: List[dict] = []
     for txn in transactions:
@@ -27,6 +28,9 @@ def extract_expense_entries(transactions: List[dict]) -> List[dict]:
                         "date": txn.get("date", ""),
                     }
                 )
+            continue
+
+        if _is_bookkeeping_transaction(txn):
             continue
 
         amount = txn.get("amount", 0)
@@ -84,6 +88,13 @@ def aggregate_category_spending(expense_entries: List[dict]) -> Dict[str, int]:
         name = entry.get("category_name") or "Sin categoría"
         category_totals[name] = category_totals.get(name, 0) + abs(entry["amount"])
     return category_totals
+
+
+def _is_bookkeeping_transaction(transaction: dict) -> bool:
+    return bool(
+        transaction.get("transfer_account_id")
+        or transaction.get("transfer_transaction_id")
+    )
 
 
 def _read_category_field(category: Any, field_name: str, default: Any) -> Any:

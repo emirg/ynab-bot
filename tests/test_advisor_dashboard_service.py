@@ -227,6 +227,44 @@ def test_build_dashboard_for_month_includes_zero_sum_shared_split_expenses(mock_
 
 
 @patch("application.services.advisor_dashboard_service.user_today")
+def test_build_dashboard_for_month_ignores_transfer_outflows(mock_today, dashboard_service):
+    service, user_repository, ynab_factory = dashboard_service
+    user_repository.find_by_telegram_id.return_value = _configured_user()
+    mock_today.return_value = date(2026, 4, 12)
+
+    ynab_repo = MagicMock()
+    ynab_repo.get_transactions.return_value = [
+        {
+            "amount": -250_000,
+            "date": "2026-04-10",
+            "category_name": None,
+            "transfer_account_id": "acct-savings",
+            "transfer_transaction_id": "txn-savings",
+        },
+        _txn(-20_000, "2026-04-11", "Cafe"),
+    ]
+    ynab_repo.get_categories.return_value = [
+        YNABCategory(
+            id="1",
+            name="Cafe",
+            group_name="Casa",
+            full_name="Casa -> Cafe",
+            budgeted=100_000,
+            activity=-20_000,
+            balance=80_000,
+        ),
+    ]
+    ynab_factory.get_repository.return_value = ynab_repo
+
+    dashboard = service.build_dashboard(123, "mes")
+
+    assert dashboard.summary.total_spent == 20_000
+    assert dashboard.summary.transaction_count == 1
+    assert dashboard.summary.top_category_name == "Cafe"
+    assert dashboard.top_categories[0].amount == 20_000
+
+
+@patch("application.services.advisor_dashboard_service.user_today")
 def test_build_dashboard_for_day_creates_single_trend_point(mock_today, dashboard_service):
     service, user_repository, ynab_factory = dashboard_service
     user_repository.find_by_telegram_id.return_value = _configured_user()
