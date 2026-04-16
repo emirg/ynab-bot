@@ -922,23 +922,55 @@ class OnDemandSummaryFormatter:
 
     @staticmethod
     def format_monthly_categories_detail(summary: OnDemandSummary) -> str:
-        """Format the monthly category ranking as a drill-down view."""
+        """Format the monthly category detail as a full active-category drill-down."""
         total_display = summary.total_spent / 1000
+        spent_by_category = {
+            cat.category_name: cat.amount
+            for cat in summary.category_breakdown
+        }
+        comparisons = summary.budget_comparison or []
+
+        active_budget_categories = [
+            comp for comp in comparisons
+            if comp.spent > 0 or comp.budgeted > 0 or comp.remaining != 0
+        ]
+        category_names = {
+            *spent_by_category.keys(),
+            *(comp.category_name for comp in active_budget_categories),
+        }
+
+        ordered_names = sorted(
+            category_names,
+            key=lambda name: (
+                -spent_by_category.get(name, 0),
+                name.lower(),
+            ),
+        )
+
         lines = [
             f"📊 *Categorías — {summary.period_label}*",
             "",
             f"💰 *Total gastado:* ${total_display:,.0f}",
             "",
-            "📋 *Top categorías:*",
+            "📋 *Detalle por categoría:*",
         ]
-        for i, cat in enumerate(summary.category_breakdown[:8], 1):
-            lines.append(f"{i}. {cat.category_name} — ${cat.amount / 1000:,.0f}")
-        if len(summary.category_breakdown) > 8:
-            restantes = len(summary.category_breakdown) - 8
-            lines.extend([
-                "",
-                f"_Hay {restantes} categorías adicionales fuera de esta vista resumida._",
-            ])
+
+        comparison_by_name = {
+            comp.category_name: comp
+            for comp in active_budget_categories
+        }
+
+        for i, name in enumerate(ordered_names, 1):
+            spent = spent_by_category.get(name, 0)
+            comp = comparison_by_name.get(name)
+            line = f"{i}. {name} — ${spent / 1000:,.0f} gastado"
+            if comp is not None:
+                line += (
+                    f" / ${comp.remaining / 1000:,.0f} disponible"
+                    f" / ${comp.budgeted / 1000:,.0f} asignado"
+                )
+            lines.append(line)
+
         return "\n".join(lines)
 
     @staticmethod

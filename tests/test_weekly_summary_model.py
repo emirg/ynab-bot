@@ -324,7 +324,7 @@ class TestNegativeAmounts:
         assert summary.total_spent == 120_000
         assert [c.category_name for c in summary.category_breakdown] == ["Groceries", "Meal delivery"]
 
-    def test_zero_sum_split_transaction_is_not_counted_as_spending(self):
+    def test_zero_sum_shared_split_counts_only_negative_subtransaction(self):
         txns = [
             {
                 "amount": 0,
@@ -342,8 +342,8 @@ class TestNegativeAmounts:
             week_end=WEEK_END,
         )
 
-        assert summary.total_spent == 0
-        assert summary.category_breakdown == []
+        assert summary.total_spent == 40_000
+        assert [c.category_name for c in summary.category_breakdown] == ["Meal delivery"]
 
 
 # ---------------------------------------------------------------------------

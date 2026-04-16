@@ -352,6 +352,45 @@ class TestGenerateSummary:
         assert summary.category_breakdown[0].amount == 501_225_000
 
     @patch("application.services.on_demand_summary_service.user_today")
+    def test_mes_category_breakdown_includes_zero_sum_shared_split_expenses(self, mock_today):
+        mock_today.return_value = date(2026, 3, 19)
+        txns = [
+            {
+                "amount": 0,
+                "category_name": "Split (Multiple Categories)",
+                "date": "2026-03-10",
+                "subtransactions": [
+                    {"amount": -180_000, "category_name": "Restaurantes"},
+                    {"amount": 180_000, "category_name": "Shared Transactions"},
+                ],
+            },
+            _make_txn(-20_000, "Cafe", "2026-03-11"),
+        ]
+        categories = [
+            _make_category(
+                "Restaurantes",
+                budgeted=500_000,
+                activity=-180_000,
+                balance=320_000,
+            ),
+            _make_category(
+                "Cafe",
+                budgeted=100_000,
+                activity=-20_000,
+                balance=80_000,
+            ),
+        ]
+        service, _, _ = _make_service(transactions=txns, categories=categories)
+        user = _make_user()
+
+        summary = service.generate_summary(user, "mes")
+
+        assert summary.total_spent == 200_000
+        assert summary.category_breakdown[0].category_name == "Restaurantes"
+        assert summary.category_breakdown[0].amount == 180_000
+        assert summary.category_breakdown[1].category_name == "Cafe"
+
+    @patch("application.services.on_demand_summary_service.user_today")
     def test_mes_without_budget_data_sets_fallback_status(self, mock_today):
         mock_today.return_value = date(2026, 3, 19)
         txns = [_make_txn(-30_000, "Comida", "2026-03-01")]

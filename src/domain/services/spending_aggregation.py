@@ -8,16 +8,12 @@ def extract_expense_entries(transactions: List[dict]) -> List[dict]:
 
     YNAB split transactions keep the real category amounts in ``subtransactions``.
     For category breakdowns we should count those subcategories instead of the
-    parent ``Split (Multiple Categories)`` bucket, but only when the parent
-    transaction is itself a real expense (negative amount). Zero-sum bookkeeping
-    transactions are ignored.
+    parent ``Split (Multiple Categories)`` bucket. This includes zero-sum shared
+    transactions where the parent amount is ``0`` but a negative subtransaction
+    still represents the user's expense. Positive balancing legs are ignored.
     """
     entries: List[dict] = []
     for txn in transactions:
-        amount = txn.get("amount", 0)
-        if amount >= 0:
-            continue
-
         negative_subtransactions = [
             sub for sub in (txn.get("subtransactions") or [])
             if sub.get("amount", 0) < 0
@@ -31,6 +27,10 @@ def extract_expense_entries(transactions: List[dict]) -> List[dict]:
                         "date": txn.get("date", ""),
                     }
                 )
+            continue
+
+        amount = txn.get("amount", 0)
+        if amount >= 0:
             continue
 
         entries.append(

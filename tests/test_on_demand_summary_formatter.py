@@ -323,16 +323,17 @@ class TestCategoryBreakdownOrdering:
         pos_ocio = result.index("Ocio")
         assert pos_comida < pos_transporte < pos_ocio
 
-    def test_detail_categories_capped_with_extra_note(self):
-        """Detail view should cap long lists and explain there is more."""
+    def test_detail_categories_show_all_spending_rows(self):
+        """Detail view should show all category rows, not only a capped top subset."""
         breakdown = [
-            CategorySpending(category_name=f"Cat{i}", amount=(10 - i) * 10_000)
-            for i in range(6)
+            CategorySpending(category_name=f"Cat{i}", amount=(12 - i) * 10_000)
+            for i in range(10)
         ]
-        summary = make_summary(total_spent=300_000, category_breakdown=breakdown)
+        summary = make_summary(total_spent=750_000, category_breakdown=breakdown)
         result = OnDemandSummaryFormatter.format_monthly_categories_detail(summary)
-        for i in range(6):
+        for i in range(10):
             assert f"Cat{i}" in result
+        assert "Top categorías" not in result
         assert "vista resumida" not in result
 
     def test_detail_categories_numbered_correctly(self):
@@ -346,6 +347,37 @@ class TestCategoryBreakdownOrdering:
         assert "1. A" in result
         assert "2. B" in result
         assert "3. C" in result
+
+    def test_detail_categories_include_budget_values_for_active_categories(self):
+        breakdown = [
+            CategorySpending(category_name="Comida", amount=300_000),
+            CategorySpending(category_name="Transporte", amount=100_000),
+        ]
+        budget_comparison = [
+            CategoryBudgetComparison(
+                category_name="Comida",
+                budgeted=500_000,
+                spent=300_000,
+                remaining=200_000,
+            ),
+            CategoryBudgetComparison(
+                category_name="Hogar",
+                budgeted=250_000,
+                spent=0,
+                remaining=250_000,
+            ),
+        ]
+        summary = make_summary(
+            total_spent=400_000,
+            category_breakdown=breakdown,
+            budget_comparison=budget_comparison,
+        )
+
+        result = OnDemandSummaryFormatter.format_monthly_categories_detail(summary)
+
+        assert "1. Comida — $300 gastado / $200 disponible / $500 asignado" in result
+        assert "2. Transporte — $100 gastado" in result
+        assert "3. Hogar — $0 gastado / $250 disponible / $250 asignado" in result
 
 
 class TestAmountFormatting:

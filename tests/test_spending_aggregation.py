@@ -27,7 +27,7 @@ def test_extract_expense_entries_expands_negative_split_subtransactions():
     ]
 
 
-def test_extract_expense_entries_ignores_zero_sum_split_parents():
+def test_extract_expense_entries_keeps_negative_leg_from_zero_sum_split_parents():
     entries = extract_expense_entries(
         [
             {
@@ -42,7 +42,28 @@ def test_extract_expense_entries_ignores_zero_sum_split_parents():
         ]
     )
 
-    assert entries == []
+    assert entries == [
+        {"amount": -40_000, "category_name": "Meal delivery", "date": "2026-04-12"},
+    ]
+
+
+def test_summarize_transaction_spending_counts_zero_sum_shared_split_expenses():
+    total_spent, category_totals = summarize_transaction_spending(
+        [
+            {
+                "amount": 0,
+                "date": "2026-04-12",
+                "category_name": "Split (Multiple Categories)",
+                "subtransactions": [
+                    {"amount": -40_000, "category_name": "Meal delivery"},
+                    {"amount": 40_000, "category_name": "Reembolsos"},
+                ],
+            }
+        ]
+    )
+
+    assert total_spent == 40_000
+    assert category_totals == {"Meal delivery": 40_000}
 
 
 def test_summarize_transaction_spending_uses_expanded_split_entries():
