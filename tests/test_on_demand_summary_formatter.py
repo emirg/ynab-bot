@@ -323,18 +323,20 @@ class TestCategoryBreakdownOrdering:
         pos_ocio = result.index("Ocio")
         assert pos_comida < pos_transporte < pos_ocio
 
-    def test_detail_categories_show_all_spending_rows(self):
-        """Detail view should show all category rows, not only a capped top subset."""
+    def test_detail_categories_cap_long_lists_with_remaining_note(self):
+        """Detail view should stay compact and explain there are more categories."""
         breakdown = [
             CategorySpending(category_name=f"Cat{i}", amount=(12 - i) * 10_000)
             for i in range(10)
         ]
         summary = make_summary(total_spent=750_000, category_breakdown=breakdown)
         result = OnDemandSummaryFormatter.format_monthly_categories_detail(summary)
-        for i in range(10):
+        for i in range(8):
             assert f"Cat{i}" in result
-        assert "Top categorías" not in result
-        assert "vista resumida" not in result
+        assert "Cat8" not in result
+        assert "Cat9" not in result
+        assert "📋 *Top categorías:*" in result
+        assert "_Y 2 categorías más._" in result
 
     def test_detail_categories_numbered_correctly(self):
         breakdown = [
@@ -348,7 +350,7 @@ class TestCategoryBreakdownOrdering:
         assert "2. B" in result
         assert "3. C" in result
 
-    def test_detail_categories_include_budget_values_for_active_categories(self):
+    def test_detail_categories_only_show_spending_ranking(self):
         breakdown = [
             CategorySpending(category_name="Comida", amount=300_000),
             CategorySpending(category_name="Transporte", amount=100_000),
@@ -375,9 +377,11 @@ class TestCategoryBreakdownOrdering:
 
         result = OnDemandSummaryFormatter.format_monthly_categories_detail(summary)
 
-        assert "1. Comida — $300 gastado / $200 disponible / $500 asignado" in result
-        assert "2. Transporte — $100 gastado" in result
-        assert "3. Hogar — $0 gastado / $250 disponible / $250 asignado" in result
+        assert "1. Comida — $300" in result
+        assert "2. Transporte — $100" in result
+        assert "Hogar" not in result
+        assert "disponible" not in result
+        assert "asignado" not in result
 
 
 class TestAmountFormatting:
