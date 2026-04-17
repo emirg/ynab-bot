@@ -720,7 +720,6 @@ Envía un mensaje como:
 • `/splitwise` - Configurar grupos y cuenta
 
 📊 *Consultas*
-• `/resumen` - Resumen de gastos (dia/semana/mes)
 • Saldo de cuentas o categorías en lenguaje natural
 
 🧠 *Aprendizaje*

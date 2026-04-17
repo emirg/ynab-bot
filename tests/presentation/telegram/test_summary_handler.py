@@ -6,7 +6,6 @@ from telegram.ext import ContextTypes
 
 from presentation.telegram.handlers.summary_handler import SummaryHandler
 from domain.models.user import UserConfiguration, UserStatus
-from domain.exceptions import YNABApiException, OAuthException
 
 
 # ---------------------------------------------------------------------------
@@ -15,14 +14,7 @@ from domain.exceptions import YNABApiException, OAuthException
 
 @pytest.fixture
 def summary_service():
-    """Return a pre-built summary service mock so tests and handler share same object."""
-    svc = MagicMock()
-    svc.parse_period.return_value = "mes"
-    summary = MagicMock()
-    summary.has_transactions = True
-    summary.period_type = "mes"
-    svc.generate_summary.return_value = summary
-    return svc
+    return MagicMock()
 
 
 @pytest.fixture
@@ -82,286 +74,55 @@ def context():
     return ctx
 
 
-def _make_configured_user() -> UserConfiguration:
-    """Return an authorized + configured UserConfiguration."""
-    return UserConfiguration(
-        telegram_id=42,
-        status=UserStatus.AUTHORIZED,
-        budget_id="budget-123",
-        default_account_id="account-456",
-        ynab_access_token="token-abc",
-    )
-
-
-def _make_unconfigured_user() -> UserConfiguration:
-    """Return an authorized but unconfigured UserConfiguration (no budget)."""
+def _make_authorized_user() -> UserConfiguration:
+    """Return an authorized UserConfiguration."""
     return UserConfiguration(telegram_id=42, status=UserStatus.AUTHORIZED)
 
-
-def _patch_formatter(formatted_text: str):
-    """Context manager that replaces OnDemandSummaryFormatter.format_summary."""
-    import presentation.telegram.formatters as fmt_module
-
-    class _Patcher:
-        def __enter__(self):
-            self._original = fmt_module.OnDemandSummaryFormatter.format_summary
-            fmt_module.OnDemandSummaryFormatter.format_summary = staticmethod(
-                lambda s: formatted_text
-            )
-            return self
-
-        def __exit__(self, *_):
-            fmt_module.OnDemandSummaryFormatter.format_summary = self._original
-
-    return _Patcher()
-
-
-# ---------------------------------------------------------------------------
-# Tests: successful summaries
-# ---------------------------------------------------------------------------
-
 @pytest.mark.anyio
-async def test_resumen_no_args_defaults_to_mes(handler, auth_service, summary_service, update, context):
-    """No args should default to 'mes' period."""
+async def test_resumen_returns_disabled_message(handler, auth_service, summary_service, update, context):
     context.args = []
-    user_config = _make_configured_user()
-    auth_service.register_user.return_value = user_config
-    summary_service.parse_period.return_value = "mes"
-
-    with _patch_formatter("Resumen formateado"):
-        await handler.handle_resumen_command(update, context)
-
-    summary_service.parse_period.assert_called_once_with("")
-    summary_service.generate_summary.assert_called_once_with(user_config, "mes")
-    update.message.reply_text.assert_called_once()
-    args, _ = update.message.reply_text.call_args
-    assert "Resumen formateado" in args[0]
-
-
-@pytest.mark.anyio
-async def test_resumen_dia(handler, auth_service, summary_service, update, context):
-    """'/resumen dia' should pass 'dia' to the service."""
-    context.args = ["dia"]
-    user_config = _make_configured_user()
-    auth_service.register_user.return_value = user_config
-    summary_service.parse_period.return_value = "dia"
-
-    with _patch_formatter("Resumen día"):
-        await handler.handle_resumen_command(update, context)
-
-    summary_service.parse_period.assert_called_once_with("dia")
-    summary_service.generate_summary.assert_called_once_with(user_config, "dia")
-    args, _ = update.message.reply_text.call_args
-    assert "Resumen día" in args[0]
-
-
-@pytest.mark.anyio
-async def test_resumen_semana(handler, auth_service, summary_service, update, context):
-    """'/resumen semana' should pass 'semana' to the service."""
-    context.args = ["semana"]
-    user_config = _make_configured_user()
-    auth_service.register_user.return_value = user_config
-    summary_service.parse_period.return_value = "semana"
-
-    with _patch_formatter("Resumen semana"):
-        await handler.handle_resumen_command(update, context)
-
-    summary_service.parse_period.assert_called_once_with("semana")
-    summary_service.generate_summary.assert_called_once_with(user_config, "semana")
-    args, _ = update.message.reply_text.call_args
-    assert "Resumen semana" in args[0]
-
-
-@pytest.mark.anyio
-async def test_resumen_mes_explicit(handler, auth_service, summary_service, update, context):
-    """'/resumen mes' should pass 'mes' to the service."""
-    context.args = ["mes"]
-    user_config = _make_configured_user()
-    auth_service.register_user.return_value = user_config
-    summary_service.parse_period.return_value = "mes"
-
-    with _patch_formatter("Resumen mes"):
-        await handler.handle_resumen_command(update, context)
-
-    summary_service.parse_period.assert_called_once_with("mes")
-    summary_service.generate_summary.assert_called_once_with(user_config, "mes")
-    _, kwargs = update.message.reply_text.call_args
-    assert kwargs["reply_markup"] is not None
-
-
-@pytest.mark.anyio
-async def test_resumen_dia_has_no_monthly_keyboard(handler, auth_service, summary_service, update, context):
-    context.args = ["dia"]
-    user_config = _make_configured_user()
-    auth_service.register_user.return_value = user_config
-    summary_service.parse_period.return_value = "dia"
-    summary = MagicMock()
-    summary.has_transactions = True
-    summary.period_type = "dia"
-    summary_service.generate_summary.return_value = summary
-
-    with _patch_formatter("Resumen día"):
-        await handler.handle_resumen_command(update, context)
-
-    _, kwargs = update.message.reply_text.call_args
-    assert kwargs["reply_markup"] is None
-
-
-@pytest.mark.anyio
-async def test_resumen_mes_explicit_includes_keyboard(handler, auth_service, summary_service, update, context):
-    context.args = ["mes"]
-    user_config = _make_configured_user()
-    auth_service.register_user.return_value = user_config
-    summary_service.parse_period.return_value = "mes"
-
-    with _patch_formatter("Resumen mes"):
-        await handler.handle_resumen_command(update, context)
-
-    args, kwargs = update.message.reply_text.call_args
-    assert "Resumen mes" in args[0]
-    assert kwargs["reply_markup"] is not None
-
-
-# ---------------------------------------------------------------------------
-# Tests: unconfigured user
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_unconfigured_user_gets_config_message(handler, auth_service, summary_service, update, context):
-    """Authorized but unconfigured user should receive configuration instructions."""
-    context.args = []
-    auth_service.register_user.return_value = _make_unconfigured_user()
+    auth_service.register_user.return_value = _make_authorized_user()
 
     await handler.handle_resumen_command(update, context)
 
+    auth_service.register_user.assert_called_once_with(update.effective_user)
+    summary_service.parse_period.assert_not_called()
     summary_service.generate_summary.assert_not_called()
     update.message.reply_text.assert_called_once()
     args, _ = update.message.reply_text.call_args
-    text = args[0].lower()
-    assert "configuraci" in text or "start" in text
+    assert "deshabilitado temporalmente" in args[0]
+    assert "YNAB Reflect" in args[0]
 
-
-# ---------------------------------------------------------------------------
-# Tests: invalid period
-# ---------------------------------------------------------------------------
 
 @pytest.mark.anyio
-async def test_invalid_period_gets_usage_help(handler, auth_service, summary_service, update, context):
-    """Unrecognized period argument should return usage help, not crash."""
-    context.args = ["año"]
-    auth_service.register_user.return_value = _make_configured_user()
-    summary_service.parse_period.side_effect = ValueError("Período no reconocido")
+async def test_resumen_ignores_period_args_while_disabled(handler, auth_service, summary_service, update, context):
+    context.args = ["dia"]
+    auth_service.register_user.return_value = _make_authorized_user()
 
     await handler.handle_resumen_command(update, context)
 
+    summary_service.parse_period.assert_not_called()
     summary_service.generate_summary.assert_not_called()
-    update.message.reply_text.assert_called_once()
     args, _ = update.message.reply_text.call_args
-    text = args[0].lower()
-    assert "uso" in text or "resumen" in text or "período" in text or "per" in text
+    assert "deshabilitado temporalmente" in args[0]
 
-
-# ---------------------------------------------------------------------------
-# Tests: YNAB API error
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_ynab_api_error_handled_gracefully(handler, auth_service, summary_service, update, context):
-    """YNABApiException should produce a user-friendly error, not a crash."""
-    context.args = []
-    auth_service.register_user.return_value = _make_configured_user()
-    summary_service.parse_period.return_value = "mes"
-    summary_service.generate_summary.side_effect = YNABApiException(
-        "Rate limit exceeded", status_code=429
-    )
-
-    await handler.handle_resumen_command(update, context)
-
-    update.message.reply_text.assert_called_once()
-    args, _ = update.message.reply_text.call_args
-    text = args[0].lower()
-    assert "ynab" in text or "error" in text or "datos" in text
-
-
-# ---------------------------------------------------------------------------
-# Tests: OAuth error
-# ---------------------------------------------------------------------------
-
-@pytest.mark.anyio
-async def test_oauth_error_handled_gracefully(handler, auth_service, summary_service, update, context):
-    """OAuthException should produce a session-expired message, not a crash."""
-    context.args = []
-    auth_service.register_user.return_value = _make_configured_user()
-    summary_service.parse_period.return_value = "mes"
-    summary_service.generate_summary.side_effect = OAuthException("Token expired")
-
-    await handler.handle_resumen_command(update, context)
-
-    update.message.reply_text.assert_called_once()
-    args, _ = update.message.reply_text.call_args
-    text = args[0].lower()
-    assert "sesi" in text or "ynab" in text or "conectar" in text or "expirada" in text
-
-
-# ---------------------------------------------------------------------------
-# Tests: handle() delegates correctly
-# ---------------------------------------------------------------------------
 
 @pytest.mark.anyio
 async def test_handle_delegates_to_resumen_command(handler, auth_service, summary_service, update, context):
-    """handle() should delegate to handle_resumen_command."""
     context.args = []
-    auth_service.register_user.return_value = _make_configured_user()
-    summary_service.parse_period.return_value = "mes"
+    auth_service.register_user.return_value = _make_authorized_user()
 
-    with _patch_formatter("ok"):
-        await handler.handle(update, context)
+    await handler.handle(update, context)
 
-    summary_service.generate_summary.assert_called_once()
+    summary_service.generate_summary.assert_not_called()
+    update.message.reply_text.assert_called_once()
 
 
 @pytest.mark.anyio
-async def test_monthly_callback_edits_message(handler, auth_service, summary_service, callback_update, context):
-    auth_service.user_repository.find_by_telegram_id.return_value = _make_configured_user()
-    summary = MagicMock()
-    summary.has_transactions = True
-    summary_service.generate_summary.return_value = summary
+async def test_monthly_callback_shows_disabled_message(handler, callback_update, context):
+    await handler.handle_callback_query(callback_update, context)
 
-    import presentation.telegram.formatters as fmt_module
-
-    original = fmt_module.OnDemandSummaryFormatter.format_monthly_categories_detail
-    fmt_module.OnDemandSummaryFormatter.format_monthly_categories_detail = staticmethod(lambda s: "Detalle categorías")
-    try:
-        await handler.handle_callback_query(callback_update, context)
-    finally:
-        fmt_module.OnDemandSummaryFormatter.format_monthly_categories_detail = original
-
-    summary_service.generate_summary.assert_called_once()
     callback_update.callback_query.edit_message_text.assert_called_once()
     args, kwargs = callback_update.callback_query.edit_message_text.call_args
-    assert "Detalle categorías" in args[0]
-    assert kwargs["reply_markup"] is not None
-
-
-@pytest.mark.anyio
-async def test_invalid_monthly_callback_is_rejected(handler, auth_service, callback_update, context):
-    auth_service.user_repository.find_by_telegram_id.return_value = _make_configured_user()
-    callback_update.callback_query.data = "resumen_mes_invalido"
-
-    await handler.handle_callback_query(callback_update, context)
-
-    callback_update.callback_query.edit_message_text.assert_called_once()
-    args, _ = callback_update.callback_query.edit_message_text.call_args
-    assert "ya no es válida" in args[0]
-
-
-@pytest.mark.anyio
-async def test_removed_budget_monthly_callback_is_rejected(handler, auth_service, callback_update, context):
-    auth_service.user_repository.find_by_telegram_id.return_value = _make_configured_user()
-    callback_update.callback_query.data = "resumen_mes_presupuesto"
-
-    await handler.handle_callback_query(callback_update, context)
-
-    callback_update.callback_query.edit_message_text.assert_called_once()
-    args, _ = callback_update.callback_query.edit_message_text.call_args
-    assert "ya no es válida" in args[0]
+    assert "deshabilitado temporalmente" in args[0]
+    assert kwargs["parse_mode"] == "Markdown"
