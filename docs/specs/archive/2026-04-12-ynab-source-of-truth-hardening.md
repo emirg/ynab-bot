@@ -1,7 +1,7 @@
 # Spec: YNAB Source Of Truth Hardening
 
 ## Metadata
-- **Status:** Draft
+- **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** 3.5 — Resumen On-Demand, Advisor ongoing slices
 - **Related ADRs:** `docs/adrs/2026-04-12-ynab-source-of-truth.md`
@@ -73,13 +73,13 @@ The app must treat YNAB as the authoritative financial system for all app-wide f
 - Hidden/deleted categories and closed/deleted accounts continue to be excluded from user-facing active summaries unless explicitly required.
 
 ## Acceptance Criteria
-- [ ] A documented source-of-truth matrix exists and is referenced by architecture and workflow docs.
-- [ ] `/resumen dia`, `/resumen semana`, and weekly summary category totals correctly expand split subtransactions.
-- [ ] `/resumen mes`, advisor monthly totals, and any budget-summary-style spending total use the same Reflect-compatible spending definition.
-- [ ] Budget-health logic across `/resumen` and advisor uses YNAB category `balance` for overspending and remaining available.
-- [ ] Category/account balance queries remain directly YNAB-backed.
-- [ ] `/recent`, `/editar`, and `/deshacer` are documented as workflow conveniences, not canonical reporting.
-- [ ] When authoritative YNAB data cannot be fetched, affected financial reads fail closed instead of showing guessed totals.
+- [x] A documented source-of-truth matrix exists and is referenced by architecture and workflow docs.
+- [x] `/resumen dia`, `/resumen semana`, and weekly summary category totals correctly expand split subtransactions.
+- [x] `/resumen mes`, advisor monthly totals, and any budget-summary-style spending total use the same Reflect-compatible spending definition.
+- [x] Budget-health logic across `/resumen` and advisor uses YNAB category `balance` for overspending and remaining available.
+- [x] Category/account balance queries remain directly YNAB-backed.
+- [x] `/recent`, `/editar`, and `/deshacer` are documented as workflow conveniences, not canonical reporting.
+- [x] When authoritative YNAB data cannot be fetched, affected financial reads fail closed instead of showing guessed totals.
 
 ## Open Questions
 - None. Chosen defaults:

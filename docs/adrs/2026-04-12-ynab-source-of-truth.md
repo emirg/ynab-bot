@@ -3,8 +3,8 @@
 ## Metadata
 - **Status:** Accepted
 - **Date:** 2026-04-12
-- **Related Spec:** `docs/specs/2026-04-12-resumen-mensual-compacto.md`
-- **Related Plan:** `docs/plans/2026-04-12-resumen-mensual-compacto.md`
+- **Related Spec:** `docs/specs/archive/2026-04-12-ynab-source-of-truth-hardening.md`
+- **Related Plan:** `docs/plans/archive/2026-04-12-ynab-source-of-truth-hardening.md`
 - **Supersedes:** None
 - **Superseded By:** None
 
@@ -60,5 +60,10 @@ This rule applies to product behavior, engineering changes, and AI-assisted impl
 - `docs/ARCHITECTURE.md`
 - `AGENTS.md`
 - `docs/dev/README.md`
+- `docs/specs/archive/2026-04-12-ynab-source-of-truth-hardening.md`
+- `docs/plans/archive/2026-04-12-ynab-source-of-truth-hardening.md`
 - `src/application/services/on_demand_summary_service.py`
 - `src/application/services/advisor_dashboard_service.py`
+- `src/application/services/budget_query_service.py`
+- `src/domain/services/spending_aggregation.py`
+- `tests/test_financial_read_consistency.py`
