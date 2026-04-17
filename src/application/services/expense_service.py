@@ -1159,9 +1159,43 @@ class ExpenseService:
     def _updated_recent_amount(old_amount, new_amount: Optional[Decimal]) -> float | None:
         if new_amount is None:
             return None
-        if isinstance(old_amount, (int, float)) and old_amount < 0:
-            return float(new_amount) * -1
-        return float(new_amount)
+        # Recent transactions cache user-facing amounts in major units.
+        # Preserve that display-friendly shape even after edits.
+        return float(abs(new_amount))
+
+    @staticmethod
+    def _normalize_recent_amount_for_reconciliation(cached_amount) -> int | None:
+        """Convert cached recent amount to YNAB's negative-milliunit outflow shape."""
+        if cached_amount is None:
+            return None
+
+        try:
+            normalized_amount = int(abs(Decimal(str(cached_amount))) * 1000)
+        except Exception:
+            return None
+
+        if normalized_amount == 0:
+            return 0
+
+        return normalized_amount * -1
+
+    def _cached_category_matches_live(self, cached_category_id: str | None, live_transaction: dict) -> bool:
+        """Return True when the cached category still maps to the live YNAB transaction."""
+        if not cached_category_id:
+            return True
+
+        live_category_id = live_transaction.get('category_id')
+        if live_category_id:
+            return cached_category_id == live_category_id
+
+        live_subtransactions = live_transaction.get('subtransactions') or []
+        if not live_subtransactions:
+            return False
+
+        return any(
+            subtransaction.get('category_id') == cached_category_id
+            for subtransaction in live_subtransactions
+        )
 
     def _get_live_transaction_state(
         self,
@@ -1178,17 +1212,25 @@ class ExpenseService:
             return None, "ynab_transaction_missing"
 
         cached_amount = cached_transaction.get('amount')
-        if cached_amount is not None and live_transaction.get('amount') != cached_amount:
+        live_subtransactions = live_transaction.get('subtransactions') or []
+        expected_live_amount = self._normalize_recent_amount_for_reconciliation(cached_amount)
+        if (
+            expected_live_amount is not None
+            and not live_subtransactions
+            and live_transaction.get('amount') != expected_live_amount
+        ):
             return None, "ynab_transaction_stale"
 
         cached_payee = cached_transaction.get('payee')
         live_payee = live_transaction.get('payee_name') or ''
-        if cached_payee and cached_payee != live_payee:
+        if (
+            cached_payee
+            and self._normalize_payee_name(cached_payee) != self._normalize_payee_name(live_payee)
+        ):
             return None, "ynab_transaction_stale"
 
         cached_category_id = cached_transaction.get('category_id')
-        live_category_id = live_transaction.get('category_id')
-        if cached_category_id and cached_category_id != live_category_id:
+        if not self._cached_category_matches_live(cached_category_id, live_transaction):
             return None, "ynab_transaction_stale"
 
         return live_transaction, None

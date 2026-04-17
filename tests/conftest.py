@@ -164,7 +164,7 @@ def mock_ynab_repository(sample_categories, sample_accounts, sample_budgets):
     repo.create_transaction.return_value = 'txn-id-123'
     repo.get_transaction_by_id.return_value = {
         'id': 'txn-id-123',
-        'amount': -25000,
+        'amount': -25_000_000,
         'payee_name': 'McDonalds',
         'category_id': 'cat-2',
     }

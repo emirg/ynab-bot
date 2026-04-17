@@ -277,3 +277,6 @@ docs/wip_state.md
 config/.env.dev
 # Added by code-review-graph
 .code-review-graph/
+
+# 4. Codex
+.codex

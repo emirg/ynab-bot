@@ -533,7 +533,7 @@ class TestUndoLastTransaction:
         timestamp = (now - timedelta(minutes=minutes_ago)).isoformat()
         return {
             'payee': 'McDonalds',
-            'amount': -25000,
+            'amount': 25000,
             'category_name': 'Restaurants',
             'category_id': 'cat-2',
             'ynab_transaction_id': 'txn-undo-1' if has_ynab_id else None,
@@ -553,7 +553,7 @@ class TestUndoLastTransaction:
         assert result is not None
         assert 'error' not in result
         assert result['payee'] == 'McDonalds'
-        assert result['amount'] == -25000
+        assert result['amount'] == 25000
         assert result['category_name'] == 'Restaurants'
         mock_ynab_repository.delete_transaction.assert_called_once_with(
             authorized_user.budget_id, 'txn-undo-1'
@@ -609,7 +609,7 @@ class TestUndoLastTransaction:
         mock_ynab_repository.get_transaction_by_id.side_effect = None
         mock_ynab_repository.get_transaction_by_id.return_value = {
             'id': 'txn-undo-1',
-            'amount': -30000,
+            'amount': -30_000_000,
             'payee_name': 'McDonalds',
             'category_id': 'cat-2',
         }
@@ -666,7 +666,7 @@ class TestUndoLastTransaction:
         mock_ynab_repository.get_transaction_by_id.side_effect = None
         mock_ynab_repository.get_transaction_by_id.return_value = {
             'id': 'txn-edit-1',
-            'amount': -25000,
+            'amount': -25_000_000,
             'payee_name': 'Otro comercio',
             'category_id': 'cat-2',
         }
@@ -686,7 +686,7 @@ class TestUndoLastTransaction:
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = [{
             'payee': 'McDonalds',
-            'amount': -25000,
+            'amount': 25000,
             'category_name': 'Restaurants',
             'category_id': 'cat-2',
             'ynab_transaction_id': 'txn-old-1',
@@ -716,7 +716,7 @@ class TestUndoLastTransaction:
         mock_ynab_repository.delete_transaction.return_value = True
         mock_learning_repository.get_recent_transactions.return_value = [{
             'payee': 'Carulla',
-            'amount': -50000,
+            'amount': 50000,
             'category_name': 'Groceries',
             'category_id': 'cat-1',
             'ynab_transaction_id': 'txn-today-1',
@@ -725,7 +725,7 @@ class TestUndoLastTransaction:
         mock_ynab_repository.get_transaction_by_id.side_effect = None
         mock_ynab_repository.get_transaction_by_id.return_value = {
             'id': 'txn-today-1',
-            'amount': -50000,
+            'amount': -50_000_000,
             'payee_name': 'Carulla',
             'category_id': 'cat-1',
         }
@@ -744,7 +744,7 @@ class TestUndoLastTransaction:
         mock_ynab_repository.delete_transaction.return_value = True
         mock_learning_repository.get_recent_transactions.return_value = [{
             'payee': 'Carulla',
-            'amount': -50000,
+            'amount': 50000,
             'category_name': 'Groceries',
             'category_id': 'cat-1',
             'ynab_transaction_id': 'txn-pg-1',
@@ -753,7 +753,7 @@ class TestUndoLastTransaction:
         mock_ynab_repository.get_transaction_by_id.side_effect = None
         mock_ynab_repository.get_transaction_by_id.return_value = {
             'id': 'txn-pg-1',
-            'amount': -50000,
+            'amount': -50_000_000,
             'payee_name': 'Carulla',
             'category_id': 'cat-1',
         }
@@ -848,7 +848,7 @@ class TestEditLastTransaction:
         timestamp = (now - timedelta(minutes=minutes_ago)).isoformat()
         return {
             'payee': 'McDonalds',
-            'amount': -25000,
+            'amount': 25000,
             'category_name': 'Restaurants',
             'category_id': 'cat-2',
             'ynab_transaction_id': 'txn-edit-1' if has_ynab_id else None,
@@ -879,7 +879,7 @@ class TestEditLastTransaction:
             TELEGRAM_ID,
             'txn-edit-1',
             payee=None,
-            amount=-30.0,
+            amount=30.0,
             category_id=None,
             category_name=None,
         )
@@ -1031,7 +1031,7 @@ class TestEditLastTransaction:
             TELEGRAM_ID,
             'txn-edit-1',
             payee='Burger King',
-            amount=-50.0,
+            amount=50.0,
             category_id='cat-1',
             category_name='Groceries',
         )
@@ -1046,7 +1046,7 @@ class TestEditLastTransaction:
         original = self._recent_txn()
         updated = {
             **original,
-            'amount': -30000,
+            'amount': 30000,
             'category_id': 'cat-1',
             'category_name': 'Groceries',
         }
@@ -1054,13 +1054,13 @@ class TestEditLastTransaction:
         mock_ynab_repository.get_transaction_by_id.side_effect = [
             {
                 'id': 'txn-edit-1',
-                'amount': -25000,
+                'amount': -25_000_000,
                 'payee_name': 'McDonalds',
                 'category_id': 'cat-2',
             },
             {
                 'id': 'txn-edit-1',
-                'amount': -30000,
+                'amount': -30_000_000,
                 'payee_name': 'McDonalds',
                 'category_id': 'cat-1',
             },
@@ -1071,7 +1071,7 @@ class TestEditLastTransaction:
 
         assert edit_result is not None
         assert undo_result is not None
-        assert undo_result['amount'] == -30000
+        assert undo_result['amount'] == 30000
         assert undo_result['category_name'] == 'Groceries'
 
     # --- transaction_index ---
@@ -1088,7 +1088,7 @@ class TestEditLastTransaction:
         mock_ynab_repository.get_transaction_by_id.side_effect = None
         mock_ynab_repository.get_transaction_by_id.return_value = {
             'id': 'txn-edit-2',
-            'amount': -25000,
+            'amount': -25_000_000,
             'payee_name': 'Carulla',
             'category_id': 'cat-2',
         }
@@ -1122,7 +1122,7 @@ class TestEditLastTransaction:
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
         mock_learning_repository.get_recent_transactions.return_value = [{
             'payee': 'McDonalds',
-            'amount': -25000,
+            'amount': 25000,
             'category_name': 'Restaurants',
             'category_id': 'cat-2',
             'ynab_transaction_id': 'txn-old',
@@ -1186,6 +1186,68 @@ class TestEditLastTransaction:
 
         assert result is not None
         assert result.get('error') == 'no_ynab_transaction_id'
+
+    def test_recent_display_amount_reconciles_with_live_ynab_amount(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-1',
+            'amount': -25_000_000,
+            'payee_name': 'McDonalds',
+            'category_id': 'cat-2',
+        }
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert 'error' not in result
+        mock_ynab_repository.update_transaction.assert_called_once()
+
+    def test_recent_payee_normalization_reconciles_with_live_ynab_payee(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-1',
+            'amount': -25_000_000,
+            'payee_name': "McDonald's",
+            'category_id': 'cat-2',
+        }
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert 'error' not in result
+
+    def test_recent_split_category_reconciles_against_live_subtransactions(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-1',
+            'amount': 0,
+            'payee_name': 'McDonalds',
+            'category_id': None,
+            'subtransactions': [
+                {'amount': -12_500_000, 'category_id': 'cat-2'},
+                {'amount': 12_500_000, 'category_id': 'cat-split'},
+            ],
+        }
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert 'error' not in result
 
 
 # ---------------------------------------------------------------------------
