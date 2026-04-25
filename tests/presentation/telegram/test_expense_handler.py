@@ -47,6 +47,59 @@ def anyio_backend():
 class TestExpenseHandlerErrorMessages:
     """Verify that specific exception types surface their Spanish user_message to the user."""
 
+    async def test_voice_handler_processes_valid_transcription(self, handler):
+        update = make_update()
+        voice_file = AsyncMock()
+        voice_file.file_size = 100
+        voice_file.download_to_drive = AsyncMock()
+        update.message.voice.get_file = AsyncMock(return_value=voice_file)
+
+        expense_result = make_expense_result(success=True, transaction_id='txn-voice-1')
+        handler.speech_processor.process_telegram_audio.return_value = "Uber diez mil"
+        handler.expense_service.process_expense_message.return_value = expense_result
+        handler.formatter.format_success.return_value = "Gasto registrado"
+
+        with patch('tempfile.NamedTemporaryFile') as mock_ntf, patch('os.unlink'):
+            mock_file = MagicMock()
+            mock_file.__enter__ = MagicMock(return_value=mock_file)
+            mock_file.__exit__ = MagicMock(return_value=False)
+            mock_file.name = '/tmp/fake.ogg'
+            mock_ntf.return_value = mock_file
+
+            await handler.handle_voice_message(update, None)
+
+        handler.speech_processor.process_telegram_audio.assert_called_once_with('/tmp/fake.ogg')
+        handler.expense_service.process_expense_message.assert_called_once_with(123, "Uber diez mil")
+        handler.send_message.assert_called_once()
+        sent_text = handler.send_message.call_args[0][1]
+        assert "Transcripción" in sent_text
+        assert "Uber diez mil" in sent_text
+
+    async def test_voice_handler_rejects_suspicious_transcription(self, handler):
+        update = make_update()
+        voice_file = AsyncMock()
+        voice_file.file_size = 100
+        voice_file.download_to_drive = AsyncMock()
+        update.message.voice.get_file = AsyncMock(return_value=voice_file)
+
+        handler.speech_processor.process_telegram_audio.return_value = None
+
+        with patch('tempfile.NamedTemporaryFile') as mock_ntf, patch('os.unlink'):
+            mock_file = MagicMock()
+            mock_file.__enter__ = MagicMock(return_value=mock_file)
+            mock_file.__exit__ = MagicMock(return_value=False)
+            mock_file.name = '/tmp/fake.ogg'
+            mock_ntf.return_value = mock_file
+
+            await handler.handle_voice_message(update, None)
+
+        handler.speech_processor.process_telegram_audio.assert_called_once_with('/tmp/fake.ogg')
+        handler.expense_service.process_expense_message.assert_not_called()
+        handler.send_message.assert_called_once()
+        sent_text = handler.send_message.call_args[0][1]
+        assert "No pude procesar el mensaje de voz" in sent_text
+        assert "alimmenta" not in sent_text.lower()
+
     async def test_speech_exception_shows_user_message(self, handler):
         """SpeechProcessingException should show its Spanish user_message, not the technical string."""
         update = make_update()
@@ -60,7 +113,7 @@ class TestExpenseHandlerErrorMessages:
         import tempfile
         with patch('tempfile.NamedTemporaryFile') as mock_ntf, \
              patch('os.unlink'), \
-             patch.object(handler.speech_processor, 'transcribe_audio', side_effect=exc):
+             patch.object(handler.speech_processor, 'process_telegram_audio', side_effect=exc):
             # make NamedTemporaryFile work as context manager
             mock_file = MagicMock()
             mock_file.__enter__ = MagicMock(return_value=mock_file)
@@ -162,7 +215,7 @@ class TestExpenseHandlerErrorMessages:
 
         with patch('tempfile.NamedTemporaryFile') as mock_ntf, \
              patch('os.unlink'), \
-             patch.object(handler.speech_processor, 'transcribe_audio', side_effect=exc):
+             patch.object(handler.speech_processor, 'process_telegram_audio', side_effect=exc):
             mock_file = MagicMock()
             mock_file.__enter__ = MagicMock(return_value=mock_file)
             mock_file.__exit__ = MagicMock(return_value=False)

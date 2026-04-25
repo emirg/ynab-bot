@@ -5,7 +5,8 @@ Converts Telegram audio messages into text for expense processing.
 
 import os
 import logging
-import tempfile
+import re
+import unicodedata
 from typing import Optional
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -17,6 +18,17 @@ load_dotenv(config_path)
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+_URL_PATTERN = re.compile(
+    r"(https?://\S+|www\.\S+|\b[a-z0-9][a-z0-9.-]*\.(?:com|co|net|org|info|io)\b)",
+    re.IGNORECASE,
+)
+_KNOWN_BAD_TRANSCRIPTIONS = {
+    "mas informacion www.alimmenta.com",
+    "mas informacion en www.alimmenta.com",
+}
+_SPEECH_MODEL = "whisper-1"
+
 
 class SpeechToTextProcessor:
     """Speech-to-text processor powered by OpenAI Whisper."""
@@ -56,7 +68,7 @@ class SpeechToTextProcessor:
             with open(audio_file_path, "rb") as audio_file:
                 # Use Whisper to transcribe the audio with a domain-specific prompt
                 transcript = self.client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=_SPEECH_MODEL,
                     file=audio_file,
                     language=language,
                     response_format="text",
@@ -68,7 +80,13 @@ class SpeechToTextProcessor:
             transcribed_text = transcript.strip()
             
             if transcribed_text:
-                logger.debug(f"Successful transcription: '{transcribed_text}'")
+                logger.debug(
+                    "Successful transcription",
+                    extra={
+                        "speech_model": _SPEECH_MODEL,
+                        "transcript_preview": self._redacted_preview(transcribed_text),
+                    },
+                )
                 return transcribed_text
             else:
                 logger.warning("Received an empty transcription")
@@ -101,12 +119,76 @@ class SpeechToTextProcessor:
         
         if not transcribed_text:
             return None
+
+        if transcribed_text in {"timeout_error", "rate_limit_error"}:
+            logger.warning(
+                "Speech transcription provider returned an error marker",
+                extra={"speech_model": _SPEECH_MODEL, "failure_class": transcribed_text},
+            )
+            return None
         
         # Clean and normalize the result for expense processing
         cleaned_text = self._clean_transcription(transcribed_text)
+
+        rejection_reason = self._suspicious_transcription_reason(cleaned_text)
+        if rejection_reason:
+            logger.warning(
+                "Rejected suspicious transcription",
+                extra={
+                    "speech_model": _SPEECH_MODEL,
+                    "failure_class": rejection_reason,
+                    "transcript_preview": self._redacted_preview(cleaned_text),
+                },
+            )
+            return None
         
-        logger.debug(f"Cleaned transcription: '{cleaned_text}'")
+        logger.debug(
+            "Cleaned transcription",
+            extra={
+                "speech_model": _SPEECH_MODEL,
+                "transcript_preview": self._redacted_preview(cleaned_text),
+            },
+        )
         return cleaned_text
+
+    @staticmethod
+    def _normalize_for_detection(text: str) -> str:
+        normalized = unicodedata.normalize("NFKD", text)
+        without_accents = "".join(
+            char for char in normalized if not unicodedata.combining(char)
+        )
+        return " ".join(without_accents.lower().split())
+
+    @staticmethod
+    def _redacted_preview(text: str, max_chars: int = 48) -> str:
+        redacted = _URL_PATTERN.sub("[url]", text)
+        redacted = " ".join(redacted.split())
+        if len(redacted) <= max_chars:
+            return redacted
+        return f"{redacted[:max_chars].rstrip()}..."
+
+    def _suspicious_transcription_reason(self, text: str) -> Optional[str]:
+        normalized = self._normalize_for_detection(text)
+        if not normalized:
+            return "empty_transcription"
+
+        if normalized in _KNOWN_BAD_TRANSCRIPTIONS:
+            return "known_bad_boilerplate"
+
+        urls = _URL_PATTERN.findall(normalized)
+        if not urls:
+            return None
+
+        without_urls = _URL_PATTERN.sub("", normalized)
+        non_url_tokens = re.findall(r"[a-záéíóúñü0-9]+", without_urls, re.IGNORECASE)
+        if len(non_url_tokens) <= 2:
+            return "url_dominant_transcription"
+
+        boilerplate_terms = {"mas", "más", "informacion", "información", "info", "en"}
+        if all(token in boilerplate_terms for token in non_url_tokens):
+            return "url_boilerplate_transcription"
+
+        return None
     
     def _clean_transcription(self, text: str) -> str:
         """

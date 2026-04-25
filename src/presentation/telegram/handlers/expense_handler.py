@@ -189,12 +189,15 @@ class ExpenseHandler(BaseHandler):
                 # Convert speech to text
                 await update.message.reply_text("🎤 Procesando mensaje de voz...")
 
-                transcribed_text = self.speech_processor.transcribe_audio(temp_file_path)
+                transcribed_text = self.speech_processor.process_telegram_audio(temp_file_path)
 
                 if not transcribed_text or len(transcribed_text.strip()) < 5:
                     raise SpeechProcessingException("No se pudo transcribir el audio o el texto es muy corto")
 
-                logger.debug(f"Voice transcribed for user {user_id}: '{transcribed_text}'")
+                logger.debug(
+                    "Voice transcribed for user",
+                    extra={"user_id": user_id, "transcript_length": len(transcribed_text)},
+                )
 
                 user_tz = self._get_user_timezone(user_id)
                 confirm_mode = self._get_user_confirmation_mode(user_id) and context is not None
