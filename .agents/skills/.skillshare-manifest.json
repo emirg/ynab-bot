@@ -1,0 +1,14 @@
+{
+  "managed": {
+    "pydantic": "symlink",
+    "pytest-testing": "symlink",
+    "python-design-patterns": "symlink",
+    "python-executor": "symlink",
+    "python-patterns": "symlink",
+    "python-performance-optimization": "symlink",
+    "python-testing-patterns": "symlink",
+    "security": "symlink",
+    "use-railway": "symlink"
+  },
+  "updated_at": "2026-04-22T22:13:10.197159957-05:00"
+}
