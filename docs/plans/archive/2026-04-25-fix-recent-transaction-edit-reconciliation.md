@@ -2,7 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
-- **Source Spec:** `docs/specs/2026-04-25-fix-recent-transaction-edit-reconciliation.md`
+- **Source Spec:** `docs/specs/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`
 - **Goal:** Make `/editar` work again for legitimate recent YNAB transactions while preserving safe failure when the local recent reference is truly stale.
 - **Approach:** Characterize false stale cases with tests, isolate reconciliation into explicit helpers, loosen only benign comparisons for edit, and keep true missing/stale YNAB states blocked.
 

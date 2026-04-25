@@ -165,3 +165,21 @@ Se completó la primera capa de insights determinísticos sobre el dashboard del
 - Señales de categorías sobregastadas o cerca del límite
 - Detección de categorías con presupuesto asignado pero sin actividad
 - Estado explícito de "sin alertas fuertes" cuando no aparecen señales relevantes
+
+### E.9 — Voice Transcription Hardening [COMPLETADO]
+
+Se corrigió una regresión crítica donde los audios podían producir una transcripción ajena como `Mas informacion www.alimmenta.com`:
+
+- La ruta de voz valida transcripciones antes de pasarlas al parser de gastos
+- Se rechazan textos dominados por URLs, dominios o boilerplate conocido
+- Los errores de voz siguen siendo seguros y en español
+- El logging evita guardar audio o transcripciones completas
+
+### E.10 — Recent Edit Reconciliation Hardening [COMPLETADO]
+
+Se corrigió una regresión de `/editar` donde referencias recientes legítimas fallaban por drift contra YNAB:
+
+- `/editar` usa el `ynab_transaction_id` vivo en YNAB como identidad autoritativa
+- Si la transacción existe, payee/monto/categoría cacheados ya no bloquean la edición
+- El cache reciente se refresca desde YNAB después de una edición exitosa
+- `/deshacer` mantiene validación estricta porque elimina la transacción completa

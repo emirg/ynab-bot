@@ -2,7 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
-- **Source Spec:** `docs/specs/2026-04-25-fix-voice-audio-transcription.md`
+- **Source Spec:** `docs/specs/archive/2026-04-25-fix-voice-audio-transcription.md`
 - **Goal:** Restore voice expense capture and block suspicious hallucinated transcripts such as `Mas informacion www.alimmenta.com` from reaching expense parsing.
 - **Approach:** Add test coverage around speech transcription validation, introduce a small transcript sanity-check layer in `SpeechToTextProcessor`, and wire handler behavior so valid transcripts proceed while suspicious output returns a safe Spanish error.
 

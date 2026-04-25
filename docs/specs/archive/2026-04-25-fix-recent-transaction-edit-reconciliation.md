@@ -4,7 +4,7 @@
 - **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** Bugfix: high-priority `/editar` regression
-- **Related ADRs:** `docs/adrs/2026-04-12-ynab-source-of-truth.md`
+- **Related ADRs:** `docs/adrs/2026-04-12-ynab-source-of-truth.md`, `docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md`
 
 ## Summary
 The `/editar` command currently fails for legitimate recent transactions with the message that the recent reference no longer matches YNAB. The bot must keep YNAB as the financial source of truth while avoiding false stale detections caused by harmless formatting, payee normalization, split transaction shape, account transfer fields, or local cache drift. Editing should reconcile against the live YNAB transaction and update only the requested fields.
