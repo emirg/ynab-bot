@@ -658,7 +658,7 @@ class TestUndoLastTransaction:
         assert result == {'error': 'ynab_transaction_missing'}
         mock_ynab_repository.update_transaction.assert_not_called()
 
-    def test_stale_live_ynab_transaction_blocks_edit(
+    def test_live_payee_drift_does_not_block_edit(
         self, service, mock_user_repository, mock_learning_repository,
         mock_ynab_repository, authorized_user,
     ):
@@ -674,8 +674,11 @@ class TestUndoLastTransaction:
 
         result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
 
-        assert result == {'error': 'ynab_transaction_stale'}
-        mock_ynab_repository.update_transaction.assert_not_called()
+        assert result is not None
+        assert 'error' not in result
+        mock_ynab_repository.update_transaction.assert_called_once_with(
+            authorized_user.budget_id, 'txn-undo-1', {'amount': -10000}
+        )
 
     def test_transaction_too_old_returns_time_window_error(
         self, service, mock_user_repository, mock_learning_repository, authorized_user,
@@ -1248,6 +1251,77 @@ class TestEditLastTransaction:
 
         assert result is not None
         assert 'error' not in result
+
+    def test_live_amount_drift_does_not_block_edit(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-1',
+            'amount': -30_000_000,
+            'payee_name': 'McDonalds',
+            'category_id': 'cat-2',
+        }
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_category='Groceries')
+
+        assert result is not None
+        assert 'error' not in result
+        fields_used = mock_ynab_repository.update_transaction.call_args[0][2]
+        assert fields_used == {'category_id': 'cat-1'}
+
+    def test_live_category_drift_does_not_block_edit(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-1',
+            'amount': -25_000_000,
+            'payee_name': 'McDonalds',
+            'category_id': 'cat-live',
+        }
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_amount=Decimal('10'))
+
+        assert result is not None
+        assert 'error' not in result
+        mock_ynab_repository.update_transaction.assert_called_once_with(
+            authorized_user.budget_id, 'txn-edit-1', {'amount': -10000}
+        )
+
+    def test_successful_edit_refreshes_recent_cache_from_live_transaction(
+        self, service, mock_user_repository, mock_learning_repository,
+        mock_ynab_repository, authorized_user,
+    ):
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.update_transaction.return_value = True
+        mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
+        mock_ynab_repository.get_transaction_by_id.return_value = {
+            'id': 'txn-edit-1',
+            'amount': -30_000_000,
+            'payee_name': 'Live Payee',
+            'category_id': 'cat-1',
+            'category_name': 'Groceries',
+        }
+
+        result = service.edit_last_transaction(TELEGRAM_ID, new_payee='Edited Payee')
+
+        assert result is not None
+        assert 'error' not in result
+        mock_learning_repository.update_recent_transaction.assert_called_once_with(
+            TELEGRAM_ID,
+            'txn-edit-1',
+            payee='Edited Payee',
+            amount=30000.0,
+            category_id='cat-1',
+            category_name='Groceries',
+        )
 
 
 # ---------------------------------------------------------------------------

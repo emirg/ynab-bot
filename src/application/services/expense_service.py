@@ -1065,7 +1065,7 @@ class ExpenseService:
             # Create YNAB repository
             ynab_repository = self.ynab_factory.get_repository(user_config)
             budget_id = user_config.budget_id
-            _live_transaction, reconciliation_error = self._get_live_transaction_state(
+            live_transaction, reconciliation_error = self._get_live_transaction_state_for_edit(
                 ynab_repository,
                 budget_id,
                 transaction,
@@ -1076,14 +1076,16 @@ class ExpenseService:
             # Build fields dict for YNAB update
             fields: Dict = {}
             changes: Dict = {}
-            payee = transaction.get('payee', '')
-            old_category_id = transaction.get('category_id')
+            payee = live_transaction.get('payee_name') or transaction.get('payee', '')
+            old_category_id = live_transaction.get('category_id') or transaction.get('category_id')
             resolved_category_id = None
             resolved_category_name = None
 
             if new_amount is not None:
                 amount_milliunits = int(new_amount * -1000)
-                old_amount = transaction.get('amount', 0)
+                old_amount = self._live_amount_to_recent_amount(live_transaction.get('amount'))
+                if old_amount is None:
+                    old_amount = transaction.get('amount', 0)
                 fields['amount'] = amount_milliunits
                 changes['amount'] = {'old': old_amount, 'new': float(new_amount)}
 
@@ -1109,7 +1111,10 @@ class ExpenseService:
                     if cat.id == resolved_category_id:
                         resolved_category_name = cat.name
                         break
-                old_category_name = transaction.get('category_name', old_category_id or '')
+                old_category_name = (
+                    live_transaction.get('category_name')
+                    or transaction.get('category_name', old_category_id or '')
+                )
                 fields['category_id'] = resolved_category_id
                 changes['category'] = {'old': old_category_name, 'new': resolved_category_name}
 
@@ -1138,10 +1143,26 @@ class ExpenseService:
             self.learning_repository.update_recent_transaction(
                 telegram_user_id,
                 ynab_transaction_id,
-                payee=new_payee,
-                amount=self._updated_recent_amount(transaction.get('amount'), new_amount),
-                category_id=resolved_category_id,
-                category_name=resolved_category_name,
+                payee=(
+                    new_payee
+                    if new_payee is not None
+                    else self._live_payee_for_recent_refresh(transaction, live_transaction)
+                ),
+                amount=(
+                    self._updated_recent_amount(transaction.get('amount'), new_amount)
+                    if new_amount is not None
+                    else self._live_amount_for_recent_refresh(transaction, live_transaction)
+                ),
+                category_id=(
+                    resolved_category_id
+                    if resolved_category_id is not None
+                    else self._live_category_id_for_recent_refresh(transaction, live_transaction)
+                ),
+                category_name=(
+                    resolved_category_name
+                    if resolved_category_name is not None
+                    else self._live_category_name_for_recent_refresh(transaction, live_transaction)
+                ),
             )
 
             logger.info(f"Edited transaction {ynab_transaction_id}: fields={list(fields.keys())}")
@@ -1178,6 +1199,17 @@ class ExpenseService:
             return 0
 
         return normalized_amount * -1
+
+    @staticmethod
+    def _live_amount_to_recent_amount(live_amount) -> float | None:
+        """Convert YNAB milliunits to the display-friendly recent amount shape."""
+        if live_amount is None:
+            return None
+
+        try:
+            return float(abs(Decimal(str(live_amount))) / Decimal("1000"))
+        except Exception:
+            return None
 
     def _cached_category_matches_live(self, cached_category_id: str | None, live_transaction: dict) -> bool:
         """Return True when the cached category still maps to the live YNAB transaction."""
@@ -1234,6 +1266,97 @@ class ExpenseService:
             return None, "ynab_transaction_stale"
 
         return live_transaction, None
+
+    def _get_live_transaction_state_for_edit(
+        self,
+        ynab_repository,
+        budget_id: str,
+        cached_transaction: dict,
+    ) -> tuple[dict | None, str | None]:
+        """Return live YNAB transaction for edit, requiring identity existence only.
+
+        `/editar` targets a concrete YNAB transaction id. If that id still exists,
+        YNAB is authoritative and benign drift in local recent fields should be
+        reconciled instead of blocking the requested update. Deletion remains
+        stricter and keeps using `_get_live_transaction_state`.
+        """
+        transaction_id = cached_transaction.get('ynab_transaction_id')
+        if not transaction_id:
+            return None, "no_ynab_transaction_id"
+
+        live_transaction = ynab_repository.get_transaction_by_id(budget_id, transaction_id)
+        if live_transaction is None:
+            return None, "ynab_transaction_missing"
+
+        if self._recent_cache_drifted(cached_transaction, live_transaction):
+            logger.info(
+                "Recent transaction cache drifted from live YNAB state; using live transaction for edit",
+                extra={
+                    "ynab_transaction_id": transaction_id,
+                    "operation": "edit_last_transaction",
+                },
+            )
+
+        return live_transaction, None
+
+    def _recent_cache_drifted(self, cached_transaction: dict, live_transaction: dict) -> bool:
+        cached_amount = cached_transaction.get('amount')
+        live_subtransactions = live_transaction.get('subtransactions') or []
+        expected_live_amount = self._normalize_recent_amount_for_reconciliation(cached_amount)
+        if (
+            expected_live_amount is not None
+            and not live_subtransactions
+            and live_transaction.get('amount') != expected_live_amount
+        ):
+            return True
+
+        cached_payee = cached_transaction.get('payee')
+        live_payee = live_transaction.get('payee_name') or ''
+        if (
+            cached_payee
+            and self._normalize_payee_name(cached_payee) != self._normalize_payee_name(live_payee)
+        ):
+            return True
+
+        cached_category_id = cached_transaction.get('category_id')
+        return not self._cached_category_matches_live(cached_category_id, live_transaction)
+
+    def _live_payee_for_recent_refresh(self, cached_transaction: dict, live_transaction: dict) -> str | None:
+        live_payee = live_transaction.get('payee_name')
+        cached_payee = cached_transaction.get('payee')
+        if (
+            live_payee
+            and self._normalize_payee_name(live_payee) != self._normalize_payee_name(cached_payee or '')
+        ):
+            return live_payee
+        return None
+
+    def _live_amount_for_recent_refresh(self, cached_transaction: dict, live_transaction: dict) -> float | None:
+        live_amount = self._live_amount_to_recent_amount(live_transaction.get('amount'))
+        if live_amount is None:
+            return None
+
+        cached_amount = cached_transaction.get('amount')
+        try:
+            cached_display_amount = float(abs(Decimal(str(cached_amount))))
+        except Exception:
+            return live_amount
+
+        if live_amount != cached_display_amount:
+            return live_amount
+        return None
+
+    def _live_category_id_for_recent_refresh(self, cached_transaction: dict, live_transaction: dict) -> str | None:
+        live_category_id = live_transaction.get('category_id')
+        if live_category_id and live_category_id != cached_transaction.get('category_id'):
+            return live_category_id
+        return None
+
+    def _live_category_name_for_recent_refresh(self, cached_transaction: dict, live_transaction: dict) -> str | None:
+        live_category_name = live_transaction.get('category_name')
+        if live_category_name and live_category_name != cached_transaction.get('category_name'):
+            return live_category_name
+        return None
 
     def undo_last_transaction(self, telegram_user_id: int) -> Optional[Dict]:
         """Delete the most recent transaction if within the allowed time window.
