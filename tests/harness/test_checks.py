@@ -34,13 +34,30 @@ def make_minimal_repo(root: Path) -> None:
     write(root / "docs/specs/_TEMPLATE.md", "# Spec Template\n")
     write(root / "docs/plans/_TEMPLATE.md", "# Plan Template\n")
     write(root / "docs/adrs/_TEMPLATE.md", "# ADR Template\n")
+    write(
+        root / "docs/harness/COMMANDS.md",
+        "# Harness Commands\n\n"
+        "- `.venv/bin/python main.py`\n"
+        "- `.venv/bin/pytest`\n"
+        "- `.venv/bin/python scripts/harness/check_docs.py`\n"
+        "- `.venv/bin/python scripts/harness/verify.py --ci`\n"
+        "- `python scripts/harness/verify.py --ci`\n"
+        "- `pip install -r requirements.txt && python scripts/harness/verify.py --ci && pytest`\n",
+    )
     write(root / "ROADMAP.md", "# Roadmap\n")
     write(root / "railway.toml", VALID_RAILWAY_TOML)
     (root / "docs/specs/archive").mkdir(parents=True)
     (root / "docs/plans/archive").mkdir(parents=True)
     write(
         root / "AGENTS.md",
-        "Read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.\n",
+        "Read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.\n"
+        "Run `.venv/bin/python main.py` and `.venv/bin/pytest`.\n",
+    )
+    write(
+        root / "docs/AI_WORKFLOW.md",
+        "# AI Workflow\n\n"
+        "Run `.venv/bin/python scripts/harness/check_docs.py` locally.\n"
+        "Run `.venv/bin/python scripts/harness/verify.py --ci` before closing work.\n",
     )
     write(
         root / "docs/specs/2026-04-30-feature.md",
@@ -273,6 +290,82 @@ def test_railway_start_command_must_use_expected_entrypoint(tmp_path: Path) -> N
     messages = {finding.message for finding in failures(tmp_path)}
 
     assert "Railway start command must be `python main.py`: railway.toml" in messages
+
+
+def test_command_registry_document_reports_pass_findings(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+
+    messages = messages_for(tmp_path, PASS)
+
+    assert "Command registry document exists: docs/harness/COMMANDS.md" in messages
+    assert (
+        "Command registry documents local advisory docs command: "
+        "docs/harness/COMMANDS.md"
+    ) in messages
+    assert (
+        "Living workflow doc references local CI harness command: docs/AI_WORKFLOW.md"
+        in messages
+    )
+    assert "Agent entrypoint references run command: AGENTS.md" in messages
+    assert "Agent entrypoint references test command: AGENTS.md" in messages
+
+
+def test_command_registry_document_is_required(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    (tmp_path / "docs/harness/COMMANDS.md").unlink()
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert "Command registry document is missing: docs/harness/COMMANDS.md" in messages
+
+
+def test_command_registry_document_must_include_canonical_commands(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/harness/COMMANDS.md",
+        "# Harness Commands\n\n"
+        "- `.venv/bin/python main.py`\n"
+        "- `.venv/bin/pytest`\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Command registry is missing local advisory docs command: "
+        "docs/harness/COMMANDS.md -> .venv/bin/python scripts/harness/check_docs.py"
+    ) in messages
+
+
+def test_agent_entrypoints_must_reference_run_and_test_commands(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "CLAUDE.md",
+        "Read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.\n"
+        "Run `.venv/bin/python main.py`.\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert "Agent entrypoint is missing test command `.venv/bin/pytest`: CLAUDE.md" in messages
+
+
+def test_workflow_docs_must_reference_harness_commands(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/AI_WORKFLOW.md",
+        "# AI Workflow\n\nNo executable harness commands here.\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Living workflow doc is missing local advisory docs command "
+        "`.venv/bin/python scripts/harness/check_docs.py`: docs/AI_WORKFLOW.md"
+    ) in messages
+    assert (
+        "Living workflow doc is missing local CI harness command "
+        "`.venv/bin/python scripts/harness/verify.py --ci`: docs/AI_WORKFLOW.md"
+    ) in messages
 
 
 def test_completed_archived_plan_cannot_have_unchecked_tasks(tmp_path: Path) -> None:

@@ -263,3 +263,12 @@ Se amplió el harness para validar que Railway siga ejecutando el gate correcto 
 - El build debe ejecutar `python scripts/harness/verify.py --ci` antes de `pytest`
 - El start command debe conservar `python main.py` como entrypoint esperado
 - La validación usa solo librería estándar y aparece en salidas texto/JSON del harness
+
+### E.20 — Harness Command Registry [COMPLETADO]
+
+Se centralizaron los comandos operativos vivos para evitar drift entre agentes, docs y Railway:
+
+- `scripts/harness/commands.py` define los comandos canónicos del harness, tests, runtime y Railway
+- `docs/harness/COMMANDS.md` documenta la fuente de verdad para humanos y agentes
+- El harness valida que entrypoints de agentes y workflow docs referencien los comandos esperados
+- La validación de Railway reutiliza las mismas constantes del registro

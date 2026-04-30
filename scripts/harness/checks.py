@@ -7,6 +7,18 @@ import re
 import tomllib
 from typing import Iterable
 
+from scripts.harness.commands import (
+    COMMAND_REGISTRY,
+    LOCAL_CHECK_DOCS,
+    LOCAL_RUN,
+    LOCAL_TEST,
+    LOCAL_VERIFY_CI,
+    RAILWAY_BUILD_COMMAND,
+    RAILWAY_PYTEST,
+    RAILWAY_START,
+    RAILWAY_VERIFY_CI,
+)
+
 PASS = "PASS"
 WARN = "WARN"
 FAIL = "FAIL"
@@ -46,9 +58,8 @@ ROADMAP_IGNORE_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 UNCHECKED_TASK_RE = re.compile(r"^\s*-\s+\[\s\]\s+", re.MULTILINE)
-HARNESS_VERIFY_COMMAND = "python scripts/harness/verify.py --ci"
-PYTEST_COMMAND = "pytest"
-RAILWAY_START_COMMAND = "python main.py"
+COMMAND_REGISTRY_DOC = "docs/harness/COMMANDS.md"
+WORKFLOW_COMMAND_DOCS = ("docs/AI_WORKFLOW.md",)
 
 
 @dataclass(frozen=True)
@@ -70,6 +81,7 @@ def run_checks(root: Path | str) -> list[Finding]:
     findings.extend(check_archived_completed_plans(repo_root))
     findings.extend(check_roadmap_coherence(repo_root))
     findings.extend(check_railway_config(repo_root))
+    findings.extend(check_command_registry(repo_root))
     return findings
 
 
@@ -189,6 +201,20 @@ def check_agent_entrypoints(root: Path) -> list[Finding]:
                         relative,
                     )
                 )
+        findings.extend(check_agent_entrypoint_commands(text, relative))
+    return findings
+
+
+def check_agent_entrypoint_commands(text: str, relative: str) -> list[Finding]:
+    findings: list[Finding] = []
+    for command in (LOCAL_RUN, LOCAL_TEST):
+        command_name = "run" if command == LOCAL_RUN else "test"
+        if command.command in text:
+            findings.append(Finding(PASS, f"Agent entrypoint references {command_name} command: {relative}", relative))
+        else:
+            findings.append(
+                Finding(FAIL, f"Agent entrypoint is missing {command_name} command `{command.command}`: {relative}", relative)
+            )
     return findings
 
 
@@ -311,18 +337,18 @@ def check_railway_config(root: Path) -> list[Finding]:
         findings.append(Finding(FAIL, f"Railway config is missing [deploy] section: {relative}", relative))
     else:
         start_command = deploy_config.get("startCommand")
-        if start_command == RAILWAY_START_COMMAND:
+        if start_command == RAILWAY_START.command:
             findings.append(Finding(PASS, f"Railway start command is expected app entrypoint: {relative}", relative))
         else:
-            findings.append(Finding(FAIL, f"Railway start command must be `{RAILWAY_START_COMMAND}`: {relative}", relative))
+            findings.append(Finding(FAIL, f"Railway start command must be `{RAILWAY_START.command}`: {relative}", relative))
 
     return findings
 
 
 def check_railway_build_command(build_command: str, relative: str) -> list[Finding]:
     findings: list[Finding] = []
-    harness_index = build_command.find(HARNESS_VERIFY_COMMAND)
-    pytest_index = build_command.find(PYTEST_COMMAND)
+    harness_index = build_command.find(RAILWAY_VERIFY_CI.command)
+    pytest_index = build_command.find(RAILWAY_PYTEST.command)
 
     if harness_index == -1:
         findings.append(Finding(FAIL, f"Railway build command is missing harness verification: {relative}", relative))
@@ -336,6 +362,58 @@ def check_railway_build_command(build_command: str, relative: str) -> list[Findi
                 Finding(FAIL, f"Railway build command runs pytest before harness verification: {relative}", relative)
             )
 
+    return findings
+
+
+def check_command_registry(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    findings.extend(check_command_registry_document(root))
+    findings.extend(check_workflow_command_docs(root))
+    return findings
+
+
+def check_command_registry_document(root: Path) -> list[Finding]:
+    relative = COMMAND_REGISTRY_DOC
+    path = root / relative
+    if not path.is_file():
+        return [Finding(FAIL, f"Command registry document is missing: {relative}", relative)]
+
+    text = read_text(path)
+    findings = [Finding(PASS, f"Command registry document exists: {relative}", relative)]
+    for command in COMMAND_REGISTRY:
+        if command.command in text:
+            findings.append(Finding(PASS, f"Command registry documents {command.label}: {relative}", relative))
+        else:
+            findings.append(
+                Finding(FAIL, f"Command registry is missing {command.label}: {relative} -> {command.command}", relative)
+            )
+    if RAILWAY_BUILD_COMMAND in text:
+        findings.append(Finding(PASS, f"Command registry documents Railway build command: {relative}", relative))
+    else:
+        findings.append(
+            Finding(FAIL, f"Command registry is missing Railway build command: {relative} -> {RAILWAY_BUILD_COMMAND}", relative)
+        )
+    return findings
+
+
+def check_workflow_command_docs(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    for relative in WORKFLOW_COMMAND_DOCS:
+        path = root / relative
+        if not path.is_file():
+            continue
+        text = read_text(path)
+        for command in (LOCAL_CHECK_DOCS, LOCAL_VERIFY_CI):
+            if command.command in text:
+                findings.append(Finding(PASS, f"Living workflow doc references {command.label}: {relative}", relative))
+            else:
+                findings.append(
+                    Finding(
+                        FAIL,
+                        f"Living workflow doc is missing {command.label} `{command.command}`: {relative}",
+                        relative,
+                    )
+                )
     return findings
 
 

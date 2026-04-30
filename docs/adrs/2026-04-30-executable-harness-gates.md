@@ -26,6 +26,8 @@ The second harness slice extends the same decision with machine-readable JSON ou
 
 The Railway config harness slice extends the enforcement layer to the deploy configuration itself. The harness parses `railway.toml` with the Python standard library, verifies that the build command runs `python scripts/harness/verify.py --ci` before `pytest`, and confirms the deploy start command remains `python main.py`.
 
+The command registry slice centralizes living local and Railway commands in `scripts/harness/commands.py` and `docs/harness/COMMANDS.md`. The harness now validates that agent entrypoints and workflow docs reference the canonical commands instead of maintaining independent copies.
+
 ## Alternatives Considered
 - **Adopt OpenSpec/OpenSDD immediately:** Deferred because the immediate risk is local documentation drift, and adding a new framework should be evaluated as a separate feature.
 - **Rely on pytest only:** Rejected because pytest does not validate documentation lifecycle state or agent instruction drift.
@@ -35,6 +37,7 @@ The Railway config harness slice extends the enforcement layer to the deploy con
 - **Positive:** Documentation drift now has a deterministic local and CI signal before deploy tests run.
 - **Positive:** The gate is dependency-free and can run before application imports or external service setup.
 - **Positive:** Deploy configuration drift now fails in the same local and CI harness surface as documentation drift.
+- **Positive:** Local, agent, and Railway command references now share one registry-backed source of truth.
 - **Negative:** The first gate is intentionally narrow and does not enforce linting, typing, coverage, or financial runtime invariants.
 - **Follow-up:** Evaluate OpenSpec/OpenSDD or a similar framework in a separate short-term feature after this baseline proves useful.
 
@@ -45,5 +48,9 @@ The Railway config harness slice extends the enforcement layer to the deploy con
 - `docs/plans/archive/2026-04-30-harness-roadmap-coherence.md`
 - `docs/specs/archive/2026-04-30-railway-config-harness.md`
 - `docs/plans/archive/2026-04-30-railway-config-harness.md`
+- `docs/specs/archive/2026-04-30-harness-command-registry.md`
+- `docs/plans/archive/2026-04-30-harness-command-registry.md`
 - `scripts/harness/checks.py`
+- `scripts/harness/commands.py`
+- `docs/harness/COMMANDS.md`
 - `railway.toml`

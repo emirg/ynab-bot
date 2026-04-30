@@ -19,6 +19,14 @@ To ensure continuity between different AI assistants (Claude, Gemini, etc.) and 
    - **Current State / Blocker:** [Exact error or remaining logic]
    - **Next Step:** [Exact technical instruction to resume]
 
+## Canonical Commands
+
+Living command references are centralized in `docs/harness/COMMANDS.md`.
+
+- Advisory harness diagnostics: `.venv/bin/python scripts/harness/check_docs.py`
+- Local CI harness verification: `.venv/bin/python scripts/harness/verify.py --ci`
+- Full test suite: `.venv/bin/pytest`
+
 ---
 
 ## Architectural Invariants
