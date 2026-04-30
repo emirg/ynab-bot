@@ -183,3 +183,83 @@ Se corrigió una regresión de `/editar` donde referencias recientes legítimas 
 - Si la transacción existe, payee/monto/categoría cacheados ya no bloquean la edición
 - El cache reciente se refresca desde YNAB después de una edición exitosa
 - `/deshacer` mantiene validación estricta porque elimina la transacción completa
+
+### E.11 — Executable Harness Gates [COMPLETADO]
+
+Se agregó la primera capa ejecutable de validación del workflow documental antes del deploy:
+
+- `scripts/harness/check_docs.py` entrega diagnósticos locales de SPEC/PLAN/ADR y agent docs
+- `scripts/harness/verify.py --ci` bloquea Railway cuando detecta drift documental
+- El build de Railway ahora corre el harness antes de `pytest`
+- Se archivaron documentos completados que seguían activos y se actualizaron referencias de agentes obsoletas
+
+### E.12 — Financial Advisor Phase 3 Dashboard [COMPLETADO]
+
+Se reemplazó el placeholder autenticado del advisor con el primer dashboard útil de lectura:
+
+- Dashboard web autenticado para `/advisor`
+- Métricas por período para mes, semana y día
+- Datos leídos desde YNAB y repositorios por usuario
+- Mantiene la sesión web emitida desde Telegram
+
+### E.13 — HTTP API and Prepared Expense Hardening [COMPLETADO]
+
+Se endureció la ruta HTTP y el flujo preparado de gastos antes de ampliar superficies web:
+
+- Endpoint HTTP autenticado para registrar gastos
+- Validación compartida de requests HTTP
+- Autenticación bearer con comparación constante
+- Sanitización de errores del callback OAuth
+- Contrato tipado para prepared expenses
+
+### E.14 — SQLite Thread-Safe Compatibility Hardening [COMPLETADO]
+
+Se corrigió la gestión de conexiones SQLite mientras seguía existiendo como ruta runtime o compatibilidad:
+
+- Conexiones SQLite por thread en `DatabaseManager`
+- Separación entre conexión de inicialización y conexiones runtime
+- Pruebas de repositorios preservadas para compatibilidad y migración
+
+### E.15 — YNAB Source-of-Truth Hardening [COMPLETADO]
+
+Se formalizó que YNAB es la fuente financiera autoritativa:
+
+- Totales de gasto desde transacciones
+- Salud presupuestal desde snapshots de categorías
+- Balances desde campos de cuentas
+- `/recent`, `/editar` y `/deshacer` tratados como superficies de conveniencia
+
+### E.16 — Temporary Monthly Summary Disablement [COMPLETADO]
+
+Se deshabilitó temporalmente `/resumen` cuando el flujo mensual necesitó protección:
+
+- Mensaje seguro en español para usuarios
+- Callback mensual protegido mientras estaba deshabilitado
+- Documentación archivada del estado temporal
+
+### E.17 — Compact Monthly /resumen [COMPLETADO]
+
+Se rediseñó `/resumen mes` para hacerlo compacto y accionable:
+
+- Resumen mensual priorizado por estado de presupuesto
+- Botones inline para ver categorías y presupuesto
+- Agregación split-aware para vistas de período
+- Alineación de métricas mensuales del advisor con actividad y balances de YNAB
+
+### E.18 — Harness Roadmap Coherence [COMPLETADO]
+
+Se amplió el harness documental para que ROADMAP sea el índice actualizado del trabajo completado:
+
+- Salida JSON para diagnósticos locales y CI
+- Validación de marcadores ROADMAP en SPECs implementadas y PLANs completados
+- Verificación de checkboxes en PLANs completados archivados
+- ROADMAP actualizado con features implementadas que estaban solo en SPEC/PLAN archivados
+
+### E.19 — Railway Config Harness [COMPLETADO]
+
+Se amplió el harness para validar que Railway siga ejecutando el gate correcto antes del deploy:
+
+- `railway.toml` debe existir y ser TOML válido
+- El build debe ejecutar `python scripts/harness/verify.py --ci` antes de `pytest`
+- El start command debe conservar `python main.py` como entrypoint esperado
+- La validación usa solo librería estándar y aparece en salidas texto/JSON del harness

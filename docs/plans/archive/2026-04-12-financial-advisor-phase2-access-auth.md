@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.7
 - **Source Spec:** `docs/specs/2026-04-12-financial-advisor-phase2-access-auth.md`
 - **Goal:** Deliver the first authenticated advisor-access slice on top of the completed PostgreSQL runtime baseline.
 - **Approach:** Reuse the current Telegram bot and public HTTP server. Telegram issues a one-time advisor launch link; the public HTTP server exchanges that token for a server-side advisor session stored in PostgreSQL and represented in the browser by an HTTP-only cookie.

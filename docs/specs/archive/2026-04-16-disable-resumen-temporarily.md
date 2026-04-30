@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.16
 - **Owner:** Codex
 - **Related Roadmap Item:** `/resumen` on-demand spending summary
 - **Related ADRs:** None

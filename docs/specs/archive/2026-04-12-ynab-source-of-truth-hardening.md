@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.15
 - **Owner:** Codex
 - **Related Roadmap Item:** 3.5 — Resumen On-Demand, Advisor ongoing slices
 - **Related ADRs:** `docs/adrs/2026-04-12-ynab-source-of-truth.md`

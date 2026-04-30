@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** 3.1
 - **Goal:** Fix three bugs in the `/corregir` command: (1) category name not resolved to YNAB UUID, (2) `category_name` not saved in correction records, (3) YNAB transaction not updated with the new category.
 - **Why:** Currently `/corregir` only saves the raw user string as `category_id` (not a UUID), doesn't persist `category_name` (causing "Categoria desconocida" in `/aprendizaje`), and never updates the actual YNAB transaction — leaving it with the old category.
 
@@ -111,9 +112,9 @@
 - **UI language:** All user-facing messages in Spanish.
 
 ## Verification
-- [ ] `/corregir 1 groceries` resolves "groceries" to the real YNAB category (e.g., "Groceries") and shows the resolved name
-- [ ] `/corregir 1 nonexistent` shows a friendly error message about no matching category
-- [ ] After correction, `/aprendizaje` shows the correct category name (not "Categoria desconocida")
-- [ ] The YNAB transaction is updated with the new category (verify in YNAB app)
-- [ ] If YNAB API is unreachable, correction still saves locally and user is informed
-- [ ] All existing tests pass, new tests cover the three bug fixes
+- [x] `/corregir 1 groceries` resolves "groceries" to the real YNAB category (e.g., "Groceries") and shows the resolved name
+- [x] `/corregir 1 nonexistent` shows a friendly error message about no matching category
+- [x] After correction, `/aprendizaje` shows the correct category name (not "Categoria desconocida")
+- [x] The YNAB transaction is updated with the new category (verify in YNAB app)
+- [x] If YNAB API is unreachable, correction still saves locally and user is informed
+- [x] All existing tests pass, new tests cover the three bug fixes

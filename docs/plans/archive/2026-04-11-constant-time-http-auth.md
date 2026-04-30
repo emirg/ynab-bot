@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.13
 - **Source Spec:** `docs/specs/2026-04-11-constant-time-http-auth.md`
 - **Goal:** Harden bearer-token verification without changing handler semantics.
 - **Approach:** Replace string equality in `validate_bearer_token()` with `hmac.compare_digest()` and verify that auth-facing behavior remains unchanged.
@@ -12,7 +13,7 @@
 - `tests/test_expense_api_handler.py`, `tests/test_dev_api_handler.py` — keep auth integration coverage green
 
 ## Prerequisites (Manual)
-- [ ] None
+- [x] None
 
 ## Implementation Steps
 

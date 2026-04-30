@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.3
 - **Goal:** Permitir que el bot detecte fechas en mensajes de gasto (ej. "ayer gasté 20k en Carulla", "el 24/07 gasté 30k en Wok") y registre la transacción en YNAB con esa fecha en lugar de la fecha actual.
 - **Why:** Actualmente todos los gastos se registran con `datetime.now()`, ignorando cualquier referencia temporal en el mensaje del usuario.
 

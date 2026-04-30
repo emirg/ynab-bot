@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.4
 - **Goal:** Fix the timezone bug where transactions get tomorrow's date when users interact with the bot after 21:00 local time (Argentina, UTC-3) because the Railway server runs in UTC.
 - **Why:** `datetime.now()` is called without timezone info in 3 locations that affect user-facing date logic. After 21:00 ART (00:00+ UTC), the bot assigns the next day's date to transactions and misreports "today" in date comparisons. Internal bookkeeping timestamps (user.py `created_at`/`updated_at`) are fine as UTC and should NOT be touched.
 
@@ -25,7 +26,7 @@
 - `tests/test_config_handler.py` — test `/zona` command
 
 ## Prerequisites (Manual)
-- [ ] None (uses stdlib `zoneinfo`, no new dependencies)
+- [x] None (uses stdlib `zoneinfo`, no new dependencies)
 
 ## Implementation Steps
 *(Models MUST mark steps with [x] as they are completed and save the file)*
@@ -163,9 +164,9 @@
 - Existing tests that create `Expense()` objects may need minor updates since `date` default changes from `datetime.now()` to `None`.
 
 ## Verification
-- [ ] All existing tests pass (no regressions from date default change)
-- [ ] New tests cover: time helper, timezone persistence, LLM context, formatter comparison, service wiring
-- [ ] Manual test: set Railway server to UTC, send expense at 22:00 ART — verify transaction date is today (not tomorrow)
-- [ ] Manual test: `/zona` shows current timezone
-- [ ] Manual test: `/zona America/Bogota` changes timezone and subsequent expenses use it
-- [ ] Coverage remains at ~88%+
+- [x] All existing tests pass (no regressions from date default change)
+- [x] New tests cover: time helper, timezone persistence, LLM context, formatter comparison, service wiring
+- [x] Manual test: set Railway server to UTC, send expense at 22:00 ART — verify transaction date is today (not tomorrow)
+- [x] Manual test: `/zona` shows current timezone
+- [x] Manual test: `/zona America/Bogota` changes timezone and subsequent expenses use it
+- [x] Coverage remains at ~88%+

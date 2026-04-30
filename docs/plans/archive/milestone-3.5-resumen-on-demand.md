@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** 3.5
 - **Goal:** Add a `/resumen` command that shows a spending summary for the current day, week, or month, with category breakdown and optional comparison against the YNAB budget.
 - **Why:** Users want to check their spending at any time, not just via the automatic weekly summary. This gives them instant visibility into where their money is going and how it compares to their budget plan.
 
@@ -162,13 +163,13 @@ This feature is purely read-only (YNAB API queries). No new tables, migrations, 
 - **YNAB API caching**: `YNABApiRepository` already caches categories and transactions for 5 minutes — no additional caching needed.
 
 ## Verification
-- [ ] `/resumen` (no args) shows current month summary with budget comparison
-- [ ] `/resumen dia` shows today's spending by category
-- [ ] `/resumen semana` shows current week spending by category
-- [ ] `/resumen mes` shows month summary with budget comparison section
-- [ ] Invalid period like `/resumen año` shows usage help message
-- [ ] Unauthenticated user gets auth required message
-- [ ] Unconfigured user (no budget) gets configuration instructions
-- [ ] User with no transactions in period sees friendly empty message
-- [ ] All amounts display correctly (milliunits -> display units)
-- [ ] Spanish month names display correctly (e.g., "Mes de marzo 2026")
+- [x] `/resumen` (no args) shows current month summary with budget comparison
+- [x] `/resumen dia` shows today's spending by category
+- [x] `/resumen semana` shows current week spending by category
+- [x] `/resumen mes` shows month summary with budget comparison section
+- [x] Invalid period like `/resumen año` shows usage help message
+- [x] Unauthenticated user gets auth required message
+- [x] Unconfigured user (no budget) gets configuration instructions
+- [x] User with no transactions in period sees friendly empty message
+- [x] All amounts display correctly (milliunits -> display units)
+- [x] Spanish month names display correctly (e.g., "Mes de marzo 2026")

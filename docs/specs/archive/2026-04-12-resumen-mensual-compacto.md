@@ -2,9 +2,10 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.17
 - **Owner:** Codex
 - **Related Roadmap Item:** 3.5 — Resumen On-Demand
-- **Related ADRs:** None
+- **Related ADRs:** None recorded during implementation
 
 ## Summary
 The monthly `/resumen` response should become shorter, more actionable, and easier to scan in Telegram. Instead of listing every category and every budget line in the first message, the bot should present a compact monthly health summary that highlights overspending, top categories, and the most relevant next action. Users can still access deeper monthly detail through inline buttons.

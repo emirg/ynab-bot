@@ -2,7 +2,8 @@
 
 ## Objective & Context
 - **Status:** Completed
-- **Source Spec:** `docs/specs/2026-04-12-resumen-mensual-compacto.md`
+- **Harness Roadmap Marker:** E.17
+- **Source Spec:** `docs/specs/archive/2026-04-12-resumen-mensual-compacto.md`
 - **Goal:** Deliver a compact, budget-health-first monthly `/resumen` experience with inline drill-down views for monthly details.
 - **Approach:** Keep the existing `/resumen` command and YNAB data flow, but add monthly insight derivation, a compact formatter path, callback-driven Telegram drill-down views, and a shared source-of-truth aggregation rule across `/resumen`, weekly summaries, and advisor dashboard views.
 

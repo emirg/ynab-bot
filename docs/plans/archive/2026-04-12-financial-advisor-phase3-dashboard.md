@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.12
 - **Source Spec:** `docs/specs/archive/2026-04-12-financial-advisor-phase3-dashboard.md`
 - **Goal:** Deliver the first useful advisor dashboard on top of the completed advisor session/auth baseline.
 - **Approach:** Add an advisor-specific dashboard service and API, then replace the placeholder advisor page with a month-first read-only dashboard rendered by the existing server-served HTML/JS flow.
@@ -14,7 +15,7 @@
 - `docs/` — phase spec/plan, architecture notes, and handoff state
 
 ## Prerequisites (Manual)
-- [ ] None
+- [x] None
 
 ## Implementation Steps
 ### Group 1
@@ -50,4 +51,4 @@
 
 ## Verification
 - [x] `.venv/bin/pytest tests/test_advisor_dashboard_service.py tests/test_advisor_http.py tests/test_http_server.py tests/test_container.py tests/test_advisor_access_service.py tests/test_health.py`
-- [ ] Manual advisor smoke test through the existing `/analisis` launch flow in the current HTTP runtime
+- [x] Manual advisor smoke test through the existing `/analisis` launch flow in the current HTTP runtime

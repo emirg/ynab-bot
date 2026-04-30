@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.6
 - **Source Spec:** `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`
 - **Goal:** Prepare the current codebase for the future financial advisor without breaking the Telegram bot, the existing OAuth flow, or the current public HTTP API.
 - **Approach:** Phase 1 stays grounded in the current single-repo, single-public-server reality. It starts from the codebase as it exists now: SQLite remains the active persistence layer, `DatabaseManager` already uses per-thread runtime connections, and the public HTTP expense endpoint already has shared Pydantic request validation plus constant-time bearer auth. The phase now has an accepted persistence target: migrate runtime persistence to PostgreSQL during Phase 1 while preserving current user-facing and HTTP behavior throughout the transition.
@@ -18,9 +19,9 @@
 - `docs/ARCHITECTURE.md`, `docs/AI_WORKFLOW.md`, `README.md` — only if implementation finalizes decisions that change project invariants
 
 ## Prerequisites (Manual)
-- [ ] Back up the current SQLite database before any migration work starts.
-- [ ] Confirm local PostgreSQL is available for development and integration testing. The current Docker `postgres` profile is optional scaffolding, not the full runtime migration by itself.
-- [ ] Confirm Railway environment constraints assuming the current single-process `APP_MODE=full` deployment and the existing rule that `APP_MODE=http-dev` is not allowed on Railway.
+- [x] Back up the current SQLite database before any migration work starts.
+- [x] Confirm local PostgreSQL is available for development and integration testing. The current Docker `postgres` profile is optional scaffolding, not the full runtime migration by itself.
+- [x] Confirm Railway environment constraints assuming the current single-process `APP_MODE=full` deployment and the existing rule that `APP_MODE=http-dev` is not allowed on Railway.
 
 ## Implementation Steps
 *(Models MUST mark steps with [x] as they are completed and save the file)*

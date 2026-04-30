@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.10
 - **Owner:** Codex
 - **Related Roadmap Item:** Bugfix: high-priority `/editar` regression
 - **Related ADRs:** `docs/adrs/2026-04-12-ynab-source-of-truth.md`, `docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md`

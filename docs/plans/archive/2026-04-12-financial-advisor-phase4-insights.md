@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.8
 - **Source Spec:** `docs/specs/archive/2026-04-12-financial-advisor-phase4-insights.md`
 - **Goal:** Extend the authenticated advisor dashboard with deterministic, read-only financial insights built from the user's real YNAB data.
 - **Approach:** Add an advisor insights read model and rule evaluation layer on top of the existing dashboard aggregation, expose the resulting insights through the advisor dashboard payload, and render them in the current server-served advisor page without changing the auth/session baseline.
@@ -18,7 +19,7 @@
 - `docs/ARCHITECTURE.md`, `docs/wip_state.md`, this plan file — record the new advisor baseline and next handoff
 
 ## Prerequisites (Manual)
-- [ ] None
+- [x] None
 
 ## Implementation Steps
 ### Group 1

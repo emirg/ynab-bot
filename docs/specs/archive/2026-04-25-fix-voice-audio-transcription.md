@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.9
 - **Owner:** Codex
 - **Related Roadmap Item:** Bugfix: critical voice expense capture regression
 - **Related ADRs:** None

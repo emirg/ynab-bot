@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.12
 - **Owner:** Codex
 - **Related Roadmap Item:** Future Financial Advisor milestone
 - **Related Spec:** `docs/specs/archive/2026-03-21-financial-advisor-web-app.md`

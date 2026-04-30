@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.14
 - **Source Spec:** `docs/specs/2026-04-11-sqlite-thread-safe-connection-management.md`
 - **Goal:** Remove unsafe cross-thread SQLite connection sharing while preserving repository and service interfaces.
 - **Approach:** Refactor `DatabaseManager` to own a dedicated migration connection plus lazily-created thread-local runtime connections, then verify repository compatibility with targeted tests.
@@ -12,7 +13,7 @@
 - `tests/test_sqlite_user_repository.py` — verify repository behavior remains stable after the manager change
 
 ## Prerequisites (Manual)
-- [ ] None
+- [x] None
 
 ## Implementation Steps
 

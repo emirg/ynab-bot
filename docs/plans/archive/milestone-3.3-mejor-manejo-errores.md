@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** 3.3
 - **Goal:** Improve error handling across the bot with three pillars: (1) clear, actionable error messages in Spanish, (2) automatic retries for transient YNAB API errors (429, 500), and (3) structured logging for diagnostics.
 - **Why:** Currently, error messages are generic and often expose internal details (e.g., raw exception strings). YNAB API transient failures cause immediate user-facing errors with no retry. Logging uses plain text with inconsistent formatting, making production diagnosis difficult.
 
@@ -44,7 +45,7 @@
 - `tests/test_expense_service.py` — Tests for user-facing error messages
 
 ## Prerequisites (Manual)
-- [ ] None — no new env vars, API keys, or infrastructure needed
+- [x] None — no new env vars, API keys, or infrastructure needed
 
 ## Implementation Steps
 
@@ -193,9 +194,9 @@
 - Structured logging must be backward compatible — existing `logger.info("message")` calls continue working, structured fields are optional extras.
 
 ## Verification
-- [ ] All existing tests pass (~520 tests)
-- [ ] Coverage remains at ~88%+
-- [ ] Send a text expense while YNAB API is returning 500 → verify retry + eventual success or clean Spanish error
-- [ ] Check Railway logs show JSON format with user_id and operation fields
-- [ ] Verify `/connect` with expired token shows actionable Spanish message
-- [ ] Verify parse failure shows helpful Spanish examples
+- [x] All existing tests pass (~520 tests)
+- [x] Coverage remains at ~88%+
+- [x] Send a text expense while YNAB API is returning 500 → verify retry + eventual success or clean Spanish error
+- [x] Check Railway logs show JSON format with user_id and operation fields
+- [x] Verify `/connect` with expired token shows actionable Spanish message
+- [x] Verify parse failure shows helpful Spanish examples

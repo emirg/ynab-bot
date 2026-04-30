@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.13
 - **Source Spec:** `docs/specs/2026-04-11-shared-http-request-validation.md`
 - **Goal:** Make the production and dev text-message HTTP routes use the same validated request contract.
 - **Approach:** Add a shared Pydantic model and parser for the common text-message payload, then route both handlers through it while preserving current success semantics.
@@ -12,7 +13,7 @@
 - `tests/test_dev_api_handler.py` — add regression coverage for invalid `force_commit` coercion
 
 ## Prerequisites (Manual)
-- [ ] None
+- [x] None
 
 ## Implementation Steps
 

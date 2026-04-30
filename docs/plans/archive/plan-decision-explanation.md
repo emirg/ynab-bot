@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** 1.3
 - **Goal:** When the bot records an expense, include a brief Spanish explanation of *why* it chose that category — whether from learned payee associations or LLM suggestion.
 - **Why:** Users currently see the category and confidence percentage but have no insight into the decision logic. This transparency builds trust, helps users spot errors faster, and makes the learning system more tangible.
 

@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.15
 - **Source Spec:** `docs/specs/archive/2026-04-12-ynab-source-of-truth-hardening.md`
 - **Goal:** Make all financial reads use the correct YNAB-backed source and eliminate remaining drift between bot/advisor outputs and YNAB.
 - **Approach:** Introduce a shared source-of-truth policy plus reusable spending aggregation helpers, then align each feature to the proper YNAB data source by value type.

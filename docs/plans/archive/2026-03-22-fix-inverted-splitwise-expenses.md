@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** 2.2
 - **Goal:** Fix two bugs in shared expense handling: (1) inverted category assignment for non-50/50 proportion splits, and (2) precision loss when users specify fixed amounts for the other person's share.
 - **Why:** When a user says "36700.5 son por Eli" (fixed amount for the other person), the LLM converts it to a proportion, which gets converted back to an amount, losing precision and potentially inverting which share goes to which category. The root cause is ambiguous proportion semantics (user's share vs other's share) and lack of a fixed-amount field.
 
@@ -24,7 +25,7 @@ When the user says "36700.5 son por Eli" out of a 60000 total, the LLM must conv
 - `tests/test_llm_expense_parser.py` — Tests for `split_amount` field validation
 
 ## Prerequisites (Manual)
-- [ ] None — no env vars, infrastructure, or DB changes required
+- [x] None — no env vars, infrastructure, or DB changes required
 
 ## Implementation Steps
 *(Models MUST mark steps with [x] as they are completed and save the file)*
@@ -145,8 +146,8 @@ When the user says "36700.5 son por Eli" out of a 60000 total, the LLM must conv
 - **UI language**: All user-facing strings must remain in Spanish.
 
 ## Verification
-- [ ] Run full test suite: `.venv/bin/pytest` — all existing tests pass
-- [ ] Manual test: Send "gasté 60000 en restaurantes, 36700 son por Eli" — verify Splitwise gets 36700 and real category gets 23300
-- [ ] Manual test: Send "almuerzo 50000 a medias con Juan" — verify 50/50 split (25000 each)
-- [ ] Manual test: Send "gasté 90000 en mercado con Juan, 2/3 son míos" — verify user gets 60000 in real category, Juan gets 30000 in Splitwise
-- [ ] Manual test: Send "Eli gastó 80000 en restaurantes por mí" — verify user debt is 80000 (proportion=1, payer=other)
+- [x] Run full test suite: `.venv/bin/pytest` — all existing tests pass
+- [x] Manual test: Send "gasté 60000 en restaurantes, 36700 son por Eli" — verify Splitwise gets 36700 and real category gets 23300
+- [x] Manual test: Send "almuerzo 50000 a medias con Juan" — verify 50/50 split (25000 each)
+- [x] Manual test: Send "gasté 90000 en mercado con Juan, 2/3 son míos" — verify user gets 60000 in real category, Juan gets 30000 in Splitwise
+- [x] Manual test: Send "Eli gastó 80000 en restaurantes por mí" — verify user debt is 80000 (proportion=1, payer=other)

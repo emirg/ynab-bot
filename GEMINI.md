@@ -26,7 +26,7 @@ All Python commands must be run using the `.venv` virtual environment.
 
 ```bash
 .venv/bin/python main.py          # Run
-.venv/bin/pytest                   # All tests (~413, ~89% cov)
+.venv/bin/pytest                   # All tests
 .venv/bin/pytest tests/test_domain_models.py # File
 .venv/bin/pytest tests/test_domain_models.py::TestExpense::test_is_valid_basic # Specific
 .venv/bin/pytest -k "test_predict_category" # Keyword filter

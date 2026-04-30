@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.16
 - **Source Spec:** `docs/specs/archive/2026-04-16-disable-resumen-temporarily.md`
 - **Goal:** Disable `/resumen` responses immediately with a clear temporary message and stop advertising the command in user-facing help.
 - **Approach:** Keep the existing command registration in place, short-circuit the Telegram handler to a fixed response, and update tests/help text to match the new temporary rollback behavior.

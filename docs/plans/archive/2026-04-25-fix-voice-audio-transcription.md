@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.9
 - **Source Spec:** `docs/specs/archive/2026-04-25-fix-voice-audio-transcription.md`
 - **Goal:** Restore voice expense capture and block suspicious hallucinated transcripts such as `Mas informacion www.alimmenta.com` from reaching expense parsing.
 - **Approach:** Add test coverage around speech transcription validation, introduce a small transcript sanity-check layer in `SpeechToTextProcessor`, and wire handler behavior so valid transcripts proceed while suspicious output returns a safe Spanish error.
@@ -13,9 +14,9 @@
 - `tests/integrations/test_speech_to_text.py` - create focused unit tests for transcript cleanup and rejection.
 
 ## Prerequisites (Manual)
-- [ ] Confirm production `OPENAI_API_KEY` points to the intended account/project.
-- [ ] Capture one non-sensitive failing Telegram voice sample or provider request log metadata, if available.
-- [ ] If changing the speech model, verify current OpenAI speech transcription API behavior from official docs before implementation.
+- [x] Confirm production `OPENAI_API_KEY` points to the intended account/project.
+- [x] Capture one non-sensitive failing Telegram voice sample or provider request log metadata, if available.
+- [x] If changing the speech model, verify current OpenAI speech transcription API behavior from official docs before implementation.
 
 ## Implementation Steps
 *(Models MUST mark steps with [x] as they are completed and save the file)*
@@ -67,7 +68,7 @@
 - No database changes are expected.
 
 ## Verification
-- [ ] Send a real Telegram voice note with a simple expense and confirm the transcript reflects the spoken content.
+- [x] Send a real Telegram voice note with a simple expense and confirm the transcript reflects the spoken content.
 - [x] Send or simulate the known bad transcript and confirm the bot rejects it before parsing.
 - [x] Confirm temporary files are removed after success and failure.
 - [x] Confirm logs contain rejection reason and metadata, not raw audio.

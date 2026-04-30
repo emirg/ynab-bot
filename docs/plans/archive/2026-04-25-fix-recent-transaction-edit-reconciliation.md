@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.10
 - **Source Spec:** `docs/specs/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`
 - **Goal:** Make `/editar` work again for legitimate recent YNAB transactions while preserving safe failure when the local recent reference is truly stale.
 - **Approach:** Characterize false stale cases with tests, isolate reconciliation into explicit helpers, loosen only benign comparisons for edit, and keep true missing/stale YNAB states blocked.
@@ -14,8 +15,8 @@
 - `tests/presentation/telegram/test_learning_handler.py` - handler-level error mapping coverage.
 
 ## Prerequisites (Manual)
-- [ ] Capture one failing `/editar` case with the cached recent row and the live YNAB transaction payload, redacting personal details.
-- [ ] Confirm whether the failing transaction was a normal expense, split transaction, transfer, cleared/reconciled transaction, or manually edited in YNAB.
+- [x] Capture one failing `/editar` case with the cached recent row and the live YNAB transaction payload, redacting personal details.
+- [x] Confirm whether the failing transaction was a normal expense, split transaction, transfer, cleared/reconciled transaction, or manually edited in YNAB.
 
 ## Implementation Steps
 *(Models MUST mark steps with [x] as they are completed and save the file)*
@@ -84,5 +85,5 @@
 - [x] Targeted service tests pass.
 - [x] Telegram learning handler tests pass.
 - [x] Full `.venv/bin/pytest` suite passes.
-- [ ] Manual `/editar` smoke test succeeds against a fresh bot-created transaction.
+- [x] Manual `/editar` smoke test succeeds against a fresh bot-created transaction.
 - [x] Missing/deleted YNAB transaction cases remain blocked for `/editar`; drift remains blocked for `/deshacer`.

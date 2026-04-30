@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.13
 - **Owner:** Codex
 - **Related Roadmap Item:** None
 - **Related ADRs:** `docs/adrs/2026-04-11-prepared-expense-domain-contract.md`

@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.13
 - **Source Spec:** `docs/specs/2026-04-11-oauth-callback-error-sanitization.md`
 - **Goal:** Prevent raw OAuth exception text from being rendered into browser HTML and align callback pages with the Spanish UI invariant.
 - **Approach:** Centralize safe HTML rendering in `infrastructure.health`, replace raw exception interpolation with fixed Spanish messages, and tighten the callback regression tests.
@@ -11,7 +12,7 @@
 - `tests/test_health.py` — update callback assertions and add non-reflection regression coverage
 
 ## Prerequisites (Manual)
-- [ ] None
+- [x] None
 
 ## Implementation Steps
 

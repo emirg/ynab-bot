@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.1
 - **Goal:** Permitir que el usuario envíe una foto de un recibo/ticket y el bot extraiga automáticamente la información del gasto (monto, lugar, categoría) para cargarlo en YNAB.
 - **Why:** Actualmente el bot solo acepta texto y voz. Muchos gastos generan un ticket físico — poder fotografiarlo y que se cargue automáticamente reduce la fricción de registro.
 
@@ -15,7 +16,7 @@
 6. **No requiere dependencias nuevas:** `openai` v2.26.0 ya soporta visión, `base64` es stdlib. Sin cambios en `requirements.txt`.
 
 ## Prerequisites (Manual)
-- [ ] Ninguno — OpenAI API key ya configurada, GPT-4o-mini ya soporta visión
+- [x] Ninguno — OpenAI API key ya configurada, GPT-4o-mini ya soporta visión
 
 ## Implementation Steps
 

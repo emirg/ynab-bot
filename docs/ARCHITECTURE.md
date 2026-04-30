@@ -195,12 +195,12 @@ Required only when the selected runtime needs them:
 
 ## Deployment
 
-Hosted on Railway. CI pipeline runs tests on build — if any test fails, deploy is cancelled.
+Hosted on Railway. CI pipeline runs the executable harness and tests on build — if either fails, deploy is cancelled.
 
 ```toml
 # railway.toml
 [build]
-buildCommand = "pip install -r requirements.txt && pytest"
+buildCommand = "pip install -r requirements.txt && python scripts/harness/verify.py --ci && pytest"
 [deploy]
 startCommand = "python main.py"
 healthcheckPath = "/"

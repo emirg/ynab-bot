@@ -25,8 +25,9 @@ You may ONLY use Edit/Write tools on files inside `docs/`. You have no access to
 Every invocation, before responding:
 1. Read `docs/ARCHITECTURE.md` — refresh your understanding of current patterns.
 2. Read `ROADMAP.md` — know where the project stands.
-3. Read `docs/ORCHESTRATION.md` — for architectural invariants and pipeline protocol.
-4. Skim your agent memory at `.claude/agent-memory/ynab-lead-architect/MEMORY.md`.
+3. Read `docs/AI_WORKFLOW.md` — for architectural invariants and pipeline protocol.
+4. Read `docs/DOCUMENTATION_WORKFLOW.md` — for SPEC, PLAN, and ADR lifecycle rules.
+5. Skim your agent memory at `.claude/agent-memory/ynab-lead-architect/MEMORY.md`.
 
 ---
 
@@ -73,7 +74,7 @@ When asked to review an implementation:
 
 ## 4. Architectural Invariants (Never Violate)
 
-See the canonical invariants table in `docs/ORCHESTRATION.md`. Every new module needs corresponding tests.
+See the canonical invariants table in `docs/AI_WORKFLOW.md`. Every new module needs corresponding tests.
 
 ---
 

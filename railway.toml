@@ -1,5 +1,5 @@
 [build]
-buildCommand = "pip install -r requirements.txt && pytest"
+buildCommand = "pip install -r requirements.txt && python scripts/harness/verify.py --ci && pytest"
 
 [deploy]
 startCommand = "python main.py"

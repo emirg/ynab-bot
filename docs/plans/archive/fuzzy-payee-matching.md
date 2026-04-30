@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.2
 - **Goal:** When creating a transaction, match the user's payee text against existing YNAB payees and reuse the existing payee (via `payee_id`) instead of creating a duplicate with slightly different casing/spelling.
 - **Why:** Currently, if a user types "carulla" but YNAB has "Carulla", YNAB's API (which uses case-sensitive `payee_name` matching) creates a brand new payee. Over time this pollutes the user's payee list with duplicates like "carulla", "Carulla", "CARULLA".
 
@@ -39,7 +40,7 @@ No external fuzzy matching library (e.g., `fuzzywuzzy`, `rapidfuzz`) is needed. 
 - `tests/test_ynab_api_repository.py` -- Tests for `get_payees()`
 
 ## Prerequisites (Manual)
-- [ ] None -- YNAB API `GET /budgets/{budget_id}/payees` is already available and uses the same auth token.
+- [x] None -- YNAB API `GET /budgets/{budget_id}/payees` is already available and uses the same auth token.
 
 ## Implementation Steps
 

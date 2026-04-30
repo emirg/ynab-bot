@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** E.13
 - **Source Spec:** `docs/specs/2026-04-11-typed-prepared-expense-flow.md`
 - **Goal:** Replace the raw prepared-expense dict transport with a typed domain contract.
 - **Approach:** Add a `PreparedExpense` dataclass to the domain model set, refactor prepare/commit service methods and handlers to use it, and update tests to construct the typed object.
@@ -12,7 +13,7 @@
 - `tests/test_expense_service.py`, `tests/test_expense_api_handler.py`, `tests/test_expense_handler.py` — migrate helpers and assertions to the typed object
 
 ## Prerequisites (Manual)
-- [ ] None
+- [x] None
 
 ## Implementation Steps
 

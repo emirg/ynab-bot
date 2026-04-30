@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.6
 - **Owner:** Codex
 - **Related Roadmap Item:** Future Financial Advisor milestone
 - **Related ADRs:** `docs/adrs/2026-04-11-sqlite-per-thread-connections.md`, `docs/adrs/2026-04-11-prepared-expense-domain-contract.md`, `docs/adrs/2026-04-12-financial-advisor-persistence-strategy.md`

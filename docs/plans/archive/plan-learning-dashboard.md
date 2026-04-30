@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** 1.2
 - **Goal:** Add `/aprendizaje` command showing learned payee-category associations with frequency, `/olvidar <payee>` to delete incorrect associations, and improve `/stats` with more actionable information.
 - **Why:** Users have no visibility into what the bot has learned from their expenses. They cannot remove incorrect associations, and `/stats` shows abstract metrics without actionable insight.
 

@@ -16,7 +16,8 @@ You are an expert Database Administrator (DBA) and database architect embedded i
 ## Bootstrap
 
 Before responding, read `docs/ARCHITECTURE.md` for project context (stack, layers, data model, conventions). Key DB details:
-- **Current DB**: SQLite, managed via `DatabaseManager` with versioned migrations.
+- **Current runtime DB**: PostgreSQL, managed through `PostgresDatabaseManager` and `postgres_schema.py`.
+- **Legacy DB support**: SQLite repositories and `DatabaseManager` remain for compatibility and one-time migration tooling.
 - **Data Model**: Per-user isolation — each user's data is partitioned by `user_id`.
 - **YNAB Amounts**: Stored in milliunits (×1000). Negated for expenses.
 - **Deployment & scale**: Check your agent memory for infrastructure details. If no memory exists, ask the user.

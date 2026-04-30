@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Completed
+- **Harness Roadmap Marker:** 3.4
 - **Goal:** Automatically send each registered user a weekly spending summary every Monday at 8am (in their timezone), covering total spending, top 3 categories, and a week-over-week percentage comparison.
 - **Why:** Users currently have no passive insight into their spending patterns. A weekly summary provides proactive value without requiring user action, aligning with roadmap item 3.4 (Resumen Periodico).
 
@@ -57,7 +58,7 @@ Rationale:
 - `tests/test_ynab_api_repository.py` -- tests for `get_transactions`
 
 ## Prerequisites (Manual)
-- [ ] Install APScheduler dependency: `pip install "python-telegram-bot[job-queue]"` and update `requirements.txt` (APScheduler is required by PTB's JobQueue)
+- [x] Install APScheduler dependency: `pip install "python-telegram-bot[job-queue]"` and update `requirements.txt` (APScheduler is required by PTB's JobQueue)
 
 ## Implementation Steps
 
@@ -218,9 +219,9 @@ Rationale:
 - **No new external dependencies** beyond what PTB's job-queue extra requires (APScheduler).
 
 ## Verification
-- [ ] Run full test suite: `pytest` — all existing tests still pass
-- [ ] Verify migration v6 applies cleanly: create fresh DB, confirm `last_weekly_summary_sent` column exists
-- [ ] Manual test: temporarily set tick interval to 30s and `should_send_summary` to always return True. Confirm message arrives in Telegram.
-- [ ] Manual test: verify the message renders correctly in Telegram (Markdown formatting, peso amounts)
-- [ ] Manual test: kill and restart the bot — verify the tick job re-registers and no duplicate summaries are sent
-- [ ] Verify coverage remains >= 86%
+- [x] Run full test suite: `pytest` — all existing tests still pass
+- [x] Verify migration v6 applies cleanly: create fresh DB, confirm `last_weekly_summary_sent` column exists
+- [x] Manual test: temporarily set tick interval to 30s and `should_send_summary` to always return True. Confirm message arrives in Telegram.
+- [x] Manual test: verify the message renders correctly in Telegram (Markdown formatting, peso amounts)
+- [x] Manual test: kill and restart the bot — verify the tick job re-registers and no duplicate summaries are sent
+- [x] Verify coverage remains >= 86%

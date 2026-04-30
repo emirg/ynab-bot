@@ -2,6 +2,7 @@
 
 ## Metadata
 - **Status:** Implemented
+- **Harness Roadmap Marker:** E.14
 - **Owner:** Codex
 - **Related Roadmap Item:** None
 - **Related ADRs:** `docs/adrs/2026-04-11-sqlite-per-thread-connections.md`
