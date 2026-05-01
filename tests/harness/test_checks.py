@@ -22,6 +22,56 @@ VALID_RAILWAY_TOML = (
     'healthcheckPath = "/"\n'
 )
 
+VALID_BEHAVIORAL_MANIFEST = """
+[[fixture]]
+id = "split_spending_expands_negative_subtransactions"
+label = "Split spending expands negative subtransactions"
+risk_area = "transaction aggregation"
+protected_rule = "Split parent transactions must use negative subtransactions for spending totals."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "split_spending_expands_negative_subtransactions"
+
+[[fixture]]
+id = "zero_sum_shared_split_counts_negative_leg"
+label = "Zero-sum shared split negative leg counts as spending"
+risk_area = "shared expense aggregation"
+protected_rule = "Zero-sum shared transactions still count the user's negative spending leg."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "zero_sum_shared_split_counts_negative_leg"
+
+[[fixture]]
+id = "net_spending_offsets_categorized_inflows"
+label = "Net spending offsets categorized inflows and hides positive-net categories"
+risk_area = "monthly net spending"
+protected_rule = "Categorized inflows reduce period spending while Ready to Assign inflows are excluded."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "net_spending_offsets_categorized_inflows"
+
+[[fixture]]
+id = "budget_snapshots_preserve_balance"
+label = "Budget category snapshots preserve YNAB balances and filter inactive categories"
+risk_area = "budget health"
+protected_rule = "Budget health must use YNAB category balance snapshots and ignore inactive categories."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "budget_snapshots_preserve_balance"
+
+[[fixture]]
+id = "edit_reconciliation_trusts_live_identity"
+label = "Edit reconciliation trusts existing live YNAB transaction identity"
+risk_area = "recent edit reconciliation"
+protected_rule = "/editar must trust an existing live YNAB transaction id despite local recent drift."
+owner_path = "src/application/services/expense_service.py"
+assertion = "edit_reconciliation_trusts_live_identity"
+
+[[fixture]]
+id = "undo_reconciliation_blocks_stale_recent_reference"
+label = "Undo reconciliation blocks stale local recent references"
+risk_area = "recent undo reconciliation"
+protected_rule = "/deshacer must block stale local recent references before destructive deletion."
+owner_path = "src/application/services/expense_service.py"
+assertion = "undo_reconciliation_blocks_stale_recent_reference"
+"""
+
 
 def write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -41,12 +91,14 @@ def make_minimal_repo(root: Path) -> None:
         "- `.venv/bin/pytest`\n"
         "- `.venv/bin/python scripts/harness/check_docs.py`\n"
         "- `.venv/bin/python scripts/harness/check_financial_invariants.py`\n"
+        "- `.venv/bin/python scripts/harness/check_behavioral_invariants.py`\n"
         "- `.venv/bin/python scripts/harness/verify.py --ci`\n"
         "- `python scripts/harness/verify.py --ci`\n"
         "- `pip install -r requirements.txt && python scripts/harness/verify.py --ci && pytest`\n",
     )
     write(root / "ROADMAP.md", "# Roadmap\n")
     write(root / "railway.toml", VALID_RAILWAY_TOML)
+    write(root / "scripts/harness/behavioral_invariants.toml", VALID_BEHAVIORAL_MANIFEST)
     (root / "docs/specs/archive").mkdir(parents=True)
     (root / "docs/plans/archive").mkdir(parents=True)
     write(
@@ -121,12 +173,60 @@ def make_minimal_repo(root: Path) -> None:
     )
     write(
         root / "src/domain/services/spending_aggregation.py",
+        "def extract_expense_entries(transactions):\n"
+        "    entries = []\n"
+        "    for txn in transactions:\n"
+        "        negative_subtransactions = [sub for sub in (txn.get('subtransactions') or []) if sub.get('amount', 0) < 0]\n"
+        "        if negative_subtransactions:\n"
+        "            for sub in negative_subtransactions:\n"
+        "                entries.append({'amount': sub['amount'], 'category_name': sub.get('category_name') or 'Sin categoría', 'date': txn.get('date', '')})\n"
+        "            continue\n"
+        "        if txn.get('transfer_account_id') or txn.get('transfer_transaction_id'):\n"
+        "            continue\n"
+        "        amount = txn.get('amount', 0)\n"
+        "        if amount < 0:\n"
+        "            entries.append({'amount': amount, 'category_name': txn.get('category_name') or 'Sin categoría', 'date': txn.get('date', '')})\n"
+        "    return entries\n\n"
+        "def summarize_transaction_spending(transactions):\n"
+        "    entries = extract_expense_entries(transactions)\n"
+        "    total = sum(abs(entry['amount']) for entry in entries)\n"
+        "    categories = {}\n"
+        "    for entry in entries:\n"
+        "        categories[entry['category_name']] = categories.get(entry['category_name'], 0) + abs(entry['amount'])\n"
+        "    return total, categories\n\n"
         "def summarize_transaction_net_spending(transactions):\n"
         "    net_activity_by_key = {}\n"
-        "    return 0, net_activity_by_key\n\n"
+        "    names = {}\n"
+        "    rows = []\n"
+        "    for txn in transactions:\n"
+        "        if txn.get('transfer_account_id') or txn.get('transfer_transaction_id'):\n"
+        "            continue\n"
+        "        rows.extend(txn.get('subtransactions') or [txn])\n"
+        "    for row in rows:\n"
+        "        amount = row.get('amount', 0)\n"
+        "        if amount == 0:\n"
+        "            continue\n"
+        "        name = row.get('category_name') or 'Sin categoría'\n"
+        "        if amount > 0 and (not row.get('category_id') or name.startswith('Inflow:')):\n"
+        "            continue\n"
+        "        key = 'id:' + row.get('category_id') if row.get('category_id') else 'name:' + name\n"
+        "        net_activity_by_key[key] = net_activity_by_key.get(key, 0) + amount\n"
+        "        names[key] = name\n"
+        "    total = max(0, -sum(net_activity_by_key.values()))\n"
+        "    categories = {names[key]: abs(amount) for key, amount in net_activity_by_key.items() if amount < 0}\n"
+        "    return total, categories\n\n"
         "def normalize_budget_category_snapshots(categories):\n"
-        "    balance = 0\n"
-        "    return [{\"budgeted\": 0, \"activity\": 0, \"balance\": balance}]\n",
+        "    snapshots = []\n"
+        "    for category in categories:\n"
+        "        hidden = category.get('hidden', False)\n"
+        "        deleted = category.get('deleted', False)\n"
+        "        budgeted = category.get('budgeted', 0)\n"
+        "        activity = category.get('activity', 0)\n"
+        "        balance = category.get('balance', 0)\n"
+        "        if deleted or hidden or (budgeted <= 0 and activity == 0):\n"
+        "            continue\n"
+        "        snapshots.append({\"name\": category.get('name', ''), \"budgeted\": budgeted, \"activity\": activity, \"balance\": balance})\n"
+        "    return snapshots\n",
     )
     write(
         root / "src/application/services/budget_query_service.py",
@@ -151,9 +251,37 @@ def make_minimal_repo(root: Path) -> None:
     write(
         root / "src/application/services/expense_service.py",
         "class ExpenseService:\n"
+        "    @staticmethod\n"
+        "    def _normalize_recent_amount_for_reconciliation(amount):\n"
+        "        return int(abs(amount) * -1000) if amount is not None else None\n\n"
+        "    @staticmethod\n"
+        "    def _normalize_payee_name(payee):\n"
+        "        return str(payee or '').casefold().strip()\n\n"
+        "    def _cached_category_matches_live(self, cached_category_id, live_transaction):\n"
+        "        return not cached_category_id or cached_category_id == live_transaction.get('category_id')\n\n"
         "    def _get_live_transaction_state_for_edit(self, ynab_repository, budget_id, cached_transaction):\n"
         "        transaction_id = cached_transaction.get('ynab_transaction_id')\n"
-        "        return ynab_repository.get_transaction_by_id(budget_id, transaction_id), None\n\n"
+        "        if not transaction_id:\n"
+        "            return None, 'no_ynab_transaction_id'\n"
+        "        live = ynab_repository.get_transaction_by_id(budget_id, transaction_id)\n"
+        "        if live is None:\n"
+        "            return None, 'ynab_transaction_missing'\n"
+        "        return live, None\n\n"
+        "    def _get_live_transaction_state(self, ynab_repository, budget_id, cached_transaction):\n"
+        "        transaction_id = cached_transaction.get('ynab_transaction_id')\n"
+        "        if not transaction_id:\n"
+        "            return None, 'no_ynab_transaction_id'\n"
+        "        live = ynab_repository.get_transaction_by_id(budget_id, transaction_id)\n"
+        "        if live is None:\n"
+        "            return None, 'ynab_transaction_missing'\n"
+        "        expected = self._normalize_recent_amount_for_reconciliation(cached_transaction.get('amount'))\n"
+        "        if expected is not None and live.get('amount') != expected:\n"
+        "            return None, 'ynab_transaction_stale'\n"
+        "        if self._normalize_payee_name(cached_transaction.get('payee')) != self._normalize_payee_name(live.get('payee_name')):\n"
+        "            return None, 'ynab_transaction_stale'\n"
+        "        if not self._cached_category_matches_live(cached_transaction.get('category_id'), live):\n"
+        "            return None, 'ynab_transaction_stale'\n"
+        "        return live, None\n\n"
         "    def edit_last_transaction(self):\n"
         "        self.learning_repository.update_recent_transaction(telegram_user_id, ynab_transaction_id, {})\n\n"
         "    def undo_last_transaction(self):\n"
@@ -628,3 +756,106 @@ def test_financial_invariant_test_evidence_is_required(tmp_path: Path) -> None:
         "tests/domain/services/test_spending_aggregation.py -> "
         "test_summarize_transaction_net_spending_offsets_category_inflows"
     ) in messages
+
+
+def test_behavioral_invariants_report_pass_findings(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+
+    messages = messages_for(tmp_path, PASS)
+
+    assert (
+        "Behavioral invariant holds: Split spending expands negative subtransactions "
+        "[transaction aggregation: Split parent transactions must use negative subtransactions for spending totals.]"
+    ) in messages
+    assert (
+        "Behavioral invariant holds: Edit reconciliation trusts existing live YNAB transaction identity "
+        "[recent edit reconciliation: /editar must trust an existing live YNAB transaction id despite local recent drift.]"
+    ) in messages
+    assert (
+        "Behavioral invariant holds: Undo reconciliation blocks stale local recent references "
+        "[recent undo reconciliation: /deshacer must block stale local recent references before destructive deletion.]"
+    ) in messages
+
+
+def test_behavioral_invariant_failures_block_harness(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "src/domain/services/spending_aggregation.py",
+        "def summarize_transaction_spending(transactions):\n"
+        "    return 0, {}\n\n"
+        "def summarize_transaction_net_spending(transactions):\n"
+        "    net_activity_by_key = {}\n"
+        "    return 0, net_activity_by_key\n\n"
+        "def normalize_budget_category_snapshots(categories):\n"
+        "    balance = 0\n"
+        "    return [{'budgeted': 0, 'activity': 0, 'balance': balance}]\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert any(
+        message.startswith(
+            "Behavioral invariant failed: Split spending expands negative subtransactions "
+            "[transaction aggregation: Split parent transactions must use negative subtransactions "
+            "for spending totals.]:"
+        )
+        for message in messages
+    )
+
+
+def test_behavioral_invariant_manifest_is_required(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    (tmp_path / "scripts/harness/behavioral_invariants.toml").unlink()
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Behavioral invariant failed: Behavioral invariant manifest "
+        "[harness metadata: Every behavioral fixture must have ownership metadata.]: "
+        "Behavioral invariant manifest is missing: scripts/harness/behavioral_invariants.toml"
+    ) in messages
+
+
+def test_behavioral_invariant_manifest_requires_required_metadata(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "scripts/harness/behavioral_invariants.toml",
+        "[[fixture]]\n"
+        'id = "missing_metadata"\n'
+        'label = "Missing metadata"\n'
+        'owner_path = "src/domain/services/spending_aggregation.py"\n'
+        'assertion = "split_spending_expands_negative_subtransactions"\n',
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert any(
+        message.endswith(
+            "Behavioral invariant fixture #1 is missing required metadata: "
+            "risk_area, protected_rule"
+        )
+        for message in messages
+    )
+
+
+def test_behavioral_invariant_manifest_rejects_unknown_assertions(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "scripts/harness/behavioral_invariants.toml",
+        "[[fixture]]\n"
+        'id = "unknown_assertion"\n'
+        'label = "Unknown assertion"\n'
+        'risk_area = "test"\n'
+        'protected_rule = "Unknown assertion should fail."\n'
+        'owner_path = "src/domain/services/spending_aggregation.py"\n'
+        'assertion = "does_not_exist"\n',
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert any(
+        message.endswith(
+            "Behavioral invariant assertion is unknown for unknown_assertion: does_not_exist"
+        )
+        for message in messages
+    )

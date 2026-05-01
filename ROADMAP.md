@@ -292,3 +292,23 @@ Se amplió el harness para proteger evidencia ejecutable de las invariantes fina
 - `/recent`, `/editar` y `/deshacer` tratados como superficies de conveniencia
 - Comando local `.venv/bin/python scripts/harness/check_financial_invariants.py` para diagnóstico directo
 - `verify.py --ci` bloquea si desaparece la evidencia documental, de código o de tests
+
+### E.23 — Behavioral Invariant Fixtures [COMPLETADO]
+
+Se amplió el harness financiero desde evidencia estática hacia fixtures ejecutables:
+
+- Fixtures determinísticos para agregación split-aware y transacciones shared zero-sum
+- Validación ejecutable de gasto neto tipo Reflect y snapshots de categorías con `balance` de YNAB
+- Validación ejecutable de reconciliación: `/editar` confía en identidad viva de YNAB y `/deshacer` bloquea referencias stale
+- Comando local `.venv/bin/python scripts/harness/check_behavioral_invariants.py` para diagnóstico directo
+- `verify.py --ci` bloquea si las invariantes conductuales fallan antes de correr `pytest`
+
+### E.24 — Behavioral Invariant Manifest [COMPLETADO]
+
+Se hizo explícita la propiedad y el alcance de cada fixture conductual del harness:
+
+- `scripts/harness/behavioral_invariants.toml` declara ID, etiqueta, área de riesgo, regla protegida, owner path y assertion
+- El harness valida metadata requerida, IDs duplicados, owner paths faltantes y assertions desconocidas
+- La salida de invariantes conductuales ahora muestra área de riesgo y regla protegida
+- La ejecución sigue usando mapeo explícito de assertions y librería estándar
+- `verify.py --ci` bloquea si el manifiesto o alguna fixture conductual queda incoherente

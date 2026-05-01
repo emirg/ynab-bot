@@ -7,8 +7,10 @@ import re
 import tomllib
 from typing import Iterable
 
+from scripts.harness.behavioral_invariants import run_behavioral_invariants
 from scripts.harness.commands import (
     COMMAND_REGISTRY,
+    LOCAL_CHECK_BEHAVIORAL_INVARIANTS,
     LOCAL_CHECK_DOCS,
     LOCAL_RUN,
     LOCAL_TEST,
@@ -276,6 +278,7 @@ def run_checks(root: Path | str) -> list[Finding]:
     findings.extend(check_railway_config(repo_root))
     findings.extend(check_command_registry(repo_root))
     findings.extend(check_financial_invariants(repo_root))
+    findings.extend(check_behavioral_invariants(repo_root))
     return findings
 
 
@@ -623,6 +626,23 @@ def check_financial_invariants(root: Path) -> list[Finding]:
             findings.extend(invariant_failures)
         else:
             findings.append(Finding(PASS, f"Financial invariant evidence exists: {invariant.label}", None))
+    return findings
+
+
+def check_behavioral_invariants(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    for result in run_behavioral_invariants(root):
+        context = f"{result.label} [{result.risk_area}: {result.protected_rule}]"
+        if result.passed:
+            findings.append(Finding(PASS, f"Behavioral invariant holds: {context}", result.path))
+        else:
+            findings.append(
+                Finding(
+                    FAIL,
+                    f"Behavioral invariant failed: {context}: {result.message}",
+                    result.path,
+                )
+            )
     return findings
 
 

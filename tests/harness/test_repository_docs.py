@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 
 from scripts.harness.checks import FAIL, run_checks
+from scripts.harness.check_behavioral_invariants import main as check_behavioral_main
 from scripts.harness.check_docs import main as check_docs_main
 from scripts.harness.check_financial_invariants import main as check_financial_main
 
@@ -43,4 +44,15 @@ def test_check_financial_invariants_json_cli_outputs_valid_json(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert payload["summary"] == {"FAIL": 0, "PASS": 5, "WARN": 0, "total": 5}
+    assert isinstance(payload["findings"], list)
+
+
+def test_check_behavioral_invariants_json_cli_outputs_valid_json(capsys) -> None:
+    root = Path(__file__).resolve().parents[2]
+
+    exit_code = check_behavioral_main(["--root", str(root), "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["summary"] == {"FAIL": 0, "PASS": 6, "WARN": 0, "total": 6}
     assert isinstance(payload["findings"], list)

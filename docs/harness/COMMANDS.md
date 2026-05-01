@@ -28,6 +28,12 @@ Run advisory financial invariant diagnostics:
 .venv/bin/python scripts/harness/check_financial_invariants.py
 ```
 
+Run advisory behavioral invariant diagnostics:
+
+```bash
+.venv/bin/python scripts/harness/check_behavioral_invariants.py
+```
+
 Run local CI-equivalent harness verification:
 
 ```bash

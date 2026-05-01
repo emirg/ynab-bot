@@ -1,0 +1,47 @@
+[[fixture]]
+id = "split_spending_expands_negative_subtransactions"
+label = "Split spending expands negative subtransactions"
+risk_area = "transaction aggregation"
+protected_rule = "Split parent transactions must use negative subtransactions for spending totals."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "split_spending_expands_negative_subtransactions"
+
+[[fixture]]
+id = "zero_sum_shared_split_counts_negative_leg"
+label = "Zero-sum shared split negative leg counts as spending"
+risk_area = "shared expense aggregation"
+protected_rule = "Zero-sum shared transactions still count the user's negative spending leg."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "zero_sum_shared_split_counts_negative_leg"
+
+[[fixture]]
+id = "net_spending_offsets_categorized_inflows"
+label = "Net spending offsets categorized inflows and hides positive-net categories"
+risk_area = "monthly net spending"
+protected_rule = "Categorized inflows reduce period spending while Ready to Assign inflows are excluded."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "net_spending_offsets_categorized_inflows"
+
+[[fixture]]
+id = "budget_snapshots_preserve_balance"
+label = "Budget category snapshots preserve YNAB balances and filter inactive categories"
+risk_area = "budget health"
+protected_rule = "Budget health must use YNAB category balance snapshots and ignore inactive categories."
+owner_path = "src/domain/services/spending_aggregation.py"
+assertion = "budget_snapshots_preserve_balance"
+
+[[fixture]]
+id = "edit_reconciliation_trusts_live_identity"
+label = "Edit reconciliation trusts existing live YNAB transaction identity"
+risk_area = "recent edit reconciliation"
+protected_rule = "/editar must trust an existing live YNAB transaction id despite local recent drift."
+owner_path = "src/application/services/expense_service.py"
+assertion = "edit_reconciliation_trusts_live_identity"
+
+[[fixture]]
+id = "undo_reconciliation_blocks_stale_recent_reference"
+label = "Undo reconciliation blocks stale local recent references"
+risk_area = "recent undo reconciliation"
+protected_rule = "/deshacer must block stale local recent references before destructive deletion."
+owner_path = "src/application/services/expense_service.py"
+assertion = "undo_reconciliation_blocks_stale_recent_reference"

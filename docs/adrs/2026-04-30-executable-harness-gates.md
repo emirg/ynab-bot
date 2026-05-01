@@ -30,6 +30,10 @@ The command registry slice centralizes living local and Railway commands in `scr
 
 The runtime financial invariant slice extends the same enforcement surface from process safety into product correctness evidence. The harness now checks that docs, source, and tests still preserve the financial read matrix: milliunit expense conversion, transaction-backed spending totals, category-snapshot budget health, account-field balances, and the recent/edit/undo convenience boundary. A direct advisory command, `scripts/harness/check_financial_invariants.py`, exposes those checks without running the full documentation harness.
 
+The behavioral invariant fixture slice extends the financial harness from evidence checks into executable behavior checks. The harness now runs deterministic in-memory fixtures for split-aware spending aggregation, Reflect-like net spending, category snapshot balance preservation, `/editar` live-identity reconciliation, and `/deshacer` stale-reference blocking. A direct advisory command, `scripts/harness/check_behavioral_invariants.py`, exposes those checks without running pytest or external services.
+
+The behavioral invariant manifest slice makes those fixtures manifest-driven. `scripts/harness/behavioral_invariants.toml` now declares fixture IDs, labels, risk areas, protected rules, owner paths, and explicit assertion mappings so future financial safeguards can be reviewed as metadata before runner code changes.
+
 ## Alternatives Considered
 - **Adopt OpenSpec/OpenSDD immediately:** Deferred because the immediate risk is local documentation drift, and adding a new framework should be evaluated as a separate feature.
 - **Rely on pytest only:** Rejected because pytest does not validate documentation lifecycle state or agent instruction drift.
@@ -41,6 +45,8 @@ The runtime financial invariant slice extends the same enforcement surface from 
 - **Positive:** Deploy configuration drift now fails in the same local and CI harness surface as documentation drift.
 - **Positive:** Local, agent, and Railway command references now share one registry-backed source of truth.
 - **Positive:** Financial invariant drift now has a deterministic local and CI signal before deploy tests run.
+- **Positive:** High-risk financial behavior drift now has executable fixture coverage in the harness before pytest starts.
+- **Positive:** Behavioral fixtures now carry explicit ownership and protected-rule metadata.
 - **Negative:** The gate still does not enforce linting, typing, or broad coverage thresholds.
 - **Follow-up:** Continue expanding invariant checks only where they protect high-risk financial behavior.
 
@@ -55,6 +61,13 @@ The runtime financial invariant slice extends the same enforcement surface from 
 - `docs/plans/archive/2026-04-30-harness-command-registry.md`
 - `docs/specs/archive/2026-05-01-runtime-financial-invariant-harness.md`
 - `docs/plans/archive/2026-05-01-runtime-financial-invariant-harness.md`
+- `docs/specs/archive/2026-05-01-behavioral-invariant-fixtures.md`
+- `docs/plans/archive/2026-05-01-behavioral-invariant-fixtures.md`
+- `docs/specs/archive/2026-05-01-behavioral-invariant-manifest.md`
+- `docs/plans/archive/2026-05-01-behavioral-invariant-manifest.md`
+- `scripts/harness/behavioral_invariants.py`
+- `scripts/harness/behavioral_invariants.toml`
+- `scripts/harness/check_behavioral_invariants.py`
 - `scripts/harness/checks.py`
 - `scripts/harness/check_financial_invariants.py`
 - `scripts/harness/commands.py`
