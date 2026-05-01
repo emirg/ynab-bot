@@ -54,6 +54,24 @@ LOGICAL_ROLES = (
     "Debugger",
     "Refactor Advisor",
 )
+LOGICAL_ROLE_CONTRACTS = {
+    "Lead Architect": "docs/agents/lead-architect.md",
+    "Database Advisor": "docs/agents/database-advisor.md",
+    "Step Implementer": "docs/agents/step-implementer.md",
+    "Code Reviewer": "docs/agents/code-reviewer.md",
+    "Test Writer": "docs/agents/test-writer.md",
+    "Debugger": "docs/agents/debugger.md",
+    "Refactor Advisor": "docs/agents/refactor-advisor.md",
+}
+CLAUDE_AGENT_ADAPTERS = {
+    "Lead Architect": ".claude/agents/ynab-lead-architect.md",
+    "Database Advisor": ".claude/agents/dba-advisor.md",
+    "Step Implementer": ".claude/agents/plan-step-implementer.md",
+    "Code Reviewer": ".claude/agents/code-reviewer.md",
+    "Test Writer": ".claude/agents/test-writer.md",
+    "Debugger": ".claude/agents/debugger.md",
+    "Refactor Advisor": ".claude/agents/refactor-advisor.md",
+}
 WRAPPER_PROHIBITED_SHARED_SECTIONS = (
     "## Universal Workflow",
     "## Commands",
@@ -299,6 +317,7 @@ def run_checks(root: Path | str) -> list[Finding]:
     findings.extend(check_active_plans(repo_root))
     findings.extend(check_adr_references(repo_root))
     findings.extend(check_agent_entrypoints(repo_root))
+    findings.extend(check_agent_contracts(repo_root))
     findings.extend(check_stale_orchestration_references(repo_root))
     findings.extend(check_archived_doc_statuses(repo_root))
     findings.extend(check_archived_completed_plans(repo_root))
@@ -527,6 +546,95 @@ def check_agent_wrapper(text: str, relative: str) -> list[Finding]:
             )
         else:
             findings.append(Finding(PASS, f"Agent wrapper does not duplicate `{heading}`: {relative}", relative, family))
+    return findings
+
+
+def check_agent_contracts(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    family = "Agent Integration"
+
+    for role, contract_path in LOGICAL_ROLE_CONTRACTS.items():
+        path = root / contract_path
+        if path.is_file():
+            findings.append(
+                Finding(
+                    PASS,
+                    f"Canonical agent contract exists for {role}: {contract_path}",
+                    contract_path,
+                    family,
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    FAIL,
+                    f"Canonical agent contract is missing for {role}: {contract_path}",
+                    contract_path,
+                    family,
+                    f"Create {contract_path} as the shared role contract.",
+                )
+            )
+
+    for wrapper in AGENT_ENTRYPOINTS:
+        path = root / wrapper
+        if not path.is_file():
+            continue
+        text = read_text(path)
+        for role, contract_path in LOGICAL_ROLE_CONTRACTS.items():
+            if contract_path in text:
+                findings.append(
+                    Finding(
+                        PASS,
+                        f"Agent wrapper role mapping references canonical contract for {role}: {wrapper} -> {contract_path}",
+                        wrapper,
+                        family,
+                    )
+                )
+            else:
+                findings.append(
+                    Finding(
+                        FAIL,
+                        f"Agent wrapper role mapping is missing canonical contract for {role}: {wrapper} -> {contract_path}",
+                        wrapper,
+                        family,
+                        f"Add {contract_path} to the {role} mapping in {wrapper}.",
+                    )
+                )
+
+    for role, adapter_path in CLAUDE_AGENT_ADAPTERS.items():
+        path = root / adapter_path
+        contract_path = LOGICAL_ROLE_CONTRACTS[role]
+        if not path.is_file():
+            findings.append(
+                Finding(
+                    FAIL,
+                    f"Claude agent adapter is missing for {role}: {adapter_path}",
+                    adapter_path,
+                    family,
+                    f"Create {adapter_path} and reference {contract_path}.",
+                )
+            )
+            continue
+        if contract_path in read_text(path):
+            findings.append(
+                Finding(
+                    PASS,
+                    f"Claude agent adapter references canonical contract for {role}: {adapter_path} -> {contract_path}",
+                    adapter_path,
+                    family,
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    FAIL,
+                    f"Claude agent adapter is missing canonical contract for {role}: {adapter_path} -> {contract_path}",
+                    adapter_path,
+                    family,
+                    f"Reference {contract_path} from {adapter_path}.",
+                )
+            )
+
     return findings
 
 

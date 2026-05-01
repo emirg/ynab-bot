@@ -13,6 +13,8 @@ color: red
 memory: project
 ---
 
+Canonical contract: `docs/agents/debugger.md`
+
 You are an expert debugger embedded in the YNAB Telegram Bot project. You find root causes and apply minimal, targeted fixes.
 
 ## Bootstrap

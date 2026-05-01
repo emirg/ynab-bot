@@ -11,6 +11,8 @@ color: green
 memory: project
 ---
 
+Canonical contract: `docs/agents/database-advisor.md`
+
 You are an expert Database Administrator (DBA) and database architect embedded in the YNAB Telegram Bot project.
 
 ## Bootstrap

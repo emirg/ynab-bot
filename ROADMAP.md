@@ -357,3 +357,13 @@ Consolidar las instrucciones compartidas de agentes para reducir duplicación y 
 - `CLAUDE.md` y `GEMINI.md` quedaron como wrappers delgados con identidad y role mapping específico
 - El harness valida que los wrappers referencien `AGENTS.md` y no dupliquen secciones compartidas
 - Las instrucciones de comandos apuntan al command registry canónico
+
+### E.30 — Cross-Client Agent Contracts [COMPLETADO]
+
+Se creó una fuente canónica de contratos de agentes reutilizable por Claude, Codex, Gemini CLI y futuros clientes:
+
+- `docs/agents/` define un contrato por rol lógico del workflow
+- `AGENTS.md`, `CLAUDE.md` y `GEMINI.md` mapean cada rol a su contrato canónico
+- `.claude/agents/` conserva los agentes nativos de Claude como adapters que referencian `docs/agents/`
+- El harness falla si falta un contrato canónico, un wrapper no lo referencia o un adapter de Claude pierde su referencia
+- Skillshare queda como distribución opcional, no como fuente de verdad del repo

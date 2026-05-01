@@ -153,6 +153,31 @@ path = "docs/AI_WORKFLOW.md"
 snippet = "account balances use account fields"
 """
 
+LOGICAL_ROLE_CONTRACTS = {
+    "Lead Architect": "docs/agents/lead-architect.md",
+    "Database Advisor": "docs/agents/database-advisor.md",
+    "Step Implementer": "docs/agents/step-implementer.md",
+    "Code Reviewer": "docs/agents/code-reviewer.md",
+    "Test Writer": "docs/agents/test-writer.md",
+    "Debugger": "docs/agents/debugger.md",
+    "Refactor Advisor": "docs/agents/refactor-advisor.md",
+}
+
+CLAUDE_AGENT_BY_ROLE = {
+    "Lead Architect": "ynab-lead-architect",
+    "Database Advisor": "dba-advisor",
+    "Step Implementer": "plan-step-implementer",
+    "Code Reviewer": "code-reviewer",
+    "Test Writer": "test-writer",
+    "Debugger": "debugger",
+    "Refactor Advisor": "refactor-advisor",
+}
+
+CANONICAL_ROLE_ROWS = "\n".join(
+    f"| **{role}** | `{path}` | client capability |"
+    for role, path in LOGICAL_ROLE_CONTRACTS.items()
+)
+
 
 def write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -199,38 +224,44 @@ def make_minimal_repo(root: Path) -> None:
         "Read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.\n"
         "Commands are documented in `docs/harness/COMMANDS.md`.\n"
         "YNAB is the financial source of truth for this project.\n"
-        "When the user triggers a handoff, overwrite `docs/wip_state.md`.\n",
+        "When the user triggers a handoff, overwrite `docs/wip_state.md`.\n"
+        "\n## Role Mapping\n\n"
+        "| Logical Role | Canonical Contract | Codex Internal Mode |\n"
+        "|---|---|---|\n"
+        f"{CANONICAL_ROLE_ROWS}\n",
     )
     write(
         root / "CLAUDE.md",
         "# CLAUDE.md\n\n"
         "Read and follow `AGENTS.md` first. This file only maps project workflow roles to Claude Code capabilities.\n\n"
         "## Role Mapping\n\n"
-        "| Logical Role | Claude Agent |\n"
-        "|---|---|\n"
-        "| **Lead Architect** | `ynab-lead-architect` |\n"
-        "| **Database Advisor** | `dba-advisor` |\n"
-        "| **Step Implementer** | `plan-step-implementer` |\n"
-        "| **Code Reviewer** | `code-reviewer` |\n"
-        "| **Test Writer** | `test-writer` |\n"
-        "| **Debugger** | `debugger` |\n"
-        "| **Refactor Advisor** | `refactor-advisor` |\n",
+        "| Logical Role | Canonical Contract | Claude Agent |\n"
+        "|---|---|---|\n"
+        f"{CANONICAL_ROLE_ROWS}\n",
     )
     write(
         root / "GEMINI.md",
         "# GEMINI.md\n\n"
         "Read and follow `AGENTS.md` first. This file only maps project workflow roles to Gemini CLI capabilities.\n\n"
         "## Role Mapping\n\n"
-        "| Logical Role | Gemini Capability |\n"
-        "|---|---|\n"
-        "| **Lead Architect** | Activate `writing-plans` skill |\n"
-        "| **Database Advisor** | Use `codebase_investigator` for schema review |\n"
-        "| **Step Implementer** | Direct tool use |\n"
-        "| **Code Reviewer** | Self-review against invariants |\n"
-        "| **Test Writer** | Activate `Pytest Testing` skill |\n"
-        "| **Debugger** | Use `codebase_investigator` for root cause |\n"
-        "| **Refactor Advisor** | Use `python-design-patterns` skill |\n",
+        "| Logical Role | Canonical Contract | Gemini Capability |\n"
+        "|---|---|---|\n"
+        f"{CANONICAL_ROLE_ROWS}\n",
     )
+    for role, contract_path in LOGICAL_ROLE_CONTRACTS.items():
+        write(
+            root / contract_path,
+            f"# {role}\n\n"
+            f"- **Logical Role:** {role}\n"
+            "- **Canonical Contract:** This file is the shared role contract.\n",
+        )
+        write(
+            root / ".claude/agents" / f"{CLAUDE_AGENT_BY_ROLE[role]}.md",
+            "---\n"
+            f"name: {CLAUDE_AGENT_BY_ROLE[role]}\n"
+            "---\n\n"
+            f"Canonical contract: `{contract_path}`\n",
+        )
     write(
         root / "docs/AI_WORKFLOW.md",
         "# AI Workflow\n\n"
@@ -625,6 +656,75 @@ def test_agent_entrypoints_must_reference_workflow_docs(tmp_path: Path) -> None:
         "AGENTS.md is missing docs/DOCUMENTATION_WORKFLOW.md reference"
         in messages
     )
+
+
+def test_each_logical_role_requires_canonical_contract(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    (tmp_path / "docs/agents/step-implementer.md").unlink()
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Canonical agent contract is missing for Step Implementer: "
+        "docs/agents/step-implementer.md"
+    ) in messages
+
+
+def test_agent_wrappers_must_reference_canonical_contracts(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "GEMINI.md",
+        "# GEMINI.md\n\n"
+        "Read and follow `AGENTS.md` first.\n\n"
+        "## Role Mapping\n\n"
+        "| Logical Role | Gemini Capability |\n"
+        "|---|---|\n"
+        "| **Lead Architect** | Activate `writing-plans` skill |\n"
+        "| **Database Advisor** | Use `codebase_investigator` for schema review |\n"
+        "| **Step Implementer** | Direct tool use |\n"
+        "| **Code Reviewer** | Self-review against invariants |\n"
+        "| **Test Writer** | Activate `Pytest Testing` skill |\n"
+        "| **Debugger** | Use `codebase_investigator` for root cause |\n"
+        "| **Refactor Advisor** | Use `python-design-patterns` skill |\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Agent wrapper role mapping is missing canonical contract for Step Implementer: "
+        "GEMINI.md -> docs/agents/step-implementer.md"
+    ) in messages
+
+
+def test_claude_adapters_must_reference_canonical_contracts(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / ".claude/agents/plan-step-implementer.md",
+        "---\nname: plan-step-implementer\n---\n\n"
+        "Implements plan steps without a canonical reference.\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Claude agent adapter is missing canonical contract for Step Implementer: "
+        ".claude/agents/plan-step-implementer.md -> docs/agents/step-implementer.md"
+    ) in messages
+
+
+def test_checked_in_contracts_emit_pass_findings(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+
+    pass_messages = messages_for(tmp_path, PASS)
+
+    assert (
+        "Canonical agent contract exists for Step Implementer: "
+        "docs/agents/step-implementer.md"
+    ) in pass_messages
+    assert (
+        "Agent wrapper role mapping references canonical contract for Step Implementer: "
+        "GEMINI.md -> docs/agents/step-implementer.md"
+    ) in pass_messages
 
 
 def test_stale_orchestration_references_fail(tmp_path: Path) -> None:

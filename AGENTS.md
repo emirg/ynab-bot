@@ -11,17 +11,17 @@ This is the canonical shared instruction file for AI assistants working on this 
 ## Role Mapping
 When `docs/AI_WORKFLOW.md` refers to a logical role, each AI tool must use its own wrapper file to map that role to the tool's capabilities.
 
-Codex uses the following internal mode of operation:
+Codex uses the following internal mode of operation. Before adopting or delegating a role, load the canonical contract listed for that role.
 
-| Logical Role | Codex Internal Mode |
-|---|---|
-| **Lead Architect** | Analysis of `ROADMAP.md` & `_TEMPLATE.md` based planning. |
-| **Database Advisor** | Schema & migration safety specialist. |
-| **Step Implementer** | Clean code & milliunit invariant enforcement. |
-| **Code Reviewer** | Self-correction & architectural compliance check. |
-| **Test Writer** | `pytest` specialist (Unit & Integration). |
-| **Debugger** | Root-cause analysis via logs & stack traces. |
-| **Refactor Advisor** | Complexity reduction & DRY specialist. |
+| Logical Role | Canonical Contract | Codex Internal Mode |
+|---|---|---|
+| **Lead Architect** | `docs/agents/lead-architect.md` | Analysis of `ROADMAP.md` & `_TEMPLATE.md` based planning. |
+| **Database Advisor** | `docs/agents/database-advisor.md` | Schema & migration safety specialist. |
+| **Step Implementer** | `docs/agents/step-implementer.md` | Clean code & milliunit invariant enforcement. |
+| **Code Reviewer** | `docs/agents/code-reviewer.md` | Self-correction & architectural compliance check. |
+| **Test Writer** | `docs/agents/test-writer.md` | `pytest` specialist (Unit & Integration). |
+| **Debugger** | `docs/agents/debugger.md` | Root-cause analysis via logs & stack traces. |
+| **Refactor Advisor** | `docs/agents/refactor-advisor.md` | Complexity reduction & DRY specialist. |
 
 ## Commands
 All living command references are centralized in `docs/harness/COMMANDS.md`.
@@ -41,6 +41,9 @@ YNAB is the financial source of truth for this project.
 Reusable cross-agent skills live in `.agents/skills/`.
 
 Keep this file concise: do not paste autoskills-generated inventories here. Refer agents to the skill directory and load only the specific `SKILL.md` files needed for the task.
+
+## Shared Agent Contracts
+Canonical cross-client agent contracts live in `docs/agents/`. Tool-specific agent files and wrappers must reference these contracts instead of becoming independent sources of role behavior.
 
 ## Handoff Protocol
 When the user triggers a handoff, overwrite `docs/wip_state.md` following the strict structure defined in `docs/AI_WORKFLOW.md`. State clearly that the last worker was **Codex**.
