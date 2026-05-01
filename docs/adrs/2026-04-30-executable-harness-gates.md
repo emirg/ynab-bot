@@ -28,6 +28,8 @@ The Railway config harness slice extends the enforcement layer to the deploy con
 
 The command registry slice centralizes living local and Railway commands in `scripts/harness/commands.py` and `docs/harness/COMMANDS.md`. The harness now validates that agent entrypoints and workflow docs reference the canonical commands instead of maintaining independent copies.
 
+The runtime financial invariant slice extends the same enforcement surface from process safety into product correctness evidence. The harness now checks that docs, source, and tests still preserve the financial read matrix: milliunit expense conversion, transaction-backed spending totals, category-snapshot budget health, account-field balances, and the recent/edit/undo convenience boundary. A direct advisory command, `scripts/harness/check_financial_invariants.py`, exposes those checks without running the full documentation harness.
+
 ## Alternatives Considered
 - **Adopt OpenSpec/OpenSDD immediately:** Deferred because the immediate risk is local documentation drift, and adding a new framework should be evaluated as a separate feature.
 - **Rely on pytest only:** Rejected because pytest does not validate documentation lifecycle state or agent instruction drift.
@@ -38,8 +40,9 @@ The command registry slice centralizes living local and Railway commands in `scr
 - **Positive:** The gate is dependency-free and can run before application imports or external service setup.
 - **Positive:** Deploy configuration drift now fails in the same local and CI harness surface as documentation drift.
 - **Positive:** Local, agent, and Railway command references now share one registry-backed source of truth.
-- **Negative:** The first gate is intentionally narrow and does not enforce linting, typing, coverage, or financial runtime invariants.
-- **Follow-up:** Evaluate OpenSpec/OpenSDD or a similar framework in a separate short-term feature after this baseline proves useful.
+- **Positive:** Financial invariant drift now has a deterministic local and CI signal before deploy tests run.
+- **Negative:** The gate still does not enforce linting, typing, or broad coverage thresholds.
+- **Follow-up:** Continue expanding invariant checks only where they protect high-risk financial behavior.
 
 ## References
 - `docs/specs/archive/2026-04-30-executable-harness-gates.md`
@@ -50,7 +53,10 @@ The command registry slice centralizes living local and Railway commands in `scr
 - `docs/plans/archive/2026-04-30-railway-config-harness.md`
 - `docs/specs/archive/2026-04-30-harness-command-registry.md`
 - `docs/plans/archive/2026-04-30-harness-command-registry.md`
+- `docs/specs/archive/2026-05-01-runtime-financial-invariant-harness.md`
+- `docs/plans/archive/2026-05-01-runtime-financial-invariant-harness.md`
 - `scripts/harness/checks.py`
+- `scripts/harness/check_financial_invariants.py`
 - `scripts/harness/commands.py`
 - `docs/harness/COMMANDS.md`
 - `railway.toml`

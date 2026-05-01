@@ -17,6 +17,11 @@ LOCAL_CHECK_DOCS = HarnessCommand(
     "local advisory docs command",
     ".venv/bin/python scripts/harness/check_docs.py",
 )
+LOCAL_CHECK_FINANCIAL_INVARIANTS = HarnessCommand(
+    "local_check_financial_invariants",
+    "local advisory financial invariant command",
+    ".venv/bin/python scripts/harness/check_financial_invariants.py",
+)
 LOCAL_VERIFY_CI = HarnessCommand(
     "local_verify_ci",
     "local CI harness command",
@@ -34,6 +39,7 @@ COMMAND_REGISTRY = (
     LOCAL_RUN,
     LOCAL_TEST,
     LOCAL_CHECK_DOCS,
+    LOCAL_CHECK_FINANCIAL_INVARIANTS,
     LOCAL_VERIFY_CI,
     RAILWAY_VERIFY_CI,
     RAILWAY_PYTEST,

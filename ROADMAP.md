@@ -272,3 +272,23 @@ Se centralizaron los comandos operativos vivos para evitar drift entre agentes, 
 - `docs/harness/COMMANDS.md` documenta la fuente de verdad para humanos y agentes
 - El harness valida que entrypoints de agentes y workflow docs referencien los comandos esperados
 - La validación de Railway reutiliza las mismas constantes del registro
+
+### E.21 — Spec Framework Evaluation [COMPLETADO]
+
+Se evaluaron OpenSpec, OpenSDD, OpenSPDD/SPDD y Superpowers contra el workflow actual:
+
+- Se mantiene el workflow repo-local SPEC/PLAN/ADR como fuente autoritativa
+- No se adopta OpenSpec/OpenSDD/OpenSPDD como dependencia o estructura obligatoria por ahora
+- Se conserva Superpowers como disciplina opcional del agente, no como proceso canónico del repo
+- Se recomienda tomar ideas de SPDD para el próximo harness de invariantes financieras
+
+### E.22 — Runtime Financial Invariant Harness [COMPLETADO]
+
+Se amplió el harness para proteger evidencia ejecutable de las invariantes financieras principales:
+
+- Conversión de gastos a milliunits negativos antes de enviar a YNAB
+- Totales de gasto respaldados por transacciones, no por estado local reciente
+- Salud presupuestal desde snapshots de categorías y balances desde campos de cuentas
+- `/recent`, `/editar` y `/deshacer` tratados como superficies de conveniencia
+- Comando local `.venv/bin/python scripts/harness/check_financial_invariants.py` para diagnóstico directo
+- `verify.py --ci` bloquea si desaparece la evidencia documental, de código o de tests

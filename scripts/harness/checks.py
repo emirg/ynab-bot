@@ -69,6 +69,199 @@ class Finding:
     path: str | None = None
 
 
+@dataclass(frozen=True)
+class InvariantEvidenceFile:
+    path: str
+    snippets: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class FinancialInvariantEvidence:
+    label: str
+    docs: tuple[InvariantEvidenceFile, ...] = ()
+    sources: tuple[InvariantEvidenceFile, ...] = ()
+    tests: tuple[InvariantEvidenceFile, ...] = ()
+
+
+FINANCIAL_INVARIANT_EVIDENCE = (
+    FinancialInvariantEvidence(
+        label="milliunit expense conversion",
+        docs=(
+            InvariantEvidenceFile(
+                "docs/AI_WORKFLOW.md",
+                (
+                    "YNAB amounts are ×1000",
+                    "Expenses are negative",
+                ),
+            ),
+        ),
+        sources=(
+            InvariantEvidenceFile(
+                "src/domain/models/expense.py",
+                (
+                    "amount_milliunits = int(self.amount * -1000)",
+                    '"amount": amount_milliunits',
+                ),
+            ),
+        ),
+        tests=(
+            InvariantEvidenceFile(
+                "tests/domain/models/test_domain_models.py",
+                (
+                    "test_to_ynab_format_with_valid_category",
+                    "assert txn['amount'] == -25000000",
+                ),
+            ),
+        ),
+    ),
+    FinancialInvariantEvidence(
+        label="transaction spending totals",
+        docs=(
+            InvariantEvidenceFile(
+                "docs/AI_WORKFLOW.md",
+                ("Spending totals use transactions",),
+            ),
+            InvariantEvidenceFile(
+                "docs/adrs/2026-04-12-ynab-source-of-truth.md",
+                ("Monthly spending totals still come from transactions",),
+            ),
+        ),
+        sources=(
+            InvariantEvidenceFile(
+                "src/domain/services/spending_aggregation.py",
+                (
+                    "def summarize_transaction_net_spending",
+                    "net_activity_by_key",
+                ),
+            ),
+            InvariantEvidenceFile(
+                "src/application/services/budget_query_service.py",
+                ("summarize_transaction_net_spending(transactions)",),
+            ),
+        ),
+        tests=(
+            InvariantEvidenceFile(
+                "tests/domain/services/test_spending_aggregation.py",
+                (
+                    "test_summarize_transaction_net_spending_offsets_category_inflows",
+                    "test_summarize_transaction_net_spending_nets_split_tracking_inflows_against_month_total",
+                ),
+            ),
+            InvariantEvidenceFile(
+                "tests/application/services/test_budget_query_service.py",
+                (
+                    "test_budget_summary_uses_transactions_for_spending_totals_and_top_categories",
+                    "test_budget_summary_nets_category_inflows_from_transactions",
+                ),
+            ),
+        ),
+    ),
+    FinancialInvariantEvidence(
+        label="budget health category snapshots",
+        docs=(
+            InvariantEvidenceFile(
+                "docs/AI_WORKFLOW.md",
+                ("budget health uses category snapshots",),
+            ),
+            InvariantEvidenceFile(
+                "docs/adrs/2026-04-12-ynab-source-of-truth.md",
+                ("YNAB category activity/balance",),
+            ),
+        ),
+        sources=(
+            InvariantEvidenceFile(
+                "src/domain/services/spending_aggregation.py",
+                (
+                    "def normalize_budget_category_snapshots",
+                    '"balance": balance',
+                ),
+            ),
+            InvariantEvidenceFile(
+                "src/application/services/advisor_dashboard_service.py",
+                (
+                    "normalize_budget_category_snapshots",
+                    'remaining = entry["balance"]',
+                ),
+            ),
+        ),
+        tests=(
+            InvariantEvidenceFile(
+                "tests/domain/services/test_spending_aggregation.py",
+                ("test_normalize_budget_category_snapshots_filters_inactive_hidden_and_deleted",),
+            ),
+            InvariantEvidenceFile(
+                "tests/application/services/test_advisor_dashboard_service.py",
+                ("test_build_dashboard_month_uses_balance_for_overspending",),
+            ),
+        ),
+    ),
+    FinancialInvariantEvidence(
+        label="account balances from account fields",
+        docs=(
+            InvariantEvidenceFile(
+                "docs/AI_WORKFLOW.md",
+                ("account balances use account fields",),
+            ),
+        ),
+        sources=(
+            InvariantEvidenceFile(
+                "src/application/services/budget_query_service.py",
+                (
+                    "def _query_account_balance",
+                    "'balance': account.balance",
+                    "'cleared_balance': account.cleared_balance",
+                    "'uncleared_balance': account.uncleared_balance",
+                ),
+            ),
+        ),
+        tests=(
+            InvariantEvidenceFile(
+                "tests/application/services/test_budget_query_service.py",
+                (
+                    "class TestAccountBalance",
+                    "assert result.data['balance'] == -500000",
+                    "assert result.data['cleared_balance'] == -400000",
+                ),
+            ),
+        ),
+    ),
+    FinancialInvariantEvidence(
+        label="recent edit undo convenience boundary",
+        docs=(
+            InvariantEvidenceFile(
+                "docs/AI_WORKFLOW.md",
+                ("recent/edit/undo state is convenience-only",),
+            ),
+            InvariantEvidenceFile(
+                "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md",
+                ("local recent metadata can drift from YNAB",),
+            ),
+        ),
+        sources=(
+            InvariantEvidenceFile(
+                "src/application/services/expense_service.py",
+                (
+                    "def _get_live_transaction_state_for_edit",
+                    "ynab_repository.get_transaction_by_id",
+                    "update_recent_transaction",
+                    "delete_recent_transaction",
+                ),
+            ),
+        ),
+        tests=(
+            InvariantEvidenceFile(
+                "tests/application/services/test_expense_service.py",
+                (
+                    "test_missing_live_ynab_transaction_blocks_edit",
+                    "test_successful_edit_refreshes_recent_cache_from_live_transaction",
+                    "test_success_removes_from_recent_transactions",
+                ),
+            ),
+        ),
+    ),
+)
+
+
 def run_checks(root: Path | str) -> list[Finding]:
     repo_root = Path(root)
     findings: list[Finding] = []
@@ -82,6 +275,7 @@ def run_checks(root: Path | str) -> list[Finding]:
     findings.extend(check_roadmap_coherence(repo_root))
     findings.extend(check_railway_config(repo_root))
     findings.extend(check_command_registry(repo_root))
+    findings.extend(check_financial_invariants(repo_root))
     return findings
 
 
@@ -412,6 +606,55 @@ def check_workflow_command_docs(root: Path) -> list[Finding]:
                         FAIL,
                         f"Living workflow doc is missing {command.label} `{command.command}`: {relative}",
                         relative,
+                    )
+                )
+    return findings
+
+
+def check_financial_invariants(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    for invariant in FINANCIAL_INVARIANT_EVIDENCE:
+        invariant_failures: list[Finding] = []
+        invariant_failures.extend(check_invariant_evidence_group(root, invariant, "doc", invariant.docs))
+        invariant_failures.extend(check_invariant_evidence_group(root, invariant, "source", invariant.sources))
+        invariant_failures.extend(check_invariant_evidence_group(root, invariant, "test", invariant.tests))
+
+        if invariant_failures:
+            findings.extend(invariant_failures)
+        else:
+            findings.append(Finding(PASS, f"Financial invariant evidence exists: {invariant.label}", None))
+    return findings
+
+
+def check_invariant_evidence_group(
+    root: Path,
+    invariant: FinancialInvariantEvidence,
+    evidence_kind: str,
+    evidence_files: tuple[InvariantEvidenceFile, ...],
+) -> list[Finding]:
+    findings: list[Finding] = []
+    for evidence_file in evidence_files:
+        path = root / evidence_file.path
+        if not path.is_file():
+            findings.append(
+                Finding(
+                    FAIL,
+                    f"Financial invariant {evidence_kind} evidence file is missing for "
+                    f"{invariant.label}: {evidence_file.path}",
+                    evidence_file.path,
+                )
+            )
+            continue
+
+        text = read_text(path)
+        for snippet in evidence_file.snippets:
+            if snippet not in text:
+                findings.append(
+                    Finding(
+                        FAIL,
+                        f"Financial invariant {evidence_kind} evidence is missing for "
+                        f"{invariant.label}: {evidence_file.path} -> {snippet}",
+                        evidence_file.path,
                     )
                 )
     return findings

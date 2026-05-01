@@ -40,6 +40,7 @@ def make_minimal_repo(root: Path) -> None:
         "- `.venv/bin/python main.py`\n"
         "- `.venv/bin/pytest`\n"
         "- `.venv/bin/python scripts/harness/check_docs.py`\n"
+        "- `.venv/bin/python scripts/harness/check_financial_invariants.py`\n"
         "- `.venv/bin/python scripts/harness/verify.py --ci`\n"
         "- `python scripts/harness/verify.py --ci`\n"
         "- `pip install -r requirements.txt && python scripts/harness/verify.py --ci && pytest`\n",
@@ -56,8 +57,148 @@ def make_minimal_repo(root: Path) -> None:
     write(
         root / "docs/AI_WORKFLOW.md",
         "# AI Workflow\n\n"
+        "| Milliunits | YNAB amounts are ×1000. Expenses are negative. |\n"
+        "| YNAB source of truth | Prefer YNAB over cached interpretations. |\n"
+        "| Financial read matrix | Spending totals use transactions, budget health uses category snapshots, "
+        "account balances use account fields, and recent/edit/undo state is convenience-only. |\n\n"
         "Run `.venv/bin/python scripts/harness/check_docs.py` locally.\n"
         "Run `.venv/bin/python scripts/harness/verify.py --ci` before closing work.\n",
+    )
+    write(
+        root / "docs/adrs/2026-04-12-ynab-source-of-truth.md",
+        "# ADR: YNAB Source of Truth\n\n"
+        "YNAB is the financial source of truth for this project.\n"
+        "Monthly budget-health and availability decisions should prefer YNAB category activity/balance.\n"
+        "Monthly spending totals still come from transactions.\n"
+        "- **Related Spec:** `docs/specs/archive/2026-04-12-ynab-source-of-truth-hardening.md`\n"
+        "- **Related Plan:** `docs/plans/archive/2026-04-12-ynab-source-of-truth-hardening.md`\n",
+    )
+    write(
+        root / "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md",
+        "# ADR: Recent Edit Live YNAB Reconciliation\n\n"
+        "local recent metadata can drift from YNAB and should not override live YNAB.\n"
+        "- **Related Spec:** `docs/specs/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`\n"
+        "- **Related Plan:** `docs/plans/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`\n",
+    )
+    write(
+        root / "docs/specs/archive/2026-04-12-ynab-source-of-truth-hardening.md",
+        "# Spec: YNAB Source Of Truth\n\n"
+        "## Metadata\n"
+        "- **Status:** Implemented\n"
+        "- **Harness Roadmap:** Ignore\n",
+    )
+    write(
+        root / "docs/plans/archive/2026-04-12-ynab-source-of-truth-hardening.md",
+        "# Plan: YNAB Source Of Truth\n\n"
+        "## Objective & Context\n"
+        "- **Status:** Completed\n"
+        "- **Source Spec:** `docs/specs/archive/2026-04-12-ynab-source-of-truth-hardening.md`\n"
+        "- **Harness Roadmap:** Ignore\n"
+        "- [x] Done\n",
+    )
+    write(
+        root / "docs/specs/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md",
+        "# Spec: Recent Edit Reconciliation\n\n"
+        "## Metadata\n"
+        "- **Status:** Implemented\n"
+        "- **Harness Roadmap:** Ignore\n",
+    )
+    write(
+        root / "docs/plans/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md",
+        "# Plan: Recent Edit Reconciliation\n\n"
+        "## Objective & Context\n"
+        "- **Status:** Completed\n"
+        "- **Source Spec:** `docs/specs/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`\n"
+        "- **Harness Roadmap:** Ignore\n"
+        "- [x] Done\n",
+    )
+    write(
+        root / "src/domain/models/expense.py",
+        "class Expense:\n"
+        "    def to_ynab_transaction(self):\n"
+        "        amount_milliunits = int(self.amount * -1000)\n"
+        "        return {\"amount\": amount_milliunits}\n",
+    )
+    write(
+        root / "src/domain/services/spending_aggregation.py",
+        "def summarize_transaction_net_spending(transactions):\n"
+        "    net_activity_by_key = {}\n"
+        "    return 0, net_activity_by_key\n\n"
+        "def normalize_budget_category_snapshots(categories):\n"
+        "    balance = 0\n"
+        "    return [{\"budgeted\": 0, \"activity\": 0, \"balance\": balance}]\n",
+    )
+    write(
+        root / "src/application/services/budget_query_service.py",
+        "class BudgetQueryService:\n"
+        "    def _query_budget_summary(self, transactions):\n"
+        "        total_spent, category_totals = summarize_transaction_net_spending(transactions)\n"
+        "        return total_spent, category_totals\n\n"
+        "    def _query_account_balance(self, accounts, target_name):\n"
+        "        return {\n"
+        "            'balance': account.balance,\n"
+        "            'cleared_balance': account.cleared_balance,\n"
+        "            'uncleared_balance': account.uncleared_balance,\n"
+        "        }\n",
+    )
+    write(
+        root / "src/application/services/advisor_dashboard_service.py",
+        "from domain.services.spending_aggregation import normalize_budget_category_snapshots\n\n"
+        "def _build_budget_status(entry):\n"
+        "    remaining = entry[\"balance\"]\n"
+        "    return remaining\n",
+    )
+    write(
+        root / "src/application/services/expense_service.py",
+        "class ExpenseService:\n"
+        "    def _get_live_transaction_state_for_edit(self, ynab_repository, budget_id, cached_transaction):\n"
+        "        transaction_id = cached_transaction.get('ynab_transaction_id')\n"
+        "        return ynab_repository.get_transaction_by_id(budget_id, transaction_id), None\n\n"
+        "    def edit_last_transaction(self):\n"
+        "        self.learning_repository.update_recent_transaction(telegram_user_id, ynab_transaction_id, {})\n\n"
+        "    def undo_last_transaction(self):\n"
+        "        self.learning_repository.delete_recent_transaction(telegram_user_id, ynab_transaction_id)\n",
+    )
+    write(
+        root / "tests/domain/models/test_domain_models.py",
+        "def test_to_ynab_format_with_valid_category():\n"
+        "    assert txn['amount'] == -25000000\n",
+    )
+    write(
+        root / "tests/domain/services/test_spending_aggregation.py",
+        "def test_summarize_transaction_net_spending_offsets_category_inflows():\n"
+        "    assert True\n\n"
+        "def test_summarize_transaction_net_spending_nets_split_tracking_inflows_against_month_total():\n"
+        "    assert True\n\n"
+        "def test_normalize_budget_category_snapshots_filters_inactive_hidden_and_deleted():\n"
+        "    assert True\n",
+    )
+    write(
+        root / "tests/application/services/test_budget_query_service.py",
+        "class TestAccountBalance:\n"
+        "    def test_exact_match(self):\n"
+        "        assert \"cleared_balance\" == \"cleared_balance\"\n\n"
+        "        assert result.data['balance'] == -500000\n"
+        "        assert result.data['cleared_balance'] == -400000\n\n"
+        "class TestBudgetSummary:\n"
+        "    def test_budget_summary_uses_transactions_for_spending_totals_and_top_categories(self):\n"
+        "        assert True\n\n"
+        "    def test_budget_summary_nets_category_inflows_from_transactions(self):\n"
+        "        assert True\n",
+    )
+    write(
+        root / "tests/application/services/test_advisor_dashboard_service.py",
+        "def test_build_dashboard_month_uses_balance_for_overspending():\n"
+        "    assert True\n",
+    )
+    write(
+        root / "tests/application/services/test_expense_service.py",
+        "def test_missing_live_ynab_transaction_blocks_edit():\n"
+        "    assert True\n\n"
+        "def test_successful_edit_refreshes_recent_cache_from_live_transaction():\n"
+        "    assert True\n\n"
+        "def test_success_removes_from_recent_transactions():\n"
+        "    assert True\n",
     )
     write(
         root / "docs/specs/2026-04-30-feature.md",
@@ -441,3 +582,49 @@ def test_roadmap_ignore_metadata_skips_historical_documents(tmp_path: Path) -> N
     messages = {finding.message for finding in failures(tmp_path)}
 
     assert all("2026-04-30-historical.md" not in message for message in messages)
+
+
+def test_financial_invariant_evidence_reports_pass_findings(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+
+    messages = messages_for(tmp_path, PASS)
+
+    assert "Financial invariant evidence exists: milliunit expense conversion" in messages
+    assert "Financial invariant evidence exists: transaction spending totals" in messages
+    assert "Financial invariant evidence exists: budget health category snapshots" in messages
+    assert "Financial invariant evidence exists: account balances from account fields" in messages
+    assert "Financial invariant evidence exists: recent edit undo convenience boundary" in messages
+
+
+def test_financial_invariant_source_evidence_is_required(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "src/domain/models/expense.py",
+        "class Expense:\n"
+        "    def to_ynab_transaction(self):\n"
+        "        return {\"amount\": self.amount}\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Financial invariant source evidence is missing for milliunit expense conversion: "
+        "src/domain/models/expense.py -> amount_milliunits = int(self.amount * -1000)"
+    ) in messages
+
+
+def test_financial_invariant_test_evidence_is_required(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "tests/domain/services/test_spending_aggregation.py",
+        "def test_other_behavior():\n"
+        "    assert True\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Financial invariant test evidence is missing for transaction spending totals: "
+        "tests/domain/services/test_spending_aggregation.py -> "
+        "test_summarize_transaction_net_spending_offsets_category_inflows"
+    ) in messages
