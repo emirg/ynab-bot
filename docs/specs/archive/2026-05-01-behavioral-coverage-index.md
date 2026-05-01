@@ -1,10 +1,11 @@
 # Spec: Behavioral Coverage Index
 
 ## Metadata
-- **Status:** Approved
+- **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** E.25 — Behavioral Coverage Index
 - **Related ADRs:** `docs/adrs/2026-04-30-executable-harness-gates.md`
+- **Harness Roadmap Marker:** E.25 — Behavioral Coverage Index
 
 ## Summary
 The behavioral invariant manifest identifies each executable fixture, its owner, and the protected rule. This feature extends that manifest into a coverage index by linking each protected rule to pytest evidence and documentation or ADR evidence.
@@ -55,10 +56,10 @@ The behavioral invariant manifest identifies each executable fixture, its owner,
 - Duplicate evidence entries should be accepted but do not add value; implementation may deduplicate internally.
 
 ## Acceptance Criteria
-- [ ] Behavioral fixture manifest supports pytest and doc evidence metadata.
-- [ ] Harness validates all configured evidence paths and snippets.
-- [ ] Focused tests cover missing path and missing snippet failures.
-- [ ] Direct behavioral diagnostics and CI harness pass after current evidence is indexed.
+- [x] Behavioral fixture manifest supports pytest and doc evidence metadata.
+- [x] Harness validates all configured evidence paths and snippets.
+- [x] Focused tests cover missing path and missing snippet failures.
+- [x] Direct behavioral diagnostics and CI harness pass after current evidence is indexed.
 
 ## Open Questions
 - None.

@@ -54,5 +54,5 @@ def test_check_behavioral_invariants_json_cli_outputs_valid_json(capsys) -> None
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert payload["summary"] == {"FAIL": 0, "PASS": 6, "WARN": 0, "total": 6}
+    assert payload["summary"] == {"FAIL": 0, "PASS": 8, "WARN": 0, "total": 8}
     assert isinstance(payload["findings"], list)

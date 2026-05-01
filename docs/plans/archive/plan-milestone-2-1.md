@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** COMPLETED (archived 2026-03-14). Review notes: 3 bugs found (missing imports in bot.py, callback routing collision split_rm_ vs split_rma_, import convention in split_config_repository.py). See review summary for details.
+- **Harness Roadmap:** Ignore
 - **Goal:** Implement the `/splitwise` command and its full configuration flow so users can persist which YNAB categories represent Splitwise groups, associate person aliases to each group, and designate a single "Shared Transactions" YNAB account -- all via inline keyboards.
 - **Why:** This is the data foundation for Milestones 2.2 (intent detection) and 2.3 (split transaction creation). Without persisted split configuration, the bot cannot know where to route shared expenses.
 

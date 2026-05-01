@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Complete
+- **Harness Roadmap:** Ignore
 - **Goal:** Pass per-payee category distribution from the learning DB into the LLM prompt, so the LLM can make informed category decisions using both message context and historical usage patterns.
 - **Why:** The contextual threshold fix (see `2026-03-22-contextual-learning-threshold.md`) prevents wrong overrides for multi-category payees, but the LLM still has no visibility into what the user has done before. By injecting learning hints into the prompt, the LLM can weigh message context ("Movistar (internet)") against historical patterns ("Movistar: Internet 70%, Teléfono 30%") and make better decisions from the start — eliminating the need for post-hoc overrides entirely for most cases.
 

@@ -2,6 +2,7 @@
 
 ## Objective & Context
 - **Status:** Complete
+- **Harness Roadmap:** Ignore
 - **Goal:** Stop `_enhance_with_learning` from overriding the LLM's category when the payee has ambiguous history (multiple categories). Only override when learning confidence >= 0.95 (single-category payee).
 - **Why:** A payee like "Movistar" can map to both "Internet" and "Teléfono". The current code unconditionally overwrites the LLM's decision (line 857), even when the LLM correctly interprets contextual hints in the message (e.g., "Movistar (internet)"). This causes incorrect categorization for multi-category payees.
 

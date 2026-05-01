@@ -1,10 +1,11 @@
 # Spec: Additional Behavioral Fixtures
 
 ## Metadata
-- **Status:** Approved
+- **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** E.26 — Additional Behavioral Fixtures
 - **Related ADRs:** `docs/adrs/2026-04-30-executable-harness-gates.md`
+- **Harness Roadmap Marker:** E.26 — Additional Behavioral Fixtures
 
 ## Summary
 The current behavioral harness protects a small set of high-risk aggregation and reconciliation rules. This feature expands the fixture set to cover the next tier of financial flows after the coverage index exists.
@@ -54,10 +55,10 @@ The current behavioral harness protects a small set of high-risk aggregation and
 - New fixtures must not make local diagnostics noisy or slow.
 
 ## Acceptance Criteria
-- [ ] At least two new high-risk financial behavioral fixtures are added.
-- [ ] Every new fixture is represented in the manifest coverage index.
-- [ ] Focused tests prove new fixtures pass and fail in expected ways.
-- [ ] Direct behavioral diagnostics, CI harness, harness tests, and full pytest pass.
+- [x] At least two new high-risk financial behavioral fixtures are added.
+- [x] Every new fixture is represented in the manifest coverage index.
+- [x] Focused tests prove new fixtures pass and fail in expected ways.
+- [x] Direct behavioral diagnostics, CI harness, harness tests, and full pytest pass.
 
 ## Open Questions
 - Which exact candidate fixtures should be implemented first after E.25: shared-expense construction, prepared expense commit, account balance reads, or summary period aggregation?

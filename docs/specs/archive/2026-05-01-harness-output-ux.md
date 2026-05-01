@@ -1,10 +1,11 @@
 # Spec: Harness Output UX
 
 ## Metadata
-- **Status:** Approved
+- **Status:** Implemented
 - **Owner:** Codex
 - **Related Roadmap Item:** E.27 — Harness Output UX
 - **Related ADRs:** `docs/adrs/2026-04-30-executable-harness-gates.md`
+- **Harness Roadmap Marker:** E.27 — Harness Output UX
 
 ## Summary
 The harness now validates documentation lifecycle, command registry, Railway config, financial evidence, behavioral fixtures, and fixture metadata. As coverage grows, local output needs clearer summaries and more actionable failure messages without weakening JSON automation.
@@ -55,10 +56,10 @@ The harness now validates documentation lifecycle, command registry, Railway con
 - If output changes affect tests, tests must assert behavior rather than brittle full snapshots.
 
 ## Acceptance Criteria
-- [ ] Text output gives clearer high-signal failure context.
-- [ ] JSON output remains backwards-compatible.
-- [ ] Focused tests cover formatting changes for pass/fail/warn groups.
-- [ ] All existing harness commands keep their exit-code contracts.
+- [x] Text output gives clearer high-signal failure context.
+- [x] JSON output remains backwards-compatible.
+- [x] Focused tests cover formatting changes for pass/fail/warn groups.
+- [x] All existing harness commands keep their exit-code contracts.
 
 ## Open Questions
 - Should the first UX slice add check-family metadata to `Finding`, or only improve text formatting around existing fields?

@@ -79,6 +79,8 @@ class Finding:
     severity: str
     message: str
     path: str | None = None
+    family: str | None = None
+    hint: str | None = None
 
 
 @dataclass(frozen=True)
@@ -284,6 +286,7 @@ def run_checks(root: Path | str) -> list[Finding]:
     findings.extend(check_adr_references(repo_root))
     findings.extend(check_agent_entrypoints(repo_root))
     findings.extend(check_stale_orchestration_references(repo_root))
+    findings.extend(check_archived_doc_statuses(repo_root))
     findings.extend(check_archived_completed_plans(repo_root))
     findings.extend(check_roadmap_coherence(repo_root))
     findings.extend(check_railway_config(repo_root))
@@ -295,39 +298,42 @@ def run_checks(root: Path | str) -> list[Finding]:
 
 def check_required_files(root: Path) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Workflow Integrity"
     for relative in REQUIRED_FILES:
         if (root / relative).is_file():
-            findings.append(Finding(PASS, f"Required workflow file exists: {relative}", relative))
+            findings.append(Finding(PASS, f"Required workflow file exists: {relative}", relative, family))
         else:
-            findings.append(Finding(FAIL, f"Required workflow file is missing: {relative}", relative))
+            findings.append(Finding(FAIL, f"Required workflow file is missing: {relative}", relative, family, f"Create {relative} using the template."))
     for relative in ARCHIVE_DIRS:
         if (root / relative).is_dir():
-            findings.append(Finding(PASS, f"Required archive directory exists: {relative}", relative))
+            findings.append(Finding(PASS, f"Required archive directory exists: {relative}", relative, family))
         else:
-            findings.append(Finding(FAIL, f"Required archive directory is missing: {relative}", relative))
+            findings.append(Finding(FAIL, f"Required archive directory is missing: {relative}", relative, family, f"Create {relative} directory."))
     return findings
 
 
 def check_wip_state(root: Path) -> list[Finding]:
     relative = "docs/wip_state.md"
     path = root / relative
+    family = "Handoff State"
     if not path.is_file():
-        return [Finding(WARN, f"Handoff state file is absent: {relative}", relative)]
+        return [Finding(WARN, f"Handoff state file is absent: {relative}", relative, family, "Run the handoff protocol to create it.")]
 
     text = read_text(path)
     fields = {match.group(1).strip() for match in WIP_STATE_FIELD_RE.finditer(text)}
     findings: list[Finding] = []
     for field in WIP_STATE_REQUIRED_FIELDS:
         if field in fields:
-            findings.append(Finding(PASS, f"Handoff state includes required field: {field}", relative))
+            findings.append(Finding(PASS, f"Handoff state includes required field: {field}", relative, family))
         else:
-            findings.append(Finding(FAIL, f"Handoff state is missing required field: {field}", relative))
+            findings.append(Finding(FAIL, f"Handoff state is missing required field: {field}", relative, family, f"Add '{field}:' to {relative}."))
     return findings
 
 
 def check_active_specs(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     specs_dir = root / "docs/specs"
+    family = "Documentation Lifecycle"
     for path in sorted(specs_dir.glob("*.md")) if specs_dir.is_dir() else []:
         if path.name == "_TEMPLATE.md":
             continue
@@ -335,21 +341,22 @@ def check_active_specs(root: Path) -> list[Finding]:
         text = read_text(path)
         status = parse_status(text)
         if status is None:
-            findings.append(Finding(FAIL, f"Active SPEC is missing Status metadata: {relative}", relative))
+            findings.append(Finding(FAIL, f"Active SPEC is missing Status metadata: {relative}", relative, family, "Add '- **Status:** draft' to the metadata section."))
             continue
         normalized = normalize_status(status)
         if normalized not in VALID_SPEC_STATUSES:
-            findings.append(Finding(FAIL, f"Active SPEC has invalid Status metadata: {relative}", relative))
+            findings.append(Finding(FAIL, f"Active SPEC has invalid Status metadata: {relative}", relative, family, f"Valid statuses are: {', '.join(VALID_SPEC_STATUSES)}"))
         elif normalized in TERMINAL_STATUSES:
-            findings.append(Finding(FAIL, f"Implemented SPECs must be archived: {relative}", relative))
+            findings.append(Finding(FAIL, f"Implemented SPECs must be archived: {relative}", relative, family, f"Move {relative} to docs/specs/archive/"))
         else:
-            findings.append(Finding(PASS, f"Active SPEC metadata is valid: {relative}", relative))
+            findings.append(Finding(PASS, f"Active SPEC metadata is valid: {relative}", relative, family))
     return findings
 
 
 def check_active_plans(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     plans_dir = root / "docs/plans"
+    family = "Documentation Lifecycle"
     for path in sorted(plans_dir.glob("*.md")) if plans_dir.is_dir() else []:
         if path.name == "_TEMPLATE.md":
             continue
@@ -357,66 +364,70 @@ def check_active_plans(root: Path) -> list[Finding]:
         text = read_text(path)
         status = parse_status(text)
         if status is None:
-            findings.append(Finding(FAIL, f"Active PLAN is missing Status metadata: {relative}", relative))
+            findings.append(Finding(FAIL, f"Active PLAN is missing Status metadata: {relative}", relative, family, "Add '- **Status:** draft' to the metadata section."))
         else:
             normalized = normalize_status(status)
             if normalized not in VALID_PLAN_STATUSES:
-                findings.append(Finding(FAIL, f"Active PLAN has invalid Status metadata: {relative}", relative))
+                findings.append(Finding(FAIL, f"Active PLAN has invalid Status metadata: {relative}", relative, family, f"Valid statuses are: {', '.join(VALID_PLAN_STATUSES)}"))
             elif normalized in TERMINAL_STATUSES:
                 label = "Completed" if normalized == "completed" else "Implemented"
-                findings.append(Finding(FAIL, f"{label} PLANs must be archived: {relative}", relative))
+                findings.append(Finding(FAIL, f"{label} PLANs must be archived: {relative}", relative, family, f"Move {relative} to docs/plans/archive/"))
             else:
-                findings.append(Finding(PASS, f"Active PLAN metadata is valid: {relative}", relative))
+                findings.append(Finding(PASS, f"Active PLAN metadata is valid: {relative}", relative, family))
 
         source_spec = parse_source_spec(text)
         if source_spec is None:
-            findings.append(Finding(FAIL, f"Active PLAN is missing Source Spec: {relative}", relative))
+            findings.append(Finding(FAIL, f"Active PLAN is missing Source Spec: {relative}", relative, family, "Add '- **Source Spec:** docs/specs/your-spec.md'"))
         elif not (root / source_spec).is_file():
             findings.append(
                 Finding(
                     FAIL,
                     f"PLAN Source Spec does not exist: {relative} -> {source_spec}",
                     relative,
+                    family,
+                    f"Create {source_spec} or fix the reference."
                 )
             )
         else:
-            findings.append(Finding(PASS, f"Active PLAN Source Spec exists: {relative}", relative))
+            findings.append(Finding(PASS, f"Active PLAN Source Spec exists: {relative}", relative, family))
     return findings
 
 
 def check_adr_references(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     adrs_dir = root / "docs/adrs"
+    family = "Architecture Governance"
     for path in sorted(adrs_dir.glob("*.md")) if adrs_dir.is_dir() else []:
         if path.name == "_TEMPLATE.md":
             continue
         relative = relative_path(path, root)
         refs = sorted(set(ADR_DOC_REF_RE.findall(read_text(path))))
         if not refs:
-            findings.append(Finding(WARN, f"ADR has no SPEC/PLAN references: {relative}", relative))
+            findings.append(Finding(WARN, f"ADR has no SPEC/PLAN references: {relative}", relative, family, "Link this ADR to its corresponding spec or plan."))
             continue
         for reference in refs:
             if (root / reference).is_file():
-                findings.append(Finding(PASS, f"ADR reference exists: {relative} -> {reference}", relative))
+                findings.append(Finding(PASS, f"ADR reference exists: {relative} -> {reference}", relative, family))
             else:
                 findings.append(
-                    Finding(FAIL, f"ADR reference does not exist: {relative} -> {reference}", relative)
+                    Finding(FAIL, f"ADR reference does not exist: {relative} -> {reference}", relative, family, f"The linked file {reference} is missing.")
                 )
     return findings
 
 
 def check_agent_entrypoints(root: Path) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Agent Integration"
     for relative in AGENT_ENTRYPOINTS:
         path = root / relative
         if not path.exists():
-            findings.append(Finding(WARN, f"Agent entrypoint is absent: {relative}", relative))
+            findings.append(Finding(WARN, f"Agent entrypoint is absent: {relative}", relative, family))
             continue
         text = read_text(path)
         for workflow_doc in ("docs/AI_WORKFLOW.md", "docs/DOCUMENTATION_WORKFLOW.md"):
             if workflow_doc in text:
                 findings.append(
-                    Finding(PASS, f"Agent entrypoint references {workflow_doc}: {relative}", relative)
+                    Finding(PASS, f"Agent entrypoint references {workflow_doc}: {relative}", relative, family)
                 )
             else:
                 findings.append(
@@ -424,6 +435,8 @@ def check_agent_entrypoints(root: Path) -> list[Finding]:
                         FAIL,
                         f"Agent entrypoint is missing {workflow_doc} reference: {relative}",
                         relative,
+                        family,
+                        f"Add a reference to {workflow_doc} to ensure the agent follows the workflow."
                     )
                 )
         findings.extend(check_agent_entrypoint_commands(text, relative))
@@ -432,54 +445,90 @@ def check_agent_entrypoints(root: Path) -> list[Finding]:
 
 def check_agent_entrypoint_commands(text: str, relative: str) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Agent Integration"
     for command in (LOCAL_RUN, LOCAL_TEST):
         command_name = "run" if command == LOCAL_RUN else "test"
         if command.command in text:
-            findings.append(Finding(PASS, f"Agent entrypoint references {command_name} command: {relative}", relative))
+            findings.append(Finding(PASS, f"Agent entrypoint references {command_name} command: {relative}", relative, family))
         else:
             findings.append(
-                Finding(FAIL, f"Agent entrypoint is missing {command_name} command `{command.command}`: {relative}", relative)
+                Finding(FAIL, f"Agent entrypoint is missing {command_name} command `{command.command}`: {relative}", relative, family, f"Document how to {command_name} the application.")
             )
     return findings
 
 
 def check_stale_orchestration_references(root: Path) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Workflow Integrity"
     for path in iter_markdown_files(root):
         relative = relative_path(path, root)
         if relative == "docs/ORCHESTRATION.md":
-            findings.append(Finding(FAIL, "Stale docs/ORCHESTRATION.md file found", relative))
+            findings.append(Finding(FAIL, "Stale docs/ORCHESTRATION.md file found", relative, family, "Delete docs/ORCHESTRATION.md as it is superseded by GEMINI.md."))
             continue
         if "docs/ORCHESTRATION.md" in read_text(path):
-            findings.append(Finding(FAIL, f"Stale docs/ORCHESTRATION.md reference found: {relative}", relative))
+            findings.append(Finding(FAIL, f"Stale docs/ORCHESTRATION.md reference found: {relative}", relative, family, "Replace docs/ORCHESTRATION.md reference with GEMINI.md."))
     if not findings:
-        findings.append(Finding(PASS, "No stale docs/ORCHESTRATION.md references found", None))
+        findings.append(Finding(PASS, "No stale docs/ORCHESTRATION.md references found", None, family))
+    return findings
+
+
+def check_archived_doc_statuses(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    family = "Documentation Lifecycle"
+    archive_requirements = (
+        ("docs/specs/archive", "SPEC", "implemented"),
+        ("docs/plans/archive", "PLAN", "completed"),
+    )
+    for archive_dir, doc_label, required_status in archive_requirements:
+        directory = root / archive_dir
+        for path in sorted(directory.glob("*.md")) if directory.is_dir() else []:
+            relative = relative_path(path, root)
+            text = read_text(path)
+            if has_roadmap_ignore(text):
+                findings.append(Finding(PASS, f"Archived {doc_label} status ignored by metadata: {relative}", relative, family))
+                continue
+            status = parse_status(text)
+            normalized = normalize_status(status or "")
+            if normalized == required_status:
+                findings.append(Finding(PASS, f"Archived {doc_label} terminal status is valid: {relative}", relative, family))
+            else:
+                findings.append(
+                    Finding(
+                        FAIL,
+                        f"Archived {doc_label} must have Status {required_status.title()}: {relative}",
+                        relative,
+                        family,
+                        f"Set '- **Status:** {required_status.title()}' or add Harness Roadmap: Ignore for historical docs.",
+                    )
+                )
     return findings
 
 
 def check_archived_completed_plans(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     archive_dir = root / "docs/plans/archive"
+    family = "Documentation Lifecycle"
     for path in sorted(archive_dir.glob("*.md")) if archive_dir.is_dir() else []:
         relative = relative_path(path, root)
         text = read_text(path)
         if has_roadmap_ignore(text):
-            findings.append(Finding(PASS, f"Archived PLAN checklist ignored by metadata: {relative}", relative))
+            findings.append(Finding(PASS, f"Archived PLAN checklist ignored by metadata: {relative}", relative, family))
             continue
         status = parse_status(text)
         if normalize_status(status or "") != "completed":
             continue
         if UNCHECKED_TASK_RE.search(text):
-            findings.append(Finding(FAIL, f"Completed archived PLAN has unchecked task boxes: {relative}", relative))
+            findings.append(Finding(FAIL, f"Completed archived PLAN has unchecked task boxes: {relative}", relative, family, "Mark all tasks as [x] before archiving."))
         else:
-            findings.append(Finding(PASS, f"Completed archived PLAN task boxes are checked: {relative}", relative))
+            findings.append(Finding(PASS, f"Completed archived PLAN task boxes are checked: {relative}", relative, family))
     return findings
 
 
 def check_roadmap_coherence(root: Path) -> list[Finding]:
     roadmap_path = root / "ROADMAP.md"
+    family = "Roadmap Coherence"
     if not roadmap_path.is_file():
-        return [Finding(FAIL, "Required roadmap file is missing: ROADMAP.md", "ROADMAP.md")]
+        return [Finding(FAIL, "Required roadmap file is missing: ROADMAP.md", "ROADMAP.md", family, "Create ROADMAP.md to track project progress.")]
 
     roadmap_text = read_text(roadmap_path)
     findings: list[Finding] = []
@@ -497,11 +546,12 @@ def check_archived_doc_roadmap_markers(
 ) -> list[Finding]:
     findings: list[Finding] = []
     directory = root / archive_dir
+    family = "Roadmap Coherence"
     for path in sorted(directory.glob("*.md")) if directory.is_dir() else []:
         relative = relative_path(path, root)
         text = read_text(path)
         if has_roadmap_ignore(text):
-            findings.append(Finding(PASS, f"Archived {doc_label} roadmap check ignored by metadata: {relative}", relative))
+            findings.append(Finding(PASS, f"Archived {doc_label} roadmap check ignored by metadata: {relative}", relative, family))
             continue
         status = parse_status(text)
         if normalize_status(status or "") != required_status:
@@ -514,6 +564,8 @@ def check_archived_doc_roadmap_markers(
                     FAIL,
                     f"{status_label} archived {doc_label} is missing Harness Roadmap Marker: {relative}",
                     relative,
+                    family,
+                    "Add '- **Harness Roadmap Marker:** ### E.X ...' to the metadata section."
                 )
             )
         elif marker not in roadmap_text:
@@ -523,11 +575,13 @@ def check_archived_doc_roadmap_markers(
                     f"{status_label} archived {doc_label} roadmap marker is missing from ROADMAP.md: "
                     f"{relative} -> {marker}",
                     relative,
+                    family,
+                    f"Ensure {marker} exists in ROADMAP.md."
                 )
             )
         else:
             findings.append(
-                Finding(PASS, f"{status_label} archived {doc_label} roadmap marker exists: {relative}", relative)
+                Finding(PASS, f"{status_label} archived {doc_label} roadmap marker exists: {relative}", relative, family)
             )
     return findings
 
@@ -535,56 +589,58 @@ def check_archived_doc_roadmap_markers(
 def check_railway_config(root: Path) -> list[Finding]:
     relative = "railway.toml"
     path = root / relative
+    family = "Infrastructure Config"
     if not path.is_file():
-        return [Finding(FAIL, f"Required Railway config file is missing: {relative}", relative)]
+        return [Finding(FAIL, f"Required Railway config file is missing: {relative}", relative, family, "Create railway.toml for deployment.")]
 
-    findings = [Finding(PASS, f"Railway config file exists: {relative}", relative)]
+    findings = [Finding(PASS, f"Railway config file exists: {relative}", relative, family)]
     try:
         config = tomllib.loads(read_text(path))
     except tomllib.TOMLDecodeError as exc:
         return [
             findings[0],
-            Finding(FAIL, f"Railway config is not valid TOML: {relative}: {exc}", relative),
+            Finding(FAIL, f"Railway config is not valid TOML: {relative}: {exc}", relative, family, "Fix TOML syntax errors."),
         ]
 
     build_config = config.get("build")
     if not isinstance(build_config, dict):
-        findings.append(Finding(FAIL, f"Railway config is missing [build] section: {relative}", relative))
+        findings.append(Finding(FAIL, f"Railway config is missing [build] section: {relative}", relative, family, "Add [build] section to railway.toml."))
     else:
         build_command = build_config.get("buildCommand")
         if not isinstance(build_command, str) or not build_command.strip():
-            findings.append(Finding(FAIL, f"Railway build command is missing: {relative}", relative))
+            findings.append(Finding(FAIL, f"Railway build command is missing: {relative}", relative, family, "Add buildCommand to the [build] section."))
         else:
             findings.extend(check_railway_build_command(build_command, relative))
 
     deploy_config = config.get("deploy")
     if not isinstance(deploy_config, dict):
-        findings.append(Finding(FAIL, f"Railway config is missing [deploy] section: {relative}", relative))
+        findings.append(Finding(FAIL, f"Railway config is missing [deploy] section: {relative}", relative, family, "Add [deploy] section to railway.toml."))
     else:
         start_command = deploy_config.get("startCommand")
         if start_command == RAILWAY_START.command:
-            findings.append(Finding(PASS, f"Railway start command is expected app entrypoint: {relative}", relative))
+            findings.append(Finding(PASS, f"Railway start command is expected app entrypoint: {relative}", relative, family))
         else:
-            findings.append(Finding(FAIL, f"Railway start command must be `{RAILWAY_START.command}`: {relative}", relative))
+            findings.append(Finding(FAIL, f"Railway start command must be `{RAILWAY_START.command}`: {relative}", relative, family, f"Update startCommand in railway.toml."))
 
     return findings
 
 
 def check_railway_build_command(build_command: str, relative: str) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Infrastructure Config"
     harness_index = build_command.find(RAILWAY_VERIFY_CI.command)
     pytest_index = build_command.find(RAILWAY_PYTEST.command)
 
     if harness_index == -1:
-        findings.append(Finding(FAIL, f"Railway build command is missing harness verification: {relative}", relative))
+        findings.append(Finding(FAIL, f"Railway build command is missing harness verification: {relative}", relative, family, f"Add `{RAILWAY_VERIFY_CI.command}` to buildCommand."))
     if pytest_index == -1:
-        findings.append(Finding(FAIL, f"Railway build command is missing pytest: {relative}", relative))
+        findings.append(Finding(FAIL, f"Railway build command is missing pytest: {relative}", relative, family, f"Add `{RAILWAY_PYTEST.command}` to buildCommand."))
     if harness_index != -1 and pytest_index != -1:
         if harness_index < pytest_index:
-            findings.append(Finding(PASS, f"Railway build command runs harness before pytest: {relative}", relative))
+            findings.append(Finding(PASS, f"Railway build command runs harness before pytest: {relative}", relative, family))
         else:
             findings.append(
-                Finding(FAIL, f"Railway build command runs pytest before harness verification: {relative}", relative)
+                Finding(FAIL, f"Railway build command runs pytest before harness verification: {relative}", relative, family, "Ensure harness runs BEFORE pytest in buildCommand.")
             )
 
     return findings
@@ -600,29 +656,31 @@ def check_command_registry(root: Path) -> list[Finding]:
 def check_command_registry_document(root: Path) -> list[Finding]:
     relative = COMMAND_REGISTRY_DOC
     path = root / relative
+    family = "Documentation Lifecycle"
     if not path.is_file():
-        return [Finding(FAIL, f"Command registry document is missing: {relative}", relative)]
+        return [Finding(FAIL, f"Command registry document is missing: {relative}", relative, family, f"Create {relative} to document project commands.")]
 
     text = read_text(path)
-    findings = [Finding(PASS, f"Command registry document exists: {relative}", relative)]
+    findings = [Finding(PASS, f"Command registry document exists: {relative}", relative, family)]
     for command in COMMAND_REGISTRY:
         if command.command in text:
-            findings.append(Finding(PASS, f"Command registry documents {command.label}: {relative}", relative))
+            findings.append(Finding(PASS, f"Command registry documents {command.label}: {relative}", relative, family))
         else:
             findings.append(
-                Finding(FAIL, f"Command registry is missing {command.label}: {relative} -> {command.command}", relative)
+                Finding(FAIL, f"Command registry is missing {command.label}: {relative} -> {command.command}", relative, family, f"Add `{command.command}` to {relative}.")
             )
     if RAILWAY_BUILD_COMMAND in text:
-        findings.append(Finding(PASS, f"Command registry documents Railway build command: {relative}", relative))
+        findings.append(Finding(PASS, f"Command registry documents Railway build command: {relative}", relative, family))
     else:
         findings.append(
-            Finding(FAIL, f"Command registry is missing Railway build command: {relative} -> {RAILWAY_BUILD_COMMAND}", relative)
+            Finding(FAIL, f"Command registry is missing Railway build command: {relative} -> {RAILWAY_BUILD_COMMAND}", relative, family, f"Add `{RAILWAY_BUILD_COMMAND}` to {relative}.")
         )
     return findings
 
 
 def check_workflow_command_docs(root: Path) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Workflow Integrity"
     for relative in WORKFLOW_COMMAND_DOCS:
         path = root / relative
         if not path.is_file():
@@ -630,13 +688,15 @@ def check_workflow_command_docs(root: Path) -> list[Finding]:
         text = read_text(path)
         for command in (LOCAL_CHECK_DOCS, LOCAL_VERIFY_CI):
             if command.command in text:
-                findings.append(Finding(PASS, f"Living workflow doc references {command.label}: {relative}", relative))
+                findings.append(Finding(PASS, f"Living workflow doc references {command.label}: {relative}", relative, family))
             else:
                 findings.append(
                     Finding(
                         FAIL,
                         f"Living workflow doc is missing {command.label} `{command.command}`: {relative}",
                         relative,
+                        family,
+                        f"Add `{command.command}` to {relative}."
                     )
                 )
     return findings
@@ -644,6 +704,7 @@ def check_workflow_command_docs(root: Path) -> list[Finding]:
 
 def check_financial_invariants(root: Path) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Financial Invariants"
     for invariant in FINANCIAL_INVARIANT_EVIDENCE:
         invariant_failures: list[Finding] = []
         invariant_failures.extend(check_invariant_evidence_group(root, invariant, "doc", invariant.docs))
@@ -653,22 +714,25 @@ def check_financial_invariants(root: Path) -> list[Finding]:
         if invariant_failures:
             findings.extend(invariant_failures)
         else:
-            findings.append(Finding(PASS, f"Financial invariant evidence exists: {invariant.label}", None))
+            findings.append(Finding(PASS, f"Financial invariant evidence exists: {invariant.label}", None, family))
     return findings
 
 
 def check_behavioral_invariants(root: Path) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Behavioral Invariants"
     for result in run_behavioral_invariants(root):
         context = f"{result.label} [{result.risk_area}: {result.protected_rule}]"
         if result.passed:
-            findings.append(Finding(PASS, f"Behavioral invariant holds: {context}", result.path))
+            findings.append(Finding(PASS, f"Behavioral invariant holds: {context}", result.path, family))
         else:
             findings.append(
                 Finding(
                     FAIL,
                     f"Behavioral invariant failed: {context}: {result.message}",
                     result.path,
+                    family,
+                    "Investigate product drift or bug in the assertion/model logic."
                 )
             )
     return findings
@@ -681,6 +745,7 @@ def check_invariant_evidence_group(
     evidence_files: tuple[InvariantEvidenceFile, ...],
 ) -> list[Finding]:
     findings: list[Finding] = []
+    family = "Financial Invariants"
     for evidence_file in evidence_files:
         path = root / evidence_file.path
         if not path.is_file():
@@ -690,6 +755,8 @@ def check_invariant_evidence_group(
                     f"Financial invariant {evidence_kind} evidence file is missing for "
                     f"{invariant.label}: {evidence_file.path}",
                     evidence_file.path,
+                    family,
+                    f"Create {evidence_file.path} or update the invariant evidence manifest."
                 )
             )
             continue
@@ -703,26 +770,40 @@ def check_invariant_evidence_group(
                         f"Financial invariant {evidence_kind} evidence is missing for "
                         f"{invariant.label}: {evidence_file.path} -> {snippet}",
                         evidence_file.path,
+                        family,
+                        f"Ensure snippet '{snippet}' exists in {evidence_file.path}."
                     )
                 )
     return findings
 
 
 def format_findings(findings: Iterable[Finding]) -> str:
-    grouped = {PASS: [], WARN: [], FAIL: []}
+    severity_order = (FAIL, WARN, PASS)
+    grouped: dict[str, dict[str, list[Finding]]] = {
+        sev: {} for sev in severity_order
+    }
+
     for finding in findings:
-        grouped.setdefault(finding.severity, []).append(finding)
+        sev = finding.severity
+        family = finding.family or "Other"
+        grouped[sev].setdefault(family, []).append(finding)
 
     lines: list[str] = []
-    for severity in (PASS, WARN, FAIL):
-        items = grouped.get(severity, [])
-        lines.append(f"{severity} ({len(items)})")
-        if items:
-            for finding in items:
-                suffix = f" [{finding.path}]" if finding.path else ""
-                lines.append(f"  - {finding.message}{suffix}")
-        else:
+    for severity in severity_order:
+        families = grouped[severity]
+        total = sum(len(f) for f in families.values())
+        lines.append(f"{severity} ({total})")
+        if not families:
             lines.append("  - None")
+            continue
+
+        for family in sorted(families.keys()):
+            lines.append(f"  [{family}]")
+            for finding in families[family]:
+                path_info = f" ({finding.path})" if finding.path else ""
+                lines.append(f"    - {finding.message}{path_info}")
+                if severity != PASS and finding.hint:
+                    lines.append(f"      HINT: {finding.hint}")
     return "\n".join(lines)
 
 
@@ -739,6 +820,8 @@ def format_findings_json(findings: Iterable[Finding]) -> str:
                 "severity": finding.severity,
                 "message": finding.message,
                 "path": finding.path,
+                "family": finding.family,
+                "hint": finding.hint,
             }
             for finding in finding_list
         ],

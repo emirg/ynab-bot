@@ -313,6 +313,33 @@ Se hizo explícita la propiedad y el alcance de cada fixture conductual del harn
 - La ejecución sigue usando mapeo explícito de assertions y librería estándar
 - `verify.py --ci` bloquea si el manifiesto o alguna fixture conductual queda incoherente
 
+### E.25 — Behavioral Coverage Index [COMPLETADO]
+
+Conectar cada fixture conductual con su evidencia de pytest y documentación/ADR:
+
+- Extender `scripts/harness/behavioral_invariants.toml` con evidencia de tests y docs [COMPLETADO]
+- Validar paths y snippets sin ejecutar pytest desde el harness [COMPLETADO]
+- Detectar gaps entre regla protegida, fixture ejecutable, test coverage y fuente documental [COMPLETADO]
+- Mantener salida concisa y compatible con `verify.py --ci` [COMPLETADO]
+
+### E.26 — Additional Behavioral Fixtures [COMPLETADO]
+
+Ampliar el set de fixtures conductuales de alto riesgo financiero:
+
+- Seleccionar un primer batch pequeño después del coverage index [COMPLETADO]
+- Cubrir más flujos financieros sin llamadas externas ni base de datos [COMPLETADO]
+- Registrar cada fixture nueva en el manifiesto con owner, regla protegida y evidencia [COMPLETADO]
+- Tratar cualquier drift descubierto como bug, no como debilitamiento del harness [COMPLETADO]
+
+### E.27 — Harness Output UX [COMPLETADO]
+
+Mejorar la legibilidad de diagnósticos locales y logs de Railway:
+
+- Hacer más accionables los mensajes de fallo [COMPLETADO]
+- Preservar compatibilidad JSON y contratos de exit code [COMPLETADO]
+- Mantener salida determinística para tests y CI [COMPLETADO]
+- Evitar dependencias externas o dashboards prematuros [COMPLETADO]
+
 ### E.28 — Handoff Resume Prompt [COMPLETADO]
 
 Se mejoró el handoff entre agentes para que `docs/wip_state.md` incluya un prompt reutilizable:
@@ -321,32 +348,3 @@ Se mejoró el handoff entre agentes para que `docs/wip_state.md` incluya un prom
 - El harness valida los campos requeridos cuando existe `docs/wip_state.md`
 - La ausencia de `docs/wip_state.md` queda como `WARN` porque es estado local ignorado, no un bloqueo de Railway
 - Los tests cubren el campo faltante y el caso de checkout limpio sin estado local
-
-## Harness Improvement Agenda (planned)
-
-### E.25 — Behavioral Coverage Index [PLANIFICADO]
-
-Conectar cada fixture conductual con su evidencia de pytest y documentación/ADR:
-
-- Extender `scripts/harness/behavioral_invariants.toml` con evidencia de tests y docs
-- Validar paths y snippets sin ejecutar pytest desde el harness
-- Detectar gaps entre regla protegida, fixture ejecutable, test coverage y fuente documental
-- Mantener salida concisa y compatible con `verify.py --ci`
-
-### E.26 — Additional Behavioral Fixtures [PLANIFICADO]
-
-Ampliar el set de fixtures conductuales de alto riesgo financiero:
-
-- Seleccionar un primer batch pequeño después del coverage index
-- Cubrir más flujos financieros sin llamadas externas ni base de datos
-- Registrar cada fixture nueva en el manifiesto con owner, regla protegida y evidencia
-- Tratar cualquier drift descubierto como bug, no como debilitamiento del harness
-
-### E.27 — Harness Output UX [PLANIFICADO]
-
-Mejorar la legibilidad de diagnósticos locales y logs de Railway:
-
-- Hacer más accionables los mensajes de fallo
-- Preservar compatibilidad JSON y contratos de exit code
-- Mantener salida determinística para tests y CI
-- Evitar dependencias externas o dashboards prematuros

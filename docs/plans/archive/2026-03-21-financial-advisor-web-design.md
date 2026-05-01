@@ -1,5 +1,8 @@
 # Reclassified Document
 
+## Metadata
+- **Harness Roadmap:** Ignore
+
 This document previously mixed feature specification and implementation assumptions.
 
 Under the current documentation workflow, the active source of truth is now:

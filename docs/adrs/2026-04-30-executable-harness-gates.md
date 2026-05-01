@@ -36,6 +36,8 @@ The behavioral invariant manifest slice makes those fixtures manifest-driven. `s
 
 The handoff resume prompt slice extends workflow-document validation to local handoff state. `docs/AI_WORKFLOW.md` now requires `docs/wip_state.md` handoffs to include a copy-paste-ready `Resume Prompt`, and the harness validates required fields when the ignored session-state file exists. A missing `docs/wip_state.md` warns instead of failing so clean Railway checkouts do not depend on local handoff state.
 
+The behavioral coverage index slice connects each behavioral fixture with its source-of-truth documentation and test evidence. `scripts/harness/behavioral_invariants.toml` now includes `pytest_evidence` and `doc_evidence` metadata, and the harness validates that every referenced path exists and contains the required snippet.
+
 ## Alternatives Considered
 - **Adopt OpenSpec/OpenSDD immediately:** Deferred because the immediate risk is local documentation drift, and adding a new framework should be evaluated as a separate feature.
 - **Rely on pytest only:** Rejected because pytest does not validate documentation lifecycle state or agent instruction drift.
@@ -70,6 +72,12 @@ The handoff resume prompt slice extends workflow-document validation to local ha
 - `docs/plans/archive/2026-05-01-behavioral-invariant-manifest.md`
 - `docs/specs/archive/2026-05-01-handoff-resume-prompt.md`
 - `docs/plans/archive/2026-05-01-handoff-resume-prompt.md`
+- `docs/specs/archive/2026-05-01-behavioral-coverage-index.md`
+- `docs/plans/archive/2026-05-01-behavioral-coverage-index.md`
+- `docs/specs/archive/2026-05-01-additional-behavioral-fixtures.md`
+- `docs/plans/archive/2026-05-01-additional-behavioral-fixtures.md`
+- `docs/specs/archive/2026-05-01-harness-output-ux.md`
+- `docs/plans/archive/2026-05-01-harness-output-ux.md`
 - `scripts/harness/behavioral_invariants.py`
 - `scripts/harness/behavioral_invariants.toml`
 - `scripts/harness/check_behavioral_invariants.py`

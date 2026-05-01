@@ -1,5 +1,8 @@
 # Plan: OAuth por Usuario para YNAB
 
+## Metadata
+- **Harness Roadmap:** Ignore
+
 ## Contexto
 
 Actualmente todos los usuarios del bot comparten un único `YNAB_ACCESS_TOKEN` global. Esto limita el sistema a una sola cuenta YNAB. El objetivo es permitir que cada usuario conecte su propia cuenta YNAB mediante OAuth2, manteniendo el token global como fallback durante la transición.

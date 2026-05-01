@@ -6,6 +6,14 @@ protected_rule = "Split parent transactions must use negative subtransactions fo
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "split_spending_expands_negative_subtransactions"
 
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_summarize_transaction_spending_uses_expanded_split_entries"
+
+[[fixture.doc_evidence]]
+path = "docs/ARCHITECTURE.md"
+snippet = "split subtransactions expanded into their real categories"
+
 [[fixture]]
 id = "zero_sum_shared_split_counts_negative_leg"
 label = "Zero-sum shared split negative leg counts as spending"
@@ -13,6 +21,14 @@ risk_area = "shared expense aggregation"
 protected_rule = "Zero-sum shared transactions still count the user's negative spending leg."
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "zero_sum_shared_split_counts_negative_leg"
+
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_summarize_transaction_spending_counts_zero_sum_shared_split_expenses"
+
+[[fixture.doc_evidence]]
+path = "docs/ARCHITECTURE.md"
+snippet = "**Third-party paid split** (zero-sum): Transaction amount is `$0` with two subtransactions"
 
 [[fixture]]
 id = "net_spending_offsets_categorized_inflows"
@@ -22,6 +38,14 @@ protected_rule = "Categorized inflows reduce period spending while Ready to Assi
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "net_spending_offsets_categorized_inflows"
 
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_summarize_transaction_net_spending_ignores_ready_to_assign_inflows"
+
+[[fixture.doc_evidence]]
+path = "docs/ARCHITECTURE.md"
+snippet = "real categorized inflows reduce spending"
+
 [[fixture]]
 id = "budget_snapshots_preserve_balance"
 label = "Budget category snapshots preserve YNAB balances and filter inactive categories"
@@ -29,6 +53,14 @@ risk_area = "budget health"
 protected_rule = "Budget health must use YNAB category balance snapshots and ignore inactive categories."
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "budget_snapshots_preserve_balance"
+
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_normalize_budget_category_snapshots_filters_inactive_hidden_and_deleted"
+
+[[fixture.doc_evidence]]
+path = "docs/ARCHITECTURE.md"
+snippet = "YNAB exposes category activity, available balance"
 
 [[fixture]]
 id = "edit_reconciliation_trusts_live_identity"
@@ -38,6 +70,14 @@ protected_rule = "/editar must trust an existing live YNAB transaction id despit
 owner_path = "src/application/services/expense_service.py"
 assertion = "edit_reconciliation_trusts_live_identity"
 
+[[fixture.pytest_evidence]]
+path = "tests/application/services/test_expense_service.py"
+snippet = "def test_live_payee_drift_does_not_block_edit"
+
+[[fixture.doc_evidence]]
+path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
+snippet = "treats the live YNAB transaction as authoritative"
+
 [[fixture]]
 id = "undo_reconciliation_blocks_stale_recent_reference"
 label = "Undo reconciliation blocks stale local recent references"
@@ -45,3 +85,43 @@ risk_area = "recent undo reconciliation"
 protected_rule = "/deshacer must block stale local recent references before destructive deletion."
 owner_path = "src/application/services/expense_service.py"
 assertion = "undo_reconciliation_blocks_stale_recent_reference"
+
+[[fixture.pytest_evidence]]
+path = "tests/application/services/test_expense_service.py"
+snippet = "def test_stale_live_ynab_transaction_blocks_undo"
+
+[[fixture.doc_evidence]]
+path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
+snippet = "stale-reference error"
+
+[[fixture]]
+id = "shared_expense_construction_preserves_zero_sum"
+label = "Shared expense construction preserves zero-sum balance"
+risk_area = "shared expense aggregation"
+protected_rule = "Other-paid split transactions must be zero-sum with balancing subtransactions."
+owner_path = "src/domain/models/expense.py"
+assertion = "shared_expense_construction_preserves_zero_sum"
+
+[[fixture.pytest_evidence]]
+path = "tests/domain/models/test_domain_models.py"
+snippet = "def test_to_ynab_format_other_paid_zero_sum"
+
+[[fixture.doc_evidence]]
+path = "docs/ARCHITECTURE.md"
+snippet = "outflow from real category balanced by inflow to split tracking category"
+
+[[fixture]]
+id = "account_balance_reads_from_account_fields"
+label = "Account balance queries read from account fields"
+risk_area = "account balance source"
+protected_rule = "Account balance queries must read directly from account fields (balance, cleared_balance)."
+owner_path = "src/application/services/budget_query_service.py"
+assertion = "account_balance_reads_from_account_fields"
+
+[[fixture.pytest_evidence]]
+path = "tests/application/services/test_budget_query_service.py"
+snippet = "def test_exact_match"
+
+[[fixture.doc_evidence]]
+path = "docs/AI_WORKFLOW.md"
+snippet = "account balances use account fields"

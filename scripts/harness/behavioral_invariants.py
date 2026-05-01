@@ -22,6 +22,12 @@ REQUIRED_MANIFEST_FIELDS = (
 
 
 @dataclass(frozen=True)
+class Evidence:
+    path: str
+    snippet: str
+
+
+@dataclass(frozen=True)
 class BehaviorFixture:
     fixture_id: str
     label: str
@@ -29,6 +35,8 @@ class BehaviorFixture:
     protected_rule: str
     owner_path: str
     assertion: Callable[[Path], None] | None
+    pytest_evidence: list[Evidence]
+    doc_evidence: list[Evidence]
 
 
 @dataclass(frozen=True)
@@ -56,6 +64,11 @@ def run_behavioral_invariants(root: Path | str) -> list[BehaviorResult]:
 
     results: list[BehaviorResult] = []
     results.extend(manifest_errors)
+
+    # If we have manifest errors for a fixture, we might still want to run its assertion
+    # but the load_behavior_fixtures currently returns fixtures ONLY if they pass basic manifest validation.
+    # Evidence validation is now part of manifest_errors.
+
     for fixture in fixtures:
         if fixture.assertion is None:
             continue
@@ -143,18 +156,98 @@ def load_behavior_fixtures(root: Path) -> tuple[list[BehaviorFixture], list[Beha
             )
             continue
 
-        fixtures.append(
-            BehaviorFixture(
-                fixture_id=fixture_id,
-                label=label,
-                risk_area=risk_area,
-                protected_rule=protected_rule,
-                owner_path=owner_path,
-                assertion=assertion,
-            )
+        pytest_evidence_raw = entry.get("pytest_evidence", [])
+        doc_evidence_raw = entry.get("doc_evidence", [])
+
+        if "pytest_evidence" not in entry:
+            errors.append(_manifest_error(f"pytest_evidence for {fixture_id} is required"))
+        if "doc_evidence" not in entry:
+            errors.append(_manifest_error(f"doc_evidence for {fixture_id} is required"))
+
+        if not isinstance(pytest_evidence_raw, list):
+            errors.append(_manifest_error(f"pytest_evidence for {fixture_id} must be a list"))
+            pytest_evidence_raw = []
+        if not isinstance(doc_evidence_raw, list):
+            errors.append(_manifest_error(f"doc_evidence for {fixture_id} must be a list"))
+            doc_evidence_raw = []
+
+        pytest_evidence = []
+        for e in pytest_evidence_raw:
+            if isinstance(e, dict) and "path" in e and "snippet" in e:
+                pytest_evidence.append(Evidence(path=e["path"], snippet=e["snippet"]))
+            else:
+                errors.append(_manifest_error(f"Invalid pytest_evidence entry for {fixture_id}"))
+
+        doc_evidence = []
+        for e in doc_evidence_raw:
+            if isinstance(e, dict) and "path" in e and "snippet" in e:
+                doc_evidence.append(Evidence(path=e["path"], snippet=e["snippet"]))
+            else:
+                errors.append(_manifest_error(f"Invalid doc_evidence entry for {fixture_id}"))
+
+        fixture = BehaviorFixture(
+            fixture_id=fixture_id,
+            label=label,
+            risk_area=risk_area,
+            protected_rule=protected_rule,
+            owner_path=owner_path,
+            assertion=assertion,
+            pytest_evidence=pytest_evidence,
+            doc_evidence=doc_evidence,
         )
 
+        # Validate evidence
+        evidence_errors = _validate_fixture_evidence(root, fixture)
+        if evidence_errors:
+            errors.extend(evidence_errors)
+        else:
+            fixtures.append(fixture)
+
     return fixtures, errors
+
+
+def _validate_fixture_evidence(root: Path, fixture: BehaviorFixture) -> list[BehaviorResult]:
+    errors = []
+    
+    for ev in fixture.pytest_evidence:
+        err = _validate_evidence_item(root, fixture, ev, "pytest")
+        if err:
+            errors.append(err)
+            
+    for ev in fixture.doc_evidence:
+        err = _validate_evidence_item(root, fixture, ev, "documentation")
+        if err:
+            errors.append(err)
+            
+    return errors
+
+
+def _validate_evidence_item(root: Path, fixture: BehaviorFixture, ev: Evidence, type_label: str) -> BehaviorResult | None:
+    path = root / ev.path
+    if not path.is_file():
+        return _fixture_result(
+            fixture, 
+            False, 
+            f"Behavioral invariant {type_label} evidence path is missing: {ev.path}"
+        )
+    
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        return _fixture_result(
+            fixture,
+            False,
+            f"Behavioral invariant {type_label} evidence path could not be read: {ev.path} ({exc})"
+        )
+
+    if ev.snippet not in content:
+        return _fixture_result(
+            fixture,
+            False,
+            f"Behavioral invariant {type_label} evidence snippet is missing: {ev.path} -> {ev.snippet}"
+        )
+    
+    return None
 
 
 def _assertion_registry() -> dict[str, Callable[[Path], None]]:
@@ -165,6 +258,8 @@ def _assertion_registry() -> dict[str, Callable[[Path], None]]:
         "budget_snapshots_preserve_balance": _assert_budget_snapshots_preserve_balance,
         "edit_reconciliation_trusts_live_identity": _assert_edit_reconciliation_trusts_live_identity,
         "undo_reconciliation_blocks_stale_recent_reference": _assert_undo_reconciliation_blocks_stale_recent_reference,
+        "shared_expense_construction_preserves_zero_sum": _assert_shared_expense_construction_preserves_zero_sum,
+        "account_balance_reads_from_account_fields": _assert_account_balance_reads_from_account_fields,
     }
 
 
@@ -373,6 +468,73 @@ def _assert_undo_reconciliation_blocks_stale_recent_reference(root: Path) -> Non
     assert error == "ynab_transaction_stale", f"expected stale error, got {error!r}"
 
 
+def _assert_shared_expense_construction_preserves_zero_sum(root: Path) -> None:
+    from decimal import Decimal
+
+    expense_cls = _load_expense_class(root)
+    # Other-paid split (zero-sum)
+    expense = expense_cls(
+        amount=Decimal("60.0"),
+        payee="Dinner",
+        memo="Split",
+        is_split=True,
+        payer="other",
+        split_category_id="00000000-0000-0000-0000-000000000001",
+        split_proportion=Decimal("0.5"),
+    )
+
+    result = expense.to_ynab_format("budget-1", "acct-1")
+    txn = result["transaction"]
+
+    assert txn["amount"] == 0, f"expected zero-sum transaction amount, got {txn['amount']}"
+    assert len(txn["subtransactions"]) == 2, "expected 2 subtransactions"
+    assert (
+        txn["subtransactions"][0]["amount"] == -30000
+    ), f"expected user share -30000, got {txn['subtransactions'][0]['amount']}"
+    assert (
+        txn["subtransactions"][1]["amount"] == 30000
+    ), f"expected splitwise share 30000, got {txn['subtransactions'][1]['amount']}"
+
+
+def _assert_account_balance_reads_from_account_fields(root: Path) -> None:
+    service = _load_budget_query_service(root)
+    from dataclasses import dataclass
+
+    @dataclass
+    class MockAccount:
+        name: str
+        type: str
+        balance: int
+        cleared_balance: int
+        uncleared_balance: int
+        deleted: bool = False
+        closed: bool = False
+
+    accounts = [
+        MockAccount(
+            name="Nu Card",
+            type="checking",
+            balance=-500000,
+            cleared_balance=-400000,
+            uncleared_balance=-100000,
+        )
+    ]
+
+    result = service.execute_query(
+        query_type="account_balance",
+        query_target="Nu Card",
+        categories=[],
+        accounts=accounts,
+    )
+
+    assert result.success, f"expected query success, got {result.error_message}"
+    data = result.data
+    assert data["balance"] == -500000, f"expected balance -500000, got {data['balance']}"
+    assert (
+        data["cleared_balance"] == -400000
+    ), f"expected cleared_balance -400000, got {data['cleared_balance']}"
+
+
 def _load_spending_module(root: Path) -> ModuleType:
     return _load_module_from_path(
         root,
@@ -390,6 +552,24 @@ def _new_expense_service(root: Path) -> Any:
     return object.__new__(module.ExpenseService)
 
 
+def _load_expense_class(root: Path) -> Any:
+    module = _load_module_from_path(
+        root,
+        "src/domain/models/expense.py",
+        "harness_behavioral_expense_model",
+    )
+    return module.Expense
+
+
+def _load_budget_query_service(root: Path) -> Any:
+    module = _load_module_from_path(
+        root,
+        "src/application/services/budget_query_service.py",
+        "harness_behavioral_budget_query_service",
+    )
+    return module.BudgetQueryService()
+
+
 def _load_module_from_path(root: Path, relative_path: str, prefix: str) -> ModuleType:
     path = root / relative_path
     if not path.is_file():
@@ -401,6 +581,7 @@ def _load_module_from_path(root: Path, relative_path: str, prefix: str) -> Modul
         raise ImportError(f"Cannot load {relative_path}")
 
     module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     with _source_path(root):
         spec.loader.exec_module(module)
     return module

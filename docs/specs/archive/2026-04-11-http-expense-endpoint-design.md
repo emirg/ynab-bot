@@ -1,5 +1,8 @@
 # HTTP Expense Endpoint Design
 
+## Metadata
+- **Harness Roadmap:** Ignore
+
 ## Resumen
 
 Se agregará una API HTTP dedicada para registrar gastos por texto reutilizando el pipeline actual del bot de Telegram. El primer endpoint será `POST /api/v1/expenses/text` y aceptará un `telegram_user_id`, un texto en lenguaje natural y un flag opcional `force_commit`.

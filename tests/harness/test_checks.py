@@ -32,6 +32,14 @@ protected_rule = "Split parent transactions must use negative subtransactions fo
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "split_spending_expands_negative_subtransactions"
 
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_summarize_transaction_spending_uses_expanded_split_entries"
+
+[[fixture.doc_evidence]]
+path = "docs/AI_WORKFLOW.md"
+snippet = "Milliunits"
+
 [[fixture]]
 id = "zero_sum_shared_split_counts_negative_leg"
 label = "Zero-sum shared split negative leg counts as spending"
@@ -39,6 +47,14 @@ risk_area = "shared expense aggregation"
 protected_rule = "Zero-sum shared transactions still count the user's negative spending leg."
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "zero_sum_shared_split_counts_negative_leg"
+
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_summarize_transaction_spending_counts_zero_sum_shared_split_expenses"
+
+[[fixture.doc_evidence]]
+path = "docs/AI_WORKFLOW.md"
+snippet = "YNAB source of truth"
 
 [[fixture]]
 id = "net_spending_offsets_categorized_inflows"
@@ -48,6 +64,14 @@ protected_rule = "Categorized inflows reduce period spending while Ready to Assi
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "net_spending_offsets_categorized_inflows"
 
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_summarize_transaction_net_spending_offsets_category_inflows"
+
+[[fixture.doc_evidence]]
+path = "docs/AI_WORKFLOW.md"
+snippet = "Financial read matrix"
+
 [[fixture]]
 id = "budget_snapshots_preserve_balance"
 label = "Budget category snapshots preserve YNAB balances and filter inactive categories"
@@ -55,6 +79,14 @@ risk_area = "budget health"
 protected_rule = "Budget health must use YNAB category balance snapshots and ignore inactive categories."
 owner_path = "src/domain/services/spending_aggregation.py"
 assertion = "budget_snapshots_preserve_balance"
+
+[[fixture.pytest_evidence]]
+path = "tests/domain/services/test_spending_aggregation.py"
+snippet = "def test_normalize_budget_category_snapshots_filters_inactive_hidden_and_deleted"
+
+[[fixture.doc_evidence]]
+path = "docs/AI_WORKFLOW.md"
+snippet = "Spending totals use transactions"
 
 [[fixture]]
 id = "edit_reconciliation_trusts_live_identity"
@@ -64,6 +96,14 @@ protected_rule = "/editar must trust an existing live YNAB transaction id despit
 owner_path = "src/application/services/expense_service.py"
 assertion = "edit_reconciliation_trusts_live_identity"
 
+[[fixture.pytest_evidence]]
+path = "tests/application/services/test_expense_service.py"
+snippet = "def test_missing_live_ynab_transaction_blocks_edit"
+
+[[fixture.doc_evidence]]
+path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
+snippet = "local recent metadata can drift"
+
 [[fixture]]
 id = "undo_reconciliation_blocks_stale_recent_reference"
 label = "Undo reconciliation blocks stale local recent references"
@@ -71,6 +111,46 @@ risk_area = "recent undo reconciliation"
 protected_rule = "/deshacer must block stale local recent references before destructive deletion."
 owner_path = "src/application/services/expense_service.py"
 assertion = "undo_reconciliation_blocks_stale_recent_reference"
+
+[[fixture.pytest_evidence]]
+path = "tests/application/services/test_expense_service.py"
+snippet = "def test_success_removes_from_recent_transactions"
+
+[[fixture.doc_evidence]]
+path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
+snippet = "ADR: Recent Edit Live YNAB Reconciliation"
+
+[[fixture]]
+id = "shared_expense_construction_preserves_zero_sum"
+label = "Shared expense construction preserves zero-sum balance"
+risk_area = "shared expense aggregation"
+protected_rule = "Other-paid split transactions must be zero-sum with balancing subtransactions."
+owner_path = "src/domain/models/expense.py"
+assertion = "shared_expense_construction_preserves_zero_sum"
+
+[[fixture.pytest_evidence]]
+path = "tests/domain/models/test_domain_models.py"
+snippet = "def test_to_ynab_format_other_paid_zero_sum"
+
+[[fixture.doc_evidence]]
+path = "docs/AI_WORKFLOW.md"
+snippet = "Milliunits"
+
+[[fixture]]
+id = "account_balance_reads_from_account_fields"
+label = "Account balance queries read from account fields"
+risk_area = "account balance source"
+protected_rule = "Account balance queries must read directly from account fields (balance, cleared_balance)."
+owner_path = "src/application/services/budget_query_service.py"
+assertion = "account_balance_reads_from_account_fields"
+
+[[fixture.pytest_evidence]]
+path = "tests/application/services/test_budget_query_service.py"
+snippet = "def test_exact_match"
+
+[[fixture.doc_evidence]]
+path = "docs/AI_WORKFLOW.md"
+snippet = "account balances use account fields"
 """
 
 
@@ -306,6 +386,10 @@ def make_minimal_repo(root: Path) -> None:
     )
     write(
         root / "tests/domain/services/test_spending_aggregation.py",
+        "def test_summarize_transaction_spending_uses_expanded_split_entries():\n"
+        "    assert True\n\n"
+        "def test_summarize_transaction_spending_counts_zero_sum_shared_split_expenses():\n"
+        "    assert True\n\n"
         "def test_summarize_transaction_net_spending_offsets_category_inflows():\n"
         "    assert True\n\n"
         "def test_summarize_transaction_net_spending_nets_split_tracking_inflows_against_month_total():\n"
@@ -338,6 +422,8 @@ def make_minimal_repo(root: Path) -> None:
         "def test_successful_edit_refreshes_recent_cache_from_live_transaction():\n"
         "    assert True\n\n"
         "def test_success_removes_from_recent_transactions():\n"
+        "    assert True\n\n"
+        "def test_stale_live_ynab_transaction_blocks_undo():\n"
         "    assert True\n",
     )
     write(
@@ -419,6 +505,36 @@ def test_active_spec_and_plan_metadata_are_validated(tmp_path: Path) -> None:
     assert "Active PLAN is missing Source Spec: docs/plans/2026-04-29-broken.md" in messages
 
 
+def test_archived_docs_must_have_terminal_status(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/specs/archive/2026-04-29-draft-spec.md",
+        "# Spec: Draft Archived\n\n"
+        "## Metadata\n"
+        "- **Status:** Approved\n"
+        "- **Harness Roadmap Marker:** E.99\n",
+    )
+    write(
+        tmp_path / "docs/plans/archive/2026-04-29-draft-plan.md",
+        "# Plan: Draft Archived\n\n"
+        "## Objective & Context\n"
+        "- **Status:** Draft\n"
+        "- **Source Spec:** `docs/specs/archive/2026-04-29-draft-spec.md`\n"
+        "- **Harness Roadmap Marker:** E.99\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Archived SPEC must have Status Implemented: "
+        "docs/specs/archive/2026-04-29-draft-spec.md"
+    ) in messages
+    assert (
+        "Archived PLAN must have Status Completed: "
+        "docs/plans/archive/2026-04-29-draft-plan.md"
+    ) in messages
+
+
 def test_active_plan_source_spec_must_exist(tmp_path: Path) -> None:
     make_minimal_repo(tmp_path)
     write(
@@ -491,36 +607,42 @@ def test_advisory_mode_exits_zero_but_strict_mode_blocks() -> None:
     assert exit_code_for_findings(findings, strict=True) == 1
 
 
-def test_format_findings_groups_pass_warn_and_fail() -> None:
-    output = format_findings(
-        [
-            Finding(PASS, "Required file exists", "docs/AI_WORKFLOW.md"),
-            Finding(FAIL, "Broken", "docs/example.md"),
-        ]
-    )
+def test_format_findings_groups_by_severity_and_family() -> None:
+    findings = [
+        Finding(PASS, "p1", "path1", "fam1"),
+        Finding(PASS, "p2", "path2", "fam2"),
+        Finding(WARN, "w1", None, "fam1"),
+        Finding(FAIL, "f1", "path3", "fam2", "fix it"),
+    ]
+    output = format_findings(findings)
 
-    assert "PASS" in output
-    assert "WARN" in output
-    assert "FAIL" in output
-    assert "docs/example.md" in output
+    assert "FAIL (1)" in output
+    assert "  [fam2]" in output
+    assert "    - f1 (path3)" in output
+    assert "      HINT: fix it" in output
+
+    assert "WARN (1)" in output
+    assert "  [fam1]" in output
+    assert "    - w1" in output
+
+    assert "PASS (2)" in output
+    assert "  [fam1]" in output
+    assert "    - p1 (path1)" in output
+    assert "  [fam2]" in output
+    assert "    - p2 (path2)" in output
 
 
-def test_format_findings_json_includes_counts_and_findings() -> None:
-    output = format_findings_json(
-        [
-            Finding(PASS, "Required file exists", "docs/AI_WORKFLOW.md"),
-            Finding(FAIL, "Broken", "docs/example.md"),
-        ]
-    )
+def test_format_findings_json_structure() -> None:
+    findings = [
+        Finding(PASS, "p1", "path1", "fam1", "hint1"),
+    ]
+    output = json.loads(format_findings_json(findings))
 
-    payload = json.loads(output)
-
-    assert payload["summary"] == {"PASS": 1, "WARN": 0, "FAIL": 1, "total": 2}
-    assert payload["findings"][1] == {
-        "severity": "FAIL",
-        "message": "Broken",
-        "path": "docs/example.md",
-    }
+    assert output["summary"]["PASS"] == 1
+    assert output["findings"][0]["message"] == "p1"
+    assert output["findings"][0]["path"] == "path1"
+    assert output["findings"][0]["family"] == "fam1"
+    assert output["findings"][0]["hint"] == "hint1"
 
 
 def test_valid_railway_config_reports_pass_findings(tmp_path: Path) -> None:
@@ -897,5 +1019,73 @@ def test_behavioral_invariant_manifest_rejects_unknown_assertions(tmp_path: Path
         message.endswith(
             "Behavioral invariant assertion is unknown for unknown_assertion: does_not_exist"
         )
+        for message in messages
+    )
+
+
+def test_behavioral_invariant_missing_evidence_path(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "scripts/harness/behavioral_invariants.toml",
+        "[[fixture]]\n"
+        'id = "missing_path"\n'
+        'label = "Missing path"\n'
+        'risk_area = "test"\n'
+        'protected_rule = "Missing path should fail."\n'
+        'owner_path = "src/domain/services/spending_aggregation.py"\n'
+        'assertion = "split_spending_expands_negative_subtransactions"\n'
+        "[[fixture.pytest_evidence]]\n"
+        'path = "non_existent.py"\n'
+        'snippet = "any"\n',
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert any(
+        "Behavioral invariant pytest evidence path is missing: non_existent.py" in message
+        for message in messages
+    )
+
+
+def test_behavioral_invariant_requires_pytest_and_doc_evidence(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "scripts/harness/behavioral_invariants.toml",
+        "[[fixture]]\n"
+        'id = "missing_evidence"\n'
+        'label = "Missing evidence"\n'
+        'risk_area = "test"\n'
+        'protected_rule = "Evidence should be required."\n'
+        'owner_path = "src/domain/services/spending_aggregation.py"\n'
+        'assertion = "split_spending_expands_negative_subtransactions"\n',
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert any("pytest_evidence for missing_evidence is required" in message for message in messages)
+    assert any("doc_evidence for missing_evidence is required" in message for message in messages)
+
+
+def test_behavioral_invariant_missing_evidence_snippet(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "scripts/harness/behavioral_invariants.toml",
+        "[[fixture]]\n"
+        'id = "missing_snippet"\n'
+        'label = "Missing snippet"\n'
+        'risk_area = "test"\n'
+        'protected_rule = "Missing snippet should fail."\n'
+        'owner_path = "src/domain/services/spending_aggregation.py"\n'
+        'assertion = "split_spending_expands_negative_subtransactions"\n'
+        "[[fixture.pytest_evidence]]\n"
+        'path = "src/domain/services/spending_aggregation.py"\n'
+        'snippet = "missing_snippet_text"\n',
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert any(
+        "Behavioral invariant pytest evidence snippet is missing: "
+        "src/domain/services/spending_aggregation.py -> missing_snippet_text" in message
         for message in messages
     )

@@ -1,5 +1,8 @@
 # HTTP Expense Endpoint Implementation Plan
 
+## Metadata
+- **Harness Roadmap:** Ignore
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Exponer un endpoint HTTP autenticado para registrar gastos por texto reutilizando el pipeline actual de `ExpenseService`, incluyendo preview opcional según la configuración de confirmación del usuario.

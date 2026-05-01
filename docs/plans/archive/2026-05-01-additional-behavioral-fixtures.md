@@ -1,8 +1,9 @@
 # Plan: Additional Behavioral Fixtures
 
 ## Objective & Context
-- **Status:** Draft
-- **Source Spec:** `docs/specs/2026-05-01-additional-behavioral-fixtures.md`
+- **Status:** Completed
+- **Source Spec:** `docs/specs/archive/2026-05-01-additional-behavioral-fixtures.md`
+- **Harness Roadmap Marker:** E.26 — Additional Behavioral Fixtures
 - **Goal:** Expand executable behavioral invariant coverage for the next tier of high-risk financial flows.
 - **Approach:** After the coverage index exists, select a small fixture batch, implement deterministic assertions, register each fixture in the manifest, and verify the harness remains fast and dependency-light.
 
@@ -15,8 +16,8 @@
 - `docs/adrs/2026-04-30-executable-harness-gates.md`, `ROADMAP.md`, `docs/wip_state.md` — close-out updates when implemented.
 
 ## Prerequisites (Manual)
-- [ ] Complete or explicitly defer E.25 Behavioral Coverage Index.
-- [ ] Choose the first fixture batch from the candidate high-risk flows.
+- [x] Complete or explicitly defer E.25 Behavioral Coverage Index.
+- [x] Choose the first fixture batch from the candidate high-risk flows.
 
 ## Implementation Steps
 *(Models MUST mark steps with [x] as they are completed and save the file)*
@@ -24,35 +25,37 @@
 ### Group 1
 <!-- Fixture selection. -->
 
-#### [ ] Step 1: Select first fixture batch
+#### [x] Step 1: Select first fixture batch
 - **Files:** `docs/plans/2026-05-01-additional-behavioral-fixtures.md`
-- **Action:** Replace candidate placeholders with the selected fixtures and rationale before code changes.
+- **Action:** Selected shared-expense construction and account balance source selection.
+  - **Shared-expense construction**: Protects zero-sum logic for other-paid splits and correct subtransaction allocation in `Expense.to_ynab_format`.
+  - **Account balance source**: Protects that `/saldo <cuenta>` reads account fields (`balance`, `cleared_balance`) directly instead of deriving from transactions, adhering to the financial read matrix.
 - **Tests:** None.
 
 ### Group 2 (depends on: Group 1)
 <!-- Fixture implementation. -->
 
-#### [ ] Step 2: Implement fixture assertions
+#### [x] Step 2: Implement fixture assertions
 - **Files:** `scripts/harness/behavioral_invariants.py`
-- **Action:** Add explicit assertion functions for the selected high-risk financial flows using in-memory data and fake repositories where needed.
+- **Action:** Added `_assert_shared_expense_construction_preserves_zero_sum` and `_assert_account_balance_reads_from_account_fields`. Fixed dynamic module loader to register in `sys.modules`.
 - **Tests:** `tests/harness/test_checks.py` — failure mode coverage.
 
-#### [ ] Step 3: Register fixture metadata and evidence
+#### [x] Step 3: Register fixture metadata and evidence
 - **Files:** `scripts/harness/behavioral_invariants.toml`
-- **Action:** Add manifest entries for each fixture with owner path, protected rule, pytest evidence, and doc/ADR evidence.
+- **Action:** Added manifest entries for the two new fixtures with full coverage index metadata.
 - **Tests:** `tests/harness/test_checks.py` — manifest validation coverage.
 
 ### Group 3 (depends on: Group 2)
 <!-- Reporting and close-out. -->
 
-#### [ ] Step 4: Align direct CLI expectations
+#### [x] Step 4: Align direct CLI expectations
 - **Files:** `tests/harness/test_repository_docs.py`
-- **Action:** Update expected behavioral fixture counts and JSON assertions.
+- **Action:** Updated expected behavioral fixture count to 8.
 - **Tests:** `.venv/bin/pytest tests/harness -q`.
 
-#### [ ] Step 5: Close documentation state
+#### [x] Step 5: Close documentation state
 - **Files:** `docs/adrs/2026-04-30-executable-harness-gates.md`, `ROADMAP.md`, `docs/wip_state.md`, archived SPEC/PLAN.
-- **Action:** Mark implementation complete, archive docs, and record verification.
+- **Action:** Marked implementation complete and archived docs.
 - **Tests:** `.venv/bin/python scripts/harness/check_docs.py`.
 
 ## Constraints & Architecture
@@ -62,8 +65,8 @@
 - Treat discovered product drift as a bug rather than weakening the fixture.
 
 ## Verification
-- [ ] `.venv/bin/python scripts/harness/check_behavioral_invariants.py --json`
-- [ ] `.venv/bin/python scripts/harness/check_docs.py`
-- [ ] `.venv/bin/python scripts/harness/verify.py --ci --json`
-- [ ] `.venv/bin/pytest tests/harness -q`
-- [ ] `.venv/bin/pytest`
+- [x] `.venv/bin/python scripts/harness/check_behavioral_invariants.py --json`
+- [x] `.venv/bin/python scripts/harness/check_docs.py`
+- [x] `.venv/bin/python scripts/harness/verify.py --ci --json`
+- [x] `.venv/bin/pytest tests/harness -q`
+- [x] `.venv/bin/pytest`

@@ -1,5 +1,8 @@
 # OBSOLETE ~~Asesoramiento Financiero Proactivo — Design Spec~~
 
+## Metadata
+- **Harness Roadmap:** Ignore
+
 ## Resumen
 
 Feature de asesoramiento financiero basado en los datos reales del presupuesto YNAB del usuario. El bot actua como un asesor financiero experto en finanzas personales, aplicando frameworks conocidos (50/30/20, fondo de emergencia, etc.) sobre metricas calculadas a partir de 3 meses de historial de transacciones.
