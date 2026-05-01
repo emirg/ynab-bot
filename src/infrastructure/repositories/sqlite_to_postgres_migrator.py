@@ -54,9 +54,10 @@ class SQLiteToPostgresMigrator:
         postgres_conn = self.postgres_manager.get_connection()
         copied_rows_by_table: dict[str, int] = {}
 
+        sqlite_conn = sqlite3.connect(self.sqlite_path)
         try:
-            with sqlite3.connect(self.sqlite_path) as sqlite_conn:
-                sqlite_conn.row_factory = sqlite3.Row
+            sqlite_conn.row_factory = sqlite3.Row
+            with sqlite_conn:
                 for table_name in _TABLE_COPY_ORDER:
                     copied_rows_by_table[table_name] = self._copy_table(
                         sqlite_conn=sqlite_conn,
@@ -71,6 +72,8 @@ class SQLiteToPostgresMigrator:
                 postgres_conn.rollback()
             logger.error("SQLite to PostgreSQL migration failed: %s", exc)
             raise YNABBotException(f"SQLite to PostgreSQL migration failed: {exc}") from exc
+        finally:
+            sqlite_conn.close()
 
         return MigrationSummary(copied_rows_by_table=copied_rows_by_table)
 
