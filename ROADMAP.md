@@ -348,3 +348,12 @@ Se mejoró el handoff entre agentes para que `docs/wip_state.md` incluya un prom
 - El harness valida los campos requeridos cuando existe `docs/wip_state.md`
 - La ausencia de `docs/wip_state.md` queda como `WARN` porque es estado local ignorado, no un bloqueo de Railway
 - Los tests cubren el campo faltante y el caso de checkout limpio sin estado local
+
+### E.29 — Project Instructions Refactoring [COMPLETADO]
+
+Consolidar las instrucciones compartidas de agentes para reducir duplicación y drift:
+
+- `AGENTS.md` es la fuente canónica de instrucciones compartidas del proyecto
+- `CLAUDE.md` y `GEMINI.md` quedaron como wrappers delgados con identidad y role mapping específico
+- El harness valida que los wrappers referencien `AGENTS.md` y no dupliquen secciones compartidas
+- Las instrucciones de comandos apuntan al command registry canónico

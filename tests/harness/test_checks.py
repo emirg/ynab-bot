@@ -195,8 +195,41 @@ def make_minimal_repo(root: Path) -> None:
     (root / "docs/plans/archive").mkdir(parents=True)
     write(
         root / "AGENTS.md",
+        "# AGENTS.md\n\n"
         "Read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.\n"
-        "Run `.venv/bin/python main.py` and `.venv/bin/pytest`.\n",
+        "Commands are documented in `docs/harness/COMMANDS.md`.\n"
+        "YNAB is the financial source of truth for this project.\n"
+        "When the user triggers a handoff, overwrite `docs/wip_state.md`.\n",
+    )
+    write(
+        root / "CLAUDE.md",
+        "# CLAUDE.md\n\n"
+        "Read and follow `AGENTS.md` first. This file only maps project workflow roles to Claude Code capabilities.\n\n"
+        "## Role Mapping\n\n"
+        "| Logical Role | Claude Agent |\n"
+        "|---|---|\n"
+        "| **Lead Architect** | `ynab-lead-architect` |\n"
+        "| **Database Advisor** | `dba-advisor` |\n"
+        "| **Step Implementer** | `plan-step-implementer` |\n"
+        "| **Code Reviewer** | `code-reviewer` |\n"
+        "| **Test Writer** | `test-writer` |\n"
+        "| **Debugger** | `debugger` |\n"
+        "| **Refactor Advisor** | `refactor-advisor` |\n",
+    )
+    write(
+        root / "GEMINI.md",
+        "# GEMINI.md\n\n"
+        "Read and follow `AGENTS.md` first. This file only maps project workflow roles to Gemini CLI capabilities.\n\n"
+        "## Role Mapping\n\n"
+        "| Logical Role | Gemini Capability |\n"
+        "|---|---|\n"
+        "| **Lead Architect** | Activate `writing-plans` skill |\n"
+        "| **Database Advisor** | Use `codebase_investigator` for schema review |\n"
+        "| **Step Implementer** | Direct tool use |\n"
+        "| **Code Reviewer** | Self-review against invariants |\n"
+        "| **Test Writer** | Activate `Pytest Testing` skill |\n"
+        "| **Debugger** | Use `codebase_investigator` for root cause |\n"
+        "| **Refactor Advisor** | Use `python-design-patterns` skill |\n",
     )
     write(
         root / "docs/AI_WORKFLOW.md",
@@ -578,12 +611,18 @@ def test_adr_spec_and_plan_references_must_exist(tmp_path: Path) -> None:
 
 def test_agent_entrypoints_must_reference_workflow_docs(tmp_path: Path) -> None:
     make_minimal_repo(tmp_path)
-    write(tmp_path / "CLAUDE.md", "Read `docs/AI_WORKFLOW.md`.\n")
+    write(
+        tmp_path / "AGENTS.md",
+        "Read `docs/AI_WORKFLOW.md`.\n"
+        "Commands are documented in `docs/harness/COMMANDS.md`.\n"
+        "YNAB is the financial source of truth for this project.\n"
+        "When the user triggers a handoff, overwrite `docs/wip_state.md`.\n",
+    )
 
     messages = {finding.message for finding in failures(tmp_path)}
 
     assert (
-        "Agent entrypoint is missing docs/DOCUMENTATION_WORKFLOW.md reference: CLAUDE.md"
+        "AGENTS.md is missing docs/DOCUMENTATION_WORKFLOW.md reference"
         in messages
     )
 
@@ -737,8 +776,9 @@ def test_command_registry_document_reports_pass_findings(tmp_path: Path) -> None
         "Living workflow doc references local CI harness command: docs/AI_WORKFLOW.md"
         in messages
     )
-    assert "Agent entrypoint references run command: AGENTS.md" in messages
-    assert "Agent entrypoint references test command: AGENTS.md" in messages
+    assert "AGENTS.md references canonical command registry: AGENTS.md" in messages
+    assert "Agent wrapper references AGENTS.md: CLAUDE.md" in messages
+    assert "Agent wrapper references AGENTS.md: GEMINI.md" in messages
 
 
 def test_command_registry_document_is_required(tmp_path: Path) -> None:
@@ -767,17 +807,79 @@ def test_command_registry_document_must_include_canonical_commands(tmp_path: Pat
     ) in messages
 
 
-def test_agent_entrypoints_must_reference_run_and_test_commands(tmp_path: Path) -> None:
+def test_agents_must_reference_command_registry(tmp_path: Path) -> None:
     make_minimal_repo(tmp_path)
     write(
-        tmp_path / "CLAUDE.md",
+        tmp_path / "AGENTS.md",
         "Read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.\n"
-        "Run `.venv/bin/python main.py`.\n",
+        "YNAB is the financial source of truth for this project.\n"
+        "When the user triggers a handoff, overwrite `docs/wip_state.md`.\n",
     )
 
     messages = {finding.message for finding in failures(tmp_path)}
 
-    assert "Agent entrypoint is missing test command `.venv/bin/pytest`: CLAUDE.md" in messages
+    assert "AGENTS.md is missing canonical command registry reference" in messages
+
+
+def test_agent_wrappers_must_reference_agents_md(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "CLAUDE.md",
+        "# CLAUDE.md\n\n"
+        "This file only maps project workflow roles to Claude Code capabilities.\n\n"
+        "## Role Mapping\n\n"
+        "| **Lead Architect** | `ynab-lead-architect` |\n"
+        "| **Database Advisor** | `dba-advisor` |\n"
+        "| **Step Implementer** | `plan-step-implementer` |\n"
+        "| **Code Reviewer** | `code-reviewer` |\n"
+        "| **Test Writer** | `test-writer` |\n"
+        "| **Debugger** | `debugger` |\n"
+        "| **Refactor Advisor** | `refactor-advisor` |\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert "Agent wrapper is missing AGENTS.md reference: CLAUDE.md" in messages
+
+
+def test_agent_wrappers_must_keep_role_mapping(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "GEMINI.md",
+        "# GEMINI.md\n\n"
+        "Read and follow `AGENTS.md` first. This file only maps project workflow roles to Gemini CLI capabilities.\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert "Agent wrapper is missing role mapping section: GEMINI.md" in messages
+    assert "Agent wrapper role mapping is missing Lead Architect: GEMINI.md" in messages
+
+
+def test_agent_wrappers_cannot_duplicate_shared_sections(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "GEMINI.md",
+        "# GEMINI.md\n\n"
+        "Read and follow `AGENTS.md` first. This file only maps project workflow roles to Gemini CLI capabilities.\n\n"
+        "## Role Mapping\n\n"
+        "| **Lead Architect** | Activate `writing-plans` skill |\n"
+        "| **Database Advisor** | Use `codebase_investigator` |\n"
+        "| **Step Implementer** | Direct tool use |\n"
+        "| **Code Reviewer** | Self-review |\n"
+        "| **Test Writer** | Activate `Pytest Testing` skill |\n"
+        "| **Debugger** | Use `codebase_investigator` |\n"
+        "| **Refactor Advisor** | Use `python-design-patterns` skill |\n\n"
+        "## Commands\n\n"
+        "Run `.venv/bin/python main.py` and `.venv/bin/pytest`.\n\n"
+        "## Source Of Truth\n\n"
+        "YNAB is the financial source of truth for this project.\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert "Agent wrapper duplicates shared section `## Commands`: GEMINI.md" in messages
+    assert "Agent wrapper duplicates shared section `## Source Of Truth`: GEMINI.md" in messages
 
 
 def test_workflow_docs_must_reference_harness_commands(tmp_path: Path) -> None:

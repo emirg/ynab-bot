@@ -38,6 +38,8 @@ The handoff resume prompt slice extends workflow-document validation to local ha
 
 The behavioral coverage index slice connects each behavioral fixture with its source-of-truth documentation and test evidence. `scripts/harness/behavioral_invariants.toml` now includes `pytest_evidence` and `doc_evidence` metadata, and the harness validates that every referenced path exists and contains the required snippet.
 
+The project instruction refactoring slice makes `AGENTS.md` the canonical shared instruction entrypoint and keeps `CLAUDE.md` and `GEMINI.md` as thin wrappers. The harness now validates that wrappers reference `AGENTS.md`, preserve their role mappings, and do not reintroduce duplicated shared sections such as commands or source-of-truth policy.
+
 ## Alternatives Considered
 - **Adopt OpenSpec/OpenSDD immediately:** Deferred because the immediate risk is local documentation drift, and adding a new framework should be evaluated as a separate feature.
 - **Rely on pytest only:** Rejected because pytest does not validate documentation lifecycle state or agent instruction drift.
@@ -52,6 +54,7 @@ The behavioral coverage index slice connects each behavioral fixture with its so
 - **Positive:** High-risk financial behavior drift now has executable fixture coverage in the harness before pytest starts.
 - **Positive:** Behavioral fixtures now carry explicit ownership and protected-rule metadata.
 - **Positive:** Cross-agent handoffs now have a concrete resume prompt, with local validation that does not make ignored session state a deploy prerequisite.
+- **Positive:** Agent entrypoint instructions now have a single shared source with wrapper drift validation.
 - **Negative:** The gate still does not enforce linting, typing, or broad coverage thresholds.
 - **Follow-up:** Continue expanding invariant checks only where they protect high-risk financial behavior.
 
@@ -78,6 +81,8 @@ The behavioral coverage index slice connects each behavioral fixture with its so
 - `docs/plans/archive/2026-05-01-additional-behavioral-fixtures.md`
 - `docs/specs/archive/2026-05-01-harness-output-ux.md`
 - `docs/plans/archive/2026-05-01-harness-output-ux.md`
+- `docs/specs/archive/2026-05-01-project-instructions-refactoring.md`
+- `docs/plans/archive/2026-05-01-project-instructions-refactoring.md`
 - `scripts/harness/behavioral_invariants.py`
 - `scripts/harness/behavioral_invariants.toml`
 - `scripts/harness/check_behavioral_invariants.py`

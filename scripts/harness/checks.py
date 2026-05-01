@@ -12,8 +12,6 @@ from scripts.harness.commands import (
     COMMAND_REGISTRY,
     LOCAL_CHECK_BEHAVIORAL_INVARIANTS,
     LOCAL_CHECK_DOCS,
-    LOCAL_RUN,
-    LOCAL_TEST,
     LOCAL_VERIFY_CI,
     RAILWAY_BUILD_COMMAND,
     RAILWAY_PYTEST,
@@ -42,10 +40,26 @@ WIP_STATE_REQUIRED_FIELDS = (
     "Resume Prompt",
 )
 AGENT_ENTRYPOINTS = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")
+AGENT_WRAPPERS = ("CLAUDE.md", "GEMINI.md")
 ARCHIVE_DIRS = ("docs/specs/archive", "docs/plans/archive")
 TERMINAL_STATUSES = {"completed", "implemented"}
 VALID_SPEC_STATUSES = {"draft", "approved", "superseded", "completed", "implemented"}
 VALID_PLAN_STATUSES = {"draft", "in progress", "completed", "implemented", "superseded"}
+LOGICAL_ROLES = (
+    "Lead Architect",
+    "Database Advisor",
+    "Step Implementer",
+    "Code Reviewer",
+    "Test Writer",
+    "Debugger",
+    "Refactor Advisor",
+)
+WRAPPER_PROHIBITED_SHARED_SECTIONS = (
+    "## Universal Workflow",
+    "## Commands",
+    "## Source Of Truth",
+    "## Shared Skills",
+)
 SKIPPED_DIRS = {
     ".git",
     ".mypy_cache",
@@ -418,42 +432,101 @@ def check_adr_references(root: Path) -> list[Finding]:
 def check_agent_entrypoints(root: Path) -> list[Finding]:
     findings: list[Finding] = []
     family = "Agent Integration"
-    for relative in AGENT_ENTRYPOINTS:
+    agents_path = root / "AGENTS.md"
+    if not agents_path.exists():
+        findings.append(Finding(WARN, "Agent entrypoint is absent: AGENTS.md", "AGENTS.md", family))
+    else:
+        findings.extend(check_canonical_agents_doc(read_text(agents_path)))
+
+    for relative in AGENT_WRAPPERS:
         path = root / relative
         if not path.exists():
             findings.append(Finding(WARN, f"Agent entrypoint is absent: {relative}", relative, family))
             continue
-        text = read_text(path)
-        for workflow_doc in ("docs/AI_WORKFLOW.md", "docs/DOCUMENTATION_WORKFLOW.md"):
-            if workflow_doc in text:
-                findings.append(
-                    Finding(PASS, f"Agent entrypoint references {workflow_doc}: {relative}", relative, family)
-                )
-            else:
-                findings.append(
-                    Finding(
-                        FAIL,
-                        f"Agent entrypoint is missing {workflow_doc} reference: {relative}",
-                        relative,
-                        family,
-                        f"Add a reference to {workflow_doc} to ensure the agent follows the workflow."
-                    )
-                )
-        findings.extend(check_agent_entrypoint_commands(text, relative))
+        findings.extend(check_agent_wrapper(read_text(path), relative))
     return findings
 
 
-def check_agent_entrypoint_commands(text: str, relative: str) -> list[Finding]:
+def check_canonical_agents_doc(text: str) -> list[Finding]:
     findings: list[Finding] = []
+    relative = "AGENTS.md"
     family = "Agent Integration"
-    for command in (LOCAL_RUN, LOCAL_TEST):
-        command_name = "run" if command == LOCAL_RUN else "test"
-        if command.command in text:
-            findings.append(Finding(PASS, f"Agent entrypoint references {command_name} command: {relative}", relative, family))
+    for workflow_doc in ("docs/AI_WORKFLOW.md", "docs/DOCUMENTATION_WORKFLOW.md"):
+        if workflow_doc in text:
+            findings.append(Finding(PASS, f"AGENTS.md references {workflow_doc}: {relative}", relative, family))
         else:
             findings.append(
-                Finding(FAIL, f"Agent entrypoint is missing {command_name} command `{command.command}`: {relative}", relative, family, f"Document how to {command_name} the application.")
+                Finding(
+                    FAIL,
+                    f"AGENTS.md is missing {workflow_doc} reference",
+                    relative,
+                    family,
+                    f"Add a reference to {workflow_doc} to ensure all agents follow the workflow.",
+                )
             )
+    if COMMAND_REGISTRY_DOC in text:
+        findings.append(Finding(PASS, f"AGENTS.md references canonical command registry: {relative}", relative, family))
+    else:
+        findings.append(
+            Finding(
+                FAIL,
+                "AGENTS.md is missing canonical command registry reference",
+                relative,
+                family,
+                f"Reference {COMMAND_REGISTRY_DOC} instead of copying command blocks.",
+            )
+        )
+    for required_text, label in (
+        ("YNAB is the financial source of truth", "YNAB source-of-truth rule"),
+        ("docs/wip_state.md", "handoff state file"),
+    ):
+        if required_text in text:
+            findings.append(Finding(PASS, f"AGENTS.md includes {label}: {relative}", relative, family))
+        else:
+            findings.append(Finding(FAIL, f"AGENTS.md is missing {label}", relative, family))
+    return findings
+
+
+def check_agent_wrapper(text: str, relative: str) -> list[Finding]:
+    findings: list[Finding] = []
+    family = "Agent Integration"
+    if "AGENTS.md" in text:
+        findings.append(Finding(PASS, f"Agent wrapper references AGENTS.md: {relative}", relative, family))
+    else:
+        findings.append(
+            Finding(
+                FAIL,
+                f"Agent wrapper is missing AGENTS.md reference: {relative}",
+                relative,
+                family,
+                "Point this wrapper to AGENTS.md instead of duplicating shared instructions.",
+            )
+        )
+
+    if "## Role Mapping" in text:
+        findings.append(Finding(PASS, f"Agent wrapper includes role mapping section: {relative}", relative, family))
+    else:
+        findings.append(Finding(FAIL, f"Agent wrapper is missing role mapping section: {relative}", relative, family))
+
+    for role in LOGICAL_ROLES:
+        if role in text:
+            findings.append(Finding(PASS, f"Agent wrapper role mapping includes {role}: {relative}", relative, family))
+        else:
+            findings.append(Finding(FAIL, f"Agent wrapper role mapping is missing {role}: {relative}", relative, family))
+
+    for heading in WRAPPER_PROHIBITED_SHARED_SECTIONS:
+        if heading in text:
+            findings.append(
+                Finding(
+                    FAIL,
+                    f"Agent wrapper duplicates shared section `{heading}`: {relative}",
+                    relative,
+                    family,
+                    f"Move shared instructions to AGENTS.md and keep {relative} as a thin wrapper.",
+                )
+            )
+        else:
+            findings.append(Finding(PASS, f"Agent wrapper does not duplicate `{heading}`: {relative}", relative, family))
     return findings
 
 

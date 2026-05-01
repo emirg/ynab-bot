@@ -1,6 +1,6 @@
 # AGENTS.md
 
-You are **Codex** (OpenAI), an AI assistant working on this project.
+This is the canonical shared instruction file for AI assistants working on this project. Tool-specific files such as `CLAUDE.md` and `GEMINI.md` must stay thin wrappers that point here and define only their tool-specific role mapping.
 
 ## Universal Workflow
 **CRITICAL:** Before starting any task, you MUST read `docs/AI_WORKFLOW.md` and `docs/DOCUMENTATION_WORKFLOW.md`.
@@ -9,7 +9,9 @@ You are **Codex** (OpenAI), an AI assistant working on this project.
 - `docs/AI_WORKFLOW.md` defines the execution pipeline, architectural invariants, and handoff protocol.
 
 ## Role Mapping
-When `docs/AI_WORKFLOW.md` refers to a logical role, adopt the corresponding internal mode of operation:
+When `docs/AI_WORKFLOW.md` refers to a logical role, each AI tool must use its own wrapper file to map that role to the tool's capabilities.
+
+Codex uses the following internal mode of operation:
 
 | Logical Role | Codex Internal Mode |
 |---|---|
@@ -22,14 +24,9 @@ When `docs/AI_WORKFLOW.md` refers to a logical role, adopt the corresponding int
 | **Refactor Advisor** | Complexity reduction & DRY specialist. |
 
 ## Commands
-All Python commands must be run using the `.venv` virtual environment.
+All living command references are centralized in `docs/harness/COMMANDS.md`.
 
-```bash
-.venv/bin/python main.py           # Run
-.venv/bin/pytest                   # All tests
-.venv/bin/pytest tests/file.py     # Specific file
-.venv/bin/pytest -k "keyword"      # Filter
-```
+Use the commands from that registry rather than copying command blocks into agent-specific instruction files.
 
 ## Source Of Truth
 YNAB is the financial source of truth for this project.
