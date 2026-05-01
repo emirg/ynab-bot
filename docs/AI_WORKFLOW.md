@@ -18,6 +18,7 @@ To ensure continuity between different AI assistants (Claude, Gemini, etc.) and 
    - **Modified Files:** [List or "None"]
    - **Current State / Blocker:** [Exact error or remaining logic]
    - **Next Step:** [Exact technical instruction to resume]
+   - **Resume Prompt:** [Copy-paste-ready prompt for the next AI worker. Must mention which docs to read first, which SPEC/PLAN to use if implementation is authorized, what verification to run, and which adjacent planned items must not be implemented unless explicitly requested.]
 
 ## Canonical Commands
 

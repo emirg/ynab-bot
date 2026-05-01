@@ -34,6 +34,8 @@ The behavioral invariant fixture slice extends the financial harness from eviden
 
 The behavioral invariant manifest slice makes those fixtures manifest-driven. `scripts/harness/behavioral_invariants.toml` now declares fixture IDs, labels, risk areas, protected rules, owner paths, and explicit assertion mappings so future financial safeguards can be reviewed as metadata before runner code changes.
 
+The handoff resume prompt slice extends workflow-document validation to local handoff state. `docs/AI_WORKFLOW.md` now requires `docs/wip_state.md` handoffs to include a copy-paste-ready `Resume Prompt`, and the harness validates required fields when the ignored session-state file exists. A missing `docs/wip_state.md` warns instead of failing so clean Railway checkouts do not depend on local handoff state.
+
 ## Alternatives Considered
 - **Adopt OpenSpec/OpenSDD immediately:** Deferred because the immediate risk is local documentation drift, and adding a new framework should be evaluated as a separate feature.
 - **Rely on pytest only:** Rejected because pytest does not validate documentation lifecycle state or agent instruction drift.
@@ -47,6 +49,7 @@ The behavioral invariant manifest slice makes those fixtures manifest-driven. `s
 - **Positive:** Financial invariant drift now has a deterministic local and CI signal before deploy tests run.
 - **Positive:** High-risk financial behavior drift now has executable fixture coverage in the harness before pytest starts.
 - **Positive:** Behavioral fixtures now carry explicit ownership and protected-rule metadata.
+- **Positive:** Cross-agent handoffs now have a concrete resume prompt, with local validation that does not make ignored session state a deploy prerequisite.
 - **Negative:** The gate still does not enforce linting, typing, or broad coverage thresholds.
 - **Follow-up:** Continue expanding invariant checks only where they protect high-risk financial behavior.
 
@@ -65,6 +68,8 @@ The behavioral invariant manifest slice makes those fixtures manifest-driven. `s
 - `docs/plans/archive/2026-05-01-behavioral-invariant-fixtures.md`
 - `docs/specs/archive/2026-05-01-behavioral-invariant-manifest.md`
 - `docs/plans/archive/2026-05-01-behavioral-invariant-manifest.md`
+- `docs/specs/archive/2026-05-01-handoff-resume-prompt.md`
+- `docs/plans/archive/2026-05-01-handoff-resume-prompt.md`
 - `scripts/harness/behavioral_invariants.py`
 - `scripts/harness/behavioral_invariants.toml`
 - `scripts/harness/check_behavioral_invariants.py`

@@ -4,6 +4,7 @@ import json
 from scripts.harness.checks import (
     FAIL,
     PASS,
+    WARN,
     Finding,
     exit_code_for_findings,
     format_findings,
@@ -81,6 +82,17 @@ def write(path: Path, content: str) -> None:
 def make_minimal_repo(root: Path) -> None:
     write(root / "docs/AI_WORKFLOW.md", "# AI Workflow\n")
     write(root / "docs/DOCUMENTATION_WORKFLOW.md", "# Documentation Workflow\n")
+    write(
+        root / "docs/wip_state.md",
+        "Last worker: Codex\n"
+        "Current Objective: Minimal fixture repo.\n"
+        "Last Action: Created fixture state.\n"
+        "Modified Files: None\n"
+        "Current State / Blocker: No blocker.\n"
+        "Next Step: Run harness tests.\n"
+        "Resume Prompt: Read AGENTS.md, docs/AI_WORKFLOW.md, "
+        "docs/DOCUMENTATION_WORKFLOW.md, and docs/wip_state.md first.\n",
+    )
     write(root / "docs/specs/_TEMPLATE.md", "# Spec Template\n")
     write(root / "docs/plans/_TEMPLATE.md", "# Plan Template\n")
     write(root / "docs/adrs/_TEMPLATE.md", "# ADR Template\n")
@@ -359,6 +371,34 @@ def test_required_workflow_files_are_enforced(tmp_path: Path) -> None:
     messages = {finding.message for finding in failures(tmp_path)}
 
     assert "Required workflow file is missing: docs/AI_WORKFLOW.md" in messages
+
+
+def test_wip_state_requires_resume_prompt(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/wip_state.md",
+        "Last worker: Codex\n"
+        "Current Objective: Missing resume prompt.\n"
+        "Last Action: Removed field.\n"
+        "Modified Files: docs/wip_state.md\n"
+        "Current State / Blocker: No blocker.\n"
+        "Next Step: Restore field.\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert "Handoff state is missing required field: Resume Prompt" in messages
+
+
+def test_missing_wip_state_warns_without_blocking_ci(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    (tmp_path / "docs/wip_state.md").unlink()
+
+    warning_messages = messages_for(tmp_path, WARN)
+    failure_messages = {finding.message for finding in failures(tmp_path)}
+
+    assert "Handoff state file is absent: docs/wip_state.md" in warning_messages
+    assert "Required workflow file is missing: docs/wip_state.md" not in failure_messages
 
 
 def test_active_spec_and_plan_metadata_are_validated(tmp_path: Path) -> None:

@@ -32,6 +32,15 @@ REQUIRED_FILES = (
     "docs/plans/_TEMPLATE.md",
     "docs/adrs/_TEMPLATE.md",
 )
+WIP_STATE_REQUIRED_FIELDS = (
+    "Last worker",
+    "Current Objective",
+    "Last Action",
+    "Modified Files",
+    "Current State / Blocker",
+    "Next Step",
+    "Resume Prompt",
+)
 AGENT_ENTRYPOINTS = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")
 ARCHIVE_DIRS = ("docs/specs/archive", "docs/plans/archive")
 TERMINAL_STATUSES = {"completed", "implemented"}
@@ -62,6 +71,7 @@ ROADMAP_IGNORE_RE = re.compile(
 UNCHECKED_TASK_RE = re.compile(r"^\s*-\s+\[\s\]\s+", re.MULTILINE)
 COMMAND_REGISTRY_DOC = "docs/harness/COMMANDS.md"
 WORKFLOW_COMMAND_DOCS = ("docs/AI_WORKFLOW.md",)
+WIP_STATE_FIELD_RE = re.compile(r"^([^:\n]+):", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -268,6 +278,7 @@ def run_checks(root: Path | str) -> list[Finding]:
     repo_root = Path(root)
     findings: list[Finding] = []
     findings.extend(check_required_files(repo_root))
+    findings.extend(check_wip_state(repo_root))
     findings.extend(check_active_specs(repo_root))
     findings.extend(check_active_plans(repo_root))
     findings.extend(check_adr_references(repo_root))
@@ -294,6 +305,23 @@ def check_required_files(root: Path) -> list[Finding]:
             findings.append(Finding(PASS, f"Required archive directory exists: {relative}", relative))
         else:
             findings.append(Finding(FAIL, f"Required archive directory is missing: {relative}", relative))
+    return findings
+
+
+def check_wip_state(root: Path) -> list[Finding]:
+    relative = "docs/wip_state.md"
+    path = root / relative
+    if not path.is_file():
+        return [Finding(WARN, f"Handoff state file is absent: {relative}", relative)]
+
+    text = read_text(path)
+    fields = {match.group(1).strip() for match in WIP_STATE_FIELD_RE.finditer(text)}
+    findings: list[Finding] = []
+    for field in WIP_STATE_REQUIRED_FIELDS:
+        if field in fields:
+            findings.append(Finding(PASS, f"Handoff state includes required field: {field}", relative))
+        else:
+            findings.append(Finding(FAIL, f"Handoff state is missing required field: {field}", relative))
     return findings
 
 
