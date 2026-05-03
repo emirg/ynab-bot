@@ -367,3 +367,14 @@ Se creó una fuente canónica de contratos de agentes reutilizable por Claude, C
 - `.claude/agents/` conserva los agentes nativos de Claude como adapters que referencian `docs/agents/`
 - El harness falla si falta un contrato canónico, un wrapper no lo referencia o un adapter de Claude pierde su referencia
 - Skillshare queda como distribución opcional, no como fuente de verdad del repo
+
+### E.31 — Splitwise Responsibility Semantics [COMPLETADO]
+
+Se corrigió la semántica de gastos compartidos para separar quién pagó de quién asume el gasto:
+
+- Mensajes tipo "con Eli" / "conmigo" mantienen 50/50 por defecto
+- Mensajes tipo "por Eli" / "por mí" soportan responsabilidad 100%
+- Los casos donde el usuario paga y una parte asume el 100% crean transacciones regulares de una sola categoría, no splits con legs en cero
+- Los casos donde otra persona paga siguen usando la cuenta `Shared Transactions` con transacciones zero-sum cuando hay deuda del usuario
+- Los montos explícitos "son míos" y "son de Eli" se normalizan por dueño; montos conflictivos se rechazan con mensaje claro en español
+- El arnés conductual protege la matriz principal de Splitwise contra regresiones

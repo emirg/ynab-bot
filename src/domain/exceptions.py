@@ -26,12 +26,17 @@ class UserNotConfiguredException(YNABBotException):
 
 class ExpenseParsingException(YNABBotException):
     """Could not parse expense message"""
-    def __init__(self, message: str, confidence: float = 0.0):
+    def __init__(
+        self,
+        message: str,
+        confidence: float = 0.0,
+        user_message: str = "No pude entender tu mensaje. Intenta con un formato como: almuerzo 25000",
+    ):
         self.original_message = message
         self.confidence = confidence
         super().__init__(
             f"Could not parse expense: '{message}' (confidence: {confidence})",
-            user_message="No pude entender tu mensaje. Intenta con un formato como: almuerzo 25000",
+            user_message=user_message,
         )
 
 

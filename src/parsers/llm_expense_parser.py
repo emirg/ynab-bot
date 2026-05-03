@@ -326,6 +326,8 @@ Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [perso
     "person": "<nombre_de_la_persona>",
     "proportion": "<fraccion_o_null>",
     "split_amount": <número_o_null>,
+    "user_share_amount": <número_o_null>,
+    "other_share_amount": <número_o_null>,
     "payer": "user" | "other"
 }}
 
@@ -336,28 +338,38 @@ REGLAS CRÍTICAS:
 4. Para GASTOS, la categoría DEBE ser una de la lista de CATEGORÍAS DISPONIBLES.
 5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
 6. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Eli gastó 50k en carulla conmigo", "Juan pagó la cena"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
-7. "proportion" y "split_amount" en gastos compartidos — son mutuamente excluyentes, usa UNO o ninguno:
+7. "proportion", "user_share_amount", "other_share_amount" y "split_amount" en gastos compartidos:
 
    a) "proportion": SIEMPRE es la fracción del USUARIO (nunca la de la otra persona). CRÍTICO: si alguien dice "X son por [persona]" o "la parte de [persona] es X", eso es la parte de LA OTRA PERSONA, NO del usuario.
-      - "a medias" → proportion: "1/2", split_amount: null
-      - "mi parte es 1/3" → proportion: "1/3", split_amount: null
-      - "2/3 son míos" → proportion: "2/3", split_amount: null
+      - "a medias" / "con Eli" / "conmigo" → proportion: "1/2", user_share_amount: null, other_share_amount: null, split_amount: null
+      - "mi parte es 1/3" → proportion: "1/3", user_share_amount: null, other_share_amount: null, split_amount: null
+      - "2/3 son míos" → proportion: "2/3", user_share_amount: null, other_share_amount: null, split_amount: null
       - "por mí" / "me compró" / "para mí" + payer:other → proportion: "1", split_amount: null
       - "por [persona]" / "para [persona]" / "le presté" / "le compré" + payer:user → proportion: "0", split_amount: null (100% es para la otra persona, el usuario no tiene parte)
       - Sin lenguaje de proporción → proportion: null (default 50/50)
 
-   b) "split_amount": cuando el usuario especifica un MONTO FIJO para la OTRA PERSONA (ej: "36700 son por Juan", "la parte de Eli es 25000"). Devuelve ese monto en split_amount y pon proportion: null.
-      - "gasté 60000, 36700 son por Juan" → proportion: null, split_amount: 36700
-      - "almuerzo 80000, la parte de Eli es 25000" → proportion: null, split_amount: 25000
+   b) "user_share_amount": cuando el usuario especifica un MONTO FIJO que es SU parte (ej: "70k son míos", "mi parte son 70000"). Devuelve ese monto en user_share_amount y pon proportion: null.
+      - "Eli gastó 200k conmigo, 70k son míos" → proportion: null, user_share_amount: 70000, other_share_amount: null
 
-   c) Si no se especifica ni proporción ni monto fijo: proportion: null, split_amount: null → se asume 50/50.
+   c) "other_share_amount": cuando el usuario especifica un MONTO FIJO para la OTRA PERSONA (ej: "36700 son por Juan", "la parte de Eli es 25000", "70k son de Eli"). Devuelve ese monto en other_share_amount y pon proportion: null.
+      - "gasté 60000, 36700 son por Juan" → proportion: null, other_share_amount: 36700
+      - "almuerzo 80000, la parte de Eli es 25000" → proportion: null, other_share_amount: 25000
+      - "Eli gastó 200k conmigo, 70k son de Eli" → proportion: null, other_share_amount: 70000
+
+   d) "split_amount" queda soportado por compatibilidad y significa lo mismo que other_share_amount. Prefiere other_share_amount en respuestas nuevas.
+
+   e) Si no se especifica ni proporción ni monto fijo: proportion: null, user_share_amount: null, other_share_amount: null, split_amount: null → se asume 50/50.
 
 EJEMPLOS DE GASTOS COMPARTIDOS:
+- "Gasté 200k en Carulla con Eli" → proportion: "1/2", payer: "user", user_share_amount: null, other_share_amount: null
+- "Eli gastó 200k en Carulla conmigo" → proportion: "1/2", payer: "other", user_share_amount: null, other_share_amount: null
+- "Gasté 100k en Carulla por Eli" → proportion: "0", payer: "user", user_share_amount: null, other_share_amount: null (100% es para Eli)
+- "Eli gastó 200k por mí en Carulla" → proportion: "1", payer: "other", user_share_amount: null, other_share_amount: null (usuario debe el 100%)
 - "gasté 60000 en restaurante con Juan, 2/3 son míos" → proportion: "2/3", split_amount: null, payer: "user" (la parte del usuario es 2/3)
-- "gasté 60000 en restaurante, 36700 son por Juan" → proportion: null, split_amount: 36700, payer: "user" (Juan debe 36700 fijo)
+- "gasté 60000 en restaurante, 36700 son por Juan" → proportion: null, other_share_amount: 36700, split_amount: null, payer: "user" (Juan debe 36700 fijo)
+- "Eli gastó 200k en Carulla conmigo, 70k son míos" → proportion: null, user_share_amount: 70000, other_share_amount: null, payer: "other"
+- "Eli gastó 200k en Carulla conmigo, 70k son de Eli" → proportion: null, user_share_amount: null, other_share_amount: 70000, payer: "other"
 - "almuerzo 50000 a medias con Eli" → proportion: "1/2", split_amount: null, payer: "user"
-- "Eli pagó 100k por mí" → proportion: "1", split_amount: null, payer: "other" (usuario debe el 100%)
-- "Gasté 100k en Carulla por Eli" → proportion: "0", split_amount: null, payer: "user" (100% es para Eli, préstamo)
 - "Le presté 50000 a Juan para farmacia" → proportion: "0", split_amount: null, payer: "user" (100% es para Juan)
 - "Pagué 80k en supermercado para María" → proportion: "0", split_amount: null, payer: "user" (100% es para María)
 """
@@ -444,15 +456,16 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                         payer = 'user'
                     result['payer'] = payer
                     # Validate and normalise split_amount field
-                    split_amount = result.get('split_amount')
-                    if split_amount is not None:
-                        if isinstance(split_amount, (int, float)) and split_amount > 0:
-                            result['split_amount'] = float(split_amount)
+                    for amount_field in ('split_amount', 'user_share_amount', 'other_share_amount'):
+                        amount_value = result.get(amount_field)
+                        if amount_value is not None:
+                            if isinstance(amount_value, (int, float)) and amount_value > 0:
+                                result[amount_field] = float(amount_value)
+                            else:
+                                logger.warning(f"Invalid {amount_field} '{amount_value}', ignoring it")
+                                result[amount_field] = None
                         else:
-                            logger.warning(f"Invalid split_amount '{split_amount}', ignoring it")
-                            result['split_amount'] = None
-                    else:
-                        result['split_amount'] = None
+                            result[amount_field] = None
                 else:
                     logger.error(f"Unknown intent: {result['intent']}")
                     return None

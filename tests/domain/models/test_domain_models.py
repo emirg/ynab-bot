@@ -400,6 +400,88 @@ class TestSplitFixedAmount:
         assert subs[0]['amount'] == -60000000
 
 
+class TestNormalizedSplitShares:
+    """Tests for normalized user/other share amounts in Expense.to_ynab_format()."""
+
+    SPLIT_CAT_ID = '660e8400-e29b-41d4-a716-446655440000'
+    REAL_CAT_ID = '550e8400-e29b-41d4-a716-446655440000'
+
+    def test_user_paid_normalized_shares_create_split_subtransactions(self):
+        e = Expense(
+            amount=Decimal('200000'), payee='Carulla', memo='con Eli',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_user_share_amount=Decimal('100000'),
+            split_other_share_amount=Decimal('100000'),
+        )
+
+        txn = e.to_ynab_format('budget-1', 'rappi-card')['transaction']
+
+        assert txn['account_id'] == 'rappi-card'
+        assert txn['amount'] == -200000000
+        assert 'category_id' not in txn
+        assert txn['subtransactions'] == [
+            {'amount': -100000000, 'category_id': self.REAL_CAT_ID},
+            {'amount': -100000000, 'category_id': self.SPLIT_CAT_ID},
+        ]
+
+    def test_user_paid_zero_user_share_creates_regular_splitwise_transaction(self):
+        e = Expense(
+            amount=Decimal('100000'), payee='Randy', memo='por Eli',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_user_share_amount=Decimal('0'),
+            split_other_share_amount=Decimal('100000'),
+        )
+
+        txn = e.to_ynab_format('budget-1', 'rappi-card')['transaction']
+
+        assert txn['account_id'] == 'rappi-card'
+        assert txn['amount'] == -100000000
+        assert txn['category_id'] == self.SPLIT_CAT_ID
+        assert 'subtransactions' not in txn
+
+    def test_user_paid_zero_other_share_creates_regular_real_category_transaction(self):
+        e = Expense(
+            amount=Decimal('200000'), payee='Carulla', memo='todo es mio',
+            category_id=self.REAL_CAT_ID,
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_user_share_amount=Decimal('200000'),
+            split_other_share_amount=Decimal('0'),
+        )
+
+        txn = e.to_ynab_format('budget-1', 'rappi-card')['transaction']
+
+        assert txn['account_id'] == 'rappi-card'
+        assert txn['amount'] == -200000000
+        assert txn['category_id'] == self.REAL_CAT_ID
+        assert 'subtransactions' not in txn
+
+    def test_other_paid_normalized_user_share_creates_zero_sum_transaction(self):
+        e = Expense(
+            amount=Decimal('200000'), payee='Eli', memo='por mi en Carulla',
+            category_id=self.REAL_CAT_ID,
+            account_id='shared-transactions',
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_user_share_amount=Decimal('200000'),
+            split_other_share_amount=Decimal('0'),
+            payer='other',
+        )
+
+        txn = e.to_ynab_format('budget-1', 'fallback-account')['transaction']
+
+        assert txn['account_id'] == 'shared-transactions'
+        assert txn['amount'] == 0
+        assert txn['subtransactions'] == [
+            {'amount': -200000000, 'category_id': self.REAL_CAT_ID},
+            {'amount': 200000000, 'category_id': self.SPLIT_CAT_ID},
+        ]
+
+
 class TestZeroProportionFullDebt:
     """Tests for split_proportion=0 (user paid 100% for someone else, like a loan)."""
 

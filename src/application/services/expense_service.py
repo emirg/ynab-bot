@@ -255,7 +255,10 @@ class ExpenseService:
         if not expense:
             raise ExpenseParsingException(message, 0.0)
 
-        self._apply_split_fields(expense, parsed, split_group, proportion, payer)
+        try:
+            self._apply_split_fields(expense, parsed, split_group, proportion, payer)
+        except ValueError as exc:
+            raise ExpenseParsingException(str(exc), 0.0, user_message=str(exc)) from exc
 
         if payer == 'other':
             shared_account = self.split_config_repository.get_shared_account(telegram_user_id)
@@ -417,7 +420,15 @@ class ExpenseService:
         if not expense:
             raise ExpenseParsingException(message, 0.0)
 
-        self._apply_split_fields(expense, parsed, split_group, proportion, payer)
+        try:
+            self._apply_split_fields(expense, parsed, split_group, proportion, payer)
+        except ValueError as exc:
+            return ExpenseResult.error_result(str(exc))
+
+        if payer == 'other' and expense.split_user_share_amount == 0:
+            return ExpenseResult.error_result(
+                "No hay un gasto tuyo ni una deuda por registrar para este mensaje."
+            )
 
         if payer == 'other':
             # When the other person paid, use the shared tracking account
@@ -474,6 +485,54 @@ class ExpenseService:
                         )
             except Exception:
                 pass
+
+        user_share, other_share = ExpenseService._normalize_split_shares(
+            expense.amount,
+            parsed,
+            proportion,
+        )
+        expense.split_user_share_amount = user_share
+        expense.split_other_share_amount = other_share
+
+    @staticmethod
+    def _normalize_split_shares(amount: Decimal, parsed: dict, proportion: Decimal) -> Tuple[Decimal, Decimal]:
+        """Return (user_share, other_share) from parser-owned share fields."""
+        total = Decimal(str(amount))
+
+        def read_share(field_name: str) -> Optional[Decimal]:
+            value = parsed.get(field_name)
+            if value is None:
+                return None
+            try:
+                share = Decimal(str(value))
+            except Exception as exc:
+                raise ValueError("No pude interpretar una de las partes del gasto.") from exc
+            if share < 0:
+                raise ValueError("Las partes del gasto no pueden ser negativas.")
+            return share
+
+        user_share = read_share('user_share_amount')
+        other_share = read_share('other_share_amount')
+        if other_share is None:
+            other_share = read_share('split_amount')
+
+        if user_share is not None and other_share is not None:
+            if user_share + other_share != total:
+                raise ValueError("Las partes declaradas no coinciden con el total del gasto.")
+            return user_share, other_share
+
+        if user_share is not None:
+            if user_share > total:
+                raise ValueError("La parte declarada no puede ser mayor que el total del gasto.")
+            return user_share, total - user_share
+
+        if other_share is not None:
+            if other_share > total:
+                raise ValueError("La parte declarada no puede ser mayor que el total del gasto.")
+            return total - other_share, other_share
+
+        user_share = total * proportion
+        return user_share, total - user_share
 
     @staticmethod
     def _parse_proportion(value) -> Decimal:

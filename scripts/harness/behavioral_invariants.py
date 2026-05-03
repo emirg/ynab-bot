@@ -259,6 +259,7 @@ def _assertion_registry() -> dict[str, Callable[[Path], None]]:
         "edit_reconciliation_trusts_live_identity": _assert_edit_reconciliation_trusts_live_identity,
         "undo_reconciliation_blocks_stale_recent_reference": _assert_undo_reconciliation_blocks_stale_recent_reference,
         "shared_expense_construction_preserves_zero_sum": _assert_shared_expense_construction_preserves_zero_sum,
+        "splitwise_responsibility_matrix_controls_ynab_shape": _assert_splitwise_responsibility_matrix_controls_ynab_shape,
         "account_balance_reads_from_account_fields": _assert_account_balance_reads_from_account_fields,
     }
 
@@ -494,6 +495,86 @@ def _assert_shared_expense_construction_preserves_zero_sum(root: Path) -> None:
     assert (
         txn["subtransactions"][1]["amount"] == 30000
     ), f"expected splitwise share 30000, got {txn['subtransactions'][1]['amount']}"
+
+
+def _assert_splitwise_responsibility_matrix_controls_ynab_shape(root: Path) -> None:
+    from decimal import Decimal
+
+    expense_cls = _load_expense_class(root)
+    real_category_id = "00000000-0000-0000-0000-000000000010"
+    split_category_id = "00000000-0000-0000-0000-000000000020"
+
+    def build_expense(
+        *,
+        amount: str,
+        payer: str,
+        user_share: str,
+        other_share: str,
+    ) -> Any:
+        return expense_cls(
+            amount=Decimal(amount),
+            payee="Carulla",
+            memo="Splitwise matrix",
+            category_id=real_category_id,
+            category_name="Groceries",
+            is_split=True,
+            payer=payer,
+            split_category_id=split_category_id,
+            split_category_name="Gastos Splitwise",
+            split_user_share_amount=Decimal(user_share),
+            split_other_share_amount=Decimal(other_share),
+        )
+
+    user_paid_half = build_expense(
+        amount="200.0",
+        payer="user",
+        user_share="100.0",
+        other_share="100.0",
+    ).to_ynab_format("budget-1", "rappi-card")["transaction"]
+    assert user_paid_half["account_id"] == "rappi-card"
+    assert user_paid_half["amount"] == -200000
+    assert "category_id" not in user_paid_half
+    assert user_paid_half["subtransactions"] == [
+        {"amount": -100000, "category_id": real_category_id},
+        {"amount": -100000, "category_id": split_category_id},
+    ]
+
+    other_paid_half = build_expense(
+        amount="200.0",
+        payer="other",
+        user_share="100.0",
+        other_share="100.0",
+    ).to_ynab_format("budget-1", "shared-account")["transaction"]
+    assert other_paid_half["account_id"] == "shared-account"
+    assert other_paid_half["amount"] == 0
+    assert other_paid_half["subtransactions"] == [
+        {"amount": -100000, "category_id": real_category_id},
+        {"amount": 100000, "category_id": split_category_id},
+    ]
+
+    user_paid_for_other = build_expense(
+        amount="100.0",
+        payer="user",
+        user_share="0.0",
+        other_share="100.0",
+    ).to_ynab_format("budget-1", "rappi-card")["transaction"]
+    assert user_paid_for_other["account_id"] == "rappi-card"
+    assert user_paid_for_other["amount"] == -100000
+    assert user_paid_for_other["category_id"] == split_category_id
+    assert "subtransactions" not in user_paid_for_other
+
+    other_paid_for_user = build_expense(
+        amount="200.0",
+        payer="other",
+        user_share="200.0",
+        other_share="0.0",
+    ).to_ynab_format("budget-1", "shared-account")["transaction"]
+    assert other_paid_for_user["account_id"] == "shared-account"
+    assert other_paid_for_user["amount"] == 0
+    assert other_paid_for_user["subtransactions"] == [
+        {"amount": -200000, "category_id": real_category_id},
+        {"amount": 200000, "category_id": split_category_id},
+    ]
 
 
 def _assert_account_balance_reads_from_account_fields(root: Path) -> None:

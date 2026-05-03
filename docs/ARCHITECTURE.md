@@ -98,7 +98,7 @@ Integration behavior is controlled separately by `EXTERNAL_MODE`:
 
 ## Supporting Modules
 
-- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (`expense` | `query` | `shared_expense`) in a single LLM call; the LLM performs semantic matching to map user terms (e.g., "comida") to exact YNAB category names (e.g., "🛒 Groceries") using up to 100 categories in the prompt. Also extracts optional `date` field (relative or absolute, resolved to `YYYY-MM-DD`) and shared expense fields (`person`, `proportion`, `payer`). `parse_receipt_image()` handles vision-based receipt extraction using the same JSON output format. `parse_expense()` is retained for backward compatibility (voice handler).
+- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (`expense` | `query` | `shared_expense`) in a single LLM call; the LLM performs semantic matching to map user terms (e.g., "comida") to exact YNAB category names (e.g., "🛒 Groceries") using up to 100 categories in the prompt. Also extracts optional `date` field (relative or absolute, resolved to `YYYY-MM-DD`) and shared expense fields (`person`, `proportion`, `payer`, `user_share_amount`, `other_share_amount`; legacy `split_amount` remains accepted). `parse_receipt_image()` handles vision-based receipt extraction using the same JSON output format. `parse_expense()` is retained for backward compatibility (voice handler).
 - **`src/integrations/speech_to_text.py`** — Whisper-based voice transcription, used by `ExpenseHandler` via DI.
 
 ## Data Flow
@@ -113,8 +113,10 @@ User (text) → ExpenseHandler.handle_text_message()
       → if confirmation_mode OFF: auto-commit → create→learn
     → if intent == "shared_expense":
       → resolve split group & person alias
-      → if payer == "user": subtransactions (real category + split tracking category)
-      → if payer == "other": zero-sum transaction (outflow + inflow balance to $0)
+      → normalize responsibility into user_share and other_share
+      → if payer == "user" and both shares are positive: subtransactions (real category + split tracking category)
+      → if payer == "user" and one share is zero: regular one-category transaction
+      → if payer == "other" and user_share is positive: zero-sum transaction (outflow + inflow balance to $0)
       → create→learn
     → if intent == "query": BudgetQueryService.execute_query()
       → category_balance | account_balance | budget_summary
@@ -161,11 +163,14 @@ User → /connect → generate OAuth URL with HMAC-signed state
 
 ## Shared Expenses
 
-Split expenses use YNAB subtransactions to track debts via a dedicated Splitwise tracking category.
+Split expenses use YNAB subtransactions or regular one-category transactions to track debts via a dedicated Splitwise tracking category. The internal contract separates payer from responsibility: `payer` decides the account flow, while normalized `user_share` and `other_share` decide the category shape.
 
 - **User-paid split**: Transaction with two subtransactions — user's share goes to the real category, the other person's share goes to the split tracking category.
+- **User-paid 100% other responsibility**: Regular transaction categorized only to the split tracking category. This avoids zero-amount real-category split legs.
+- **User-paid 100% user responsibility**: Regular transaction categorized only to the real category. This avoids zero-amount split tracking legs.
 - **Third-party paid split** (zero-sum): Transaction amount is `$0` with two subtransactions — outflow from real category balanced by inflow to split tracking category. Uses the shared tracking account configured via `/splitwise`.
-- **100% debt**: When `proportion=1` and `payer=other`, user owes the full amount (e.g., "Juan pagó el mercado por mí").
+- **Third-party paid zero user responsibility**: No YNAB transaction is created because there is no user expense or debt to register.
+- **Fixed shares**: Parser output can identify either `user_share_amount` (e.g., "70k son míos") or `other_share_amount` (e.g., "70k son de Eli"). Conflicting explicit shares are rejected before YNAB creation.
 - **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Runtime data lives in the PostgreSQL `split_groups`, `split_person_aliases`, and `split_shared_account` tables.
 
 ## User Authentication

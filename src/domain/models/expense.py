@@ -37,6 +37,8 @@ class Expense:
     split_person: Optional[str] = None
     split_proportion: Decimal = field(default_factory=lambda: Decimal('0.5'))
     split_fixed_amount: Optional[Decimal] = None
+    split_user_share_amount: Optional[Decimal] = None
+    split_other_share_amount: Optional[Decimal] = None
     split_category_id: Optional[str] = None
     split_category_name: Optional[str] = None
     payer: str = 'user'
@@ -61,8 +63,49 @@ class Expense:
         if self.payee_id and _UUID_PATTERN.match(self.payee_id):
             transaction_data["payee_id"] = self.payee_id
 
+        has_valid_split_category = bool(
+            self.split_category_id and _UUID_PATTERN.match(self.split_category_id)
+        )
+        has_normalized_shares = (
+            self.split_user_share_amount is not None
+            and self.split_other_share_amount is not None
+        )
+
+        if self.is_split and has_valid_split_category and has_normalized_shares:
+            user_share_milliunits = int(self.split_user_share_amount * -1000)
+            other_share_milliunits = int(self.split_other_share_amount * -1000)
+
+            if self.payer == 'other':
+                transaction_data["amount"] = 0
+                subtransactions = [
+                    {"amount": user_share_milliunits},
+                    {"amount": -user_share_milliunits, "category_id": self.split_category_id},
+                ]
+                if self.category_id and _UUID_PATTERN.match(self.category_id):
+                    subtransactions[0]["category_id"] = self.category_id
+                transaction_data["subtransactions"] = subtransactions
+                return {"transaction": transaction_data}
+
+            if self.split_user_share_amount == 0:
+                transaction_data["category_id"] = self.split_category_id
+                return {"transaction": transaction_data}
+
+            if self.split_other_share_amount == 0:
+                if self.category_id and _UUID_PATTERN.match(self.category_id):
+                    transaction_data["category_id"] = self.category_id
+                return {"transaction": transaction_data}
+
+            subtransactions = [
+                {"amount": user_share_milliunits},
+                {"amount": other_share_milliunits, "category_id": self.split_category_id},
+            ]
+            if self.category_id and _UUID_PATTERN.match(self.category_id):
+                subtransactions[0]["category_id"] = self.category_id
+            transaction_data["subtransactions"] = subtransactions
+            return {"transaction": transaction_data}
+
         # Other-paid split: 0-sum transaction with two subtransactions
-        if self.payer == 'other' and self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
+        if self.payer == 'other' and self.is_split and has_valid_split_category:
             transaction_data["amount"] = 0
             if self.split_fixed_amount is not None:
                 others_share_mu = int(self.split_fixed_amount * -1000)  # other person's share in milliunits
@@ -77,7 +120,7 @@ class Expense:
                 subtransactions[0]["category_id"] = self.category_id
             transaction_data["subtransactions"] = subtransactions
         # User-paid split transaction: create subtransactions instead of top-level category
-        elif self.is_split and self.split_category_id and _UUID_PATTERN.match(self.split_category_id):
+        elif self.is_split and has_valid_split_category:
             if self.split_fixed_amount is not None:
                 split_share = int(self.split_fixed_amount * -1000)
                 user_share = amount_milliunits - split_share

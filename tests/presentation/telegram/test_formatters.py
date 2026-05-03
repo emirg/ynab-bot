@@ -614,6 +614,61 @@ class TestExpenseFormatterFixedAmount:
         assert 'Tu deuda (50%)' in msg
         assert 'Splitwise' not in msg
 
+    def test_format_success_other_paid_normalized_user_share(self):
+        expense = Expense(
+            amount=Decimal('200000'), payee='Carulla', memo='70k son míos',
+            category_name='Groceries', account_name='Shared Transactions',
+            confidence=0.9,
+            is_split=True, split_person='Eli',
+            split_proportion=Decimal('0.5'),
+            split_category_name='Gastos Splitwise',
+            split_user_share_amount=Decimal('70000'),
+            split_other_share_amount=Decimal('130000'),
+            payer='other',
+        )
+        result = ExpenseResult.success_result(expense, 'txn-normalized-other')
+        msg = ExpenseResponseFormatter.format_success(result)
+
+        assert 'Tu deuda:' in msg
+        assert '$70,000' in msg
+        assert 'Tu deuda (50%)' not in msg
+
+    def test_format_success_user_paid_zero_user_share_as_regular_splitwise_expense(self):
+        expense = Expense(
+            amount=Decimal('100000'), payee='Randy', memo='hamburguesa por Eli',
+            category_name='Meal Delivery', account_name='RappiCard',
+            confidence=0.9, category_explanation='sugerido por IA',
+            is_split=True, split_person='Eli',
+            split_category_name='Gastos Splitwise',
+            split_user_share_amount=Decimal('0'),
+            split_other_share_amount=Decimal('100000'),
+        )
+        result = ExpenseResult.success_result(expense, 'txn-splitwise-only')
+        msg = ExpenseResponseFormatter.format_success(result)
+
+        assert 'Gasto registrado exitosamente' in msg
+        assert 'Gasto compartido registrado' not in msg
+        assert 'Categoría:* Gastos Splitwise' in msg
+        assert 'Tu parte' not in msg
+
+    def test_format_preview_user_paid_zero_other_share_as_regular_real_expense(self):
+        expense = Expense(
+            amount=Decimal('200000'), payee='Carulla', memo='todo es mio',
+            category_name='Groceries', account_name='RappiCard',
+            confidence=0.9, category_explanation='sugerido por IA',
+            is_split=True, split_person='Eli',
+            split_category_name='Gastos Splitwise',
+            split_user_share_amount=Decimal('200000'),
+            split_other_share_amount=Decimal('0'),
+        )
+        result = ExpenseResult.success_result(expense)
+        msg = ExpenseResponseFormatter.format_preview(result)
+
+        assert 'Voy a registrar' in msg
+        assert 'Compartido con' not in msg
+        assert 'Categoría:* Groceries' in msg
+        assert 'Splitwise' not in msg
+
 
 # ---------------------------------------------------------------------------
 # ConfigResponseFormatter

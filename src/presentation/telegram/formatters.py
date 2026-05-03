@@ -40,6 +40,11 @@ class ExpenseResponseFormatter:
         """
         # Amounts truncated to whole units for display (COP has no decimals in practice)
         total = int(expense.amount)
+        if (
+            expense.split_user_share_amount is not None
+            and expense.split_other_share_amount is not None
+        ):
+            return int(expense.split_user_share_amount), int(expense.split_other_share_amount), True
         if expense.split_fixed_amount is not None:
             split_share = int(expense.split_fixed_amount)
             user_share = total - split_share
@@ -50,6 +55,22 @@ class ExpenseResponseFormatter:
             return user_share, split_share, False
 
     @staticmethod
+    def _regular_category_for_normalized_user_paid_split(expense) -> Optional[str]:
+        """Return display category for user-paid splits that collapse to one category."""
+        if (
+            not expense.is_split
+            or expense.payer == 'other'
+            or expense.split_user_share_amount is None
+            or expense.split_other_share_amount is None
+        ):
+            return None
+        if expense.split_user_share_amount == 0:
+            return expense.split_category_name or 'Gastos Compartidos'
+        if expense.split_other_share_amount == 0:
+            return expense.category_name or 'Sin categoría'
+        return None
+
+    @staticmethod
     def format_success(result: ExpenseResult, user_tz: str = DEFAULT_TIMEZONE) -> str:
         """Format successful expense processing"""
         if not result.success or not result.expense:
@@ -58,6 +79,7 @@ class ExpenseResponseFormatter:
         expense = result.expense
         confidence_emoji = "🔥" if expense.confidence > 0.8 else "✅" if expense.confidence > 0.5 else "⚠️"
         date_line = ExpenseResponseFormatter._format_date_line(expense, user_tz)
+        regular_category = ExpenseResponseFormatter._regular_category_for_normalized_user_paid_split(expense)
 
         if expense.is_split and expense.payer == 'other':
             user_share, _split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
@@ -77,7 +99,7 @@ class ExpenseResponseFormatter:
 
 📝 *Memo:* {expense.memo}
             """
-        elif expense.is_split:
+        elif expense.is_split and regular_category is None:
             user_share, split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
             if use_fixed:
                 user_line = f"📊 *Tu parte:* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
@@ -106,7 +128,7 @@ class ExpenseResponseFormatter:
 
 💰 *Monto:* ${expense.amount:,.0f}
 🏪 *Lugar:* {expense.payee}{date_line}
-📁 *Categoría:* {expense.category_name or 'Sin categoría'}
+📁 *Categoría:* {regular_category or expense.category_name or 'Sin categoría'}
 💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
 {confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
 
@@ -124,6 +146,7 @@ class ExpenseResponseFormatter:
         expense = result.expense
         confidence_emoji = "🔥" if expense.confidence > 0.8 else "✅" if expense.confidence > 0.5 else "⚠️"
         date_line = ExpenseResponseFormatter._format_date_line(expense, user_tz)
+        regular_category = ExpenseResponseFormatter._regular_category_for_normalized_user_paid_split(expense)
 
         if expense.is_split and expense.payer == 'other':
             user_share, _split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
@@ -143,7 +166,7 @@ class ExpenseResponseFormatter:
 
 📝 *Memo:* {expense.memo}
             """
-        elif expense.is_split:
+        elif expense.is_split and regular_category is None:
             user_share, split_share, use_fixed = ExpenseResponseFormatter._compute_split_shares(expense)
             if use_fixed:
                 user_line = f"📊 *Tu parte:* ${user_share:,.0f} → {expense.category_name or 'Sin categoría'}"
@@ -172,7 +195,7 @@ class ExpenseResponseFormatter:
 
 💰 *Monto:* ${expense.amount:,.0f}
 🏪 *Lugar:* {expense.payee}{date_line}
-📁 *Categoría:* {expense.category_name or 'Sin categoría'}
+📁 *Categoría:* {regular_category or expense.category_name or 'Sin categoría'}
 💳 *Cuenta:* {expense.account_name or 'Cuenta por defecto'}
 {confidence_emoji} *Razon:* {expense.category_explanation or 'desconocido'}
 

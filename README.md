@@ -28,7 +28,7 @@ This rule matters for users, developers, and AI assistants working on the codeba
 - 🧠 **AI-Powered**: Uses OpenAI GPT-4o-mini to understand expenses and budget queries in natural Spanish language
 - 📊 **Budget Queries**: Ask about category balances, account balances, or get a budget summary in natural language
 - 📅 **Date Parsing**: Supports relative ("ayer", "el lunes") and absolute ("24/07", "el 5 de marzo") dates for backdating expenses
-- 👥 **Shared Expenses**: Split expenses with other people — supports user-paid and third-party paid scenarios with automatic YNAB subtransactions
+- 👥 **Shared Expenses**: Split expenses with other people — separates who paid from who owes, including 50/50, fixed-share, 100% debt, and third-party paid scenarios
 - 📚 **Adaptive Learning**: Remembers your spending patterns, explains categorization decisions, and improves over time
 - 💳 **Account Detection**: Automatically identifies the bank account mentioned
 - 🏪 **Smart Categorization**: Assigns real YNAB categories based on merchant/location with semantic matching
@@ -237,15 +237,18 @@ Date formats: `ayer`, `anteayer`, `el lunes`, `la semana pasada`, `24/07`, `el 5
 
 ### Shared Expenses
 
-The bot supports shared expenses with automatic YNAB subtransactions:
+The bot supports shared expenses by separating the payer from the person responsible for the cost:
 
 ```
 "Almuerzo compartido con Juan 30k"           → 50/50 split, user paid
 "Cena con María 60k, ella pagó"              → 50/50 split, third-party paid
 "Juan pagó 100k de mercado por mí"           → 100% debt, third-party paid
+"Compré una hamburguesa para Juan 100k"      → 100% debt, user paid
 ```
 
 **User-paid split**: Creates subtransactions splitting the amount between the real category and the Splitwise tracking category.
+
+**User-paid 100% other responsibility**: Creates one regular transaction in the Splitwise tracking category. It does not create a split with a zero real-category leg.
 
 **Third-party paid split**: Creates a zero-sum transaction — the real category outflow is balanced by an inflow from the Splitwise tracking category, so your budget reflects the debt without affecting your account balance.
 

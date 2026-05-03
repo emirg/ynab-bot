@@ -1630,6 +1630,114 @@ class TestProcessMessage:
         assert result.expense_result.success is True
         assert result.expense_result.expense.split_fixed_amount is None
 
+    def test_shared_expense_sets_normalized_shares_from_user_share_amount(self, service_with_split, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 200000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'Eli gastó 200k en Carulla conmigo, 70k son míos',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+            'payer': 'other',
+            'user_share_amount': 70000,
+        }
+
+        result = service_with_split.process_message(
+            TELEGRAM_ID,
+            'Eli gastó 200k en Carulla conmigo, 70k son míos',
+        )
+
+        assert result.expense_result.success is True
+        expense = result.expense_result.expense
+        assert expense.split_user_share_amount == Decimal('70000')
+        assert expense.split_other_share_amount == Decimal('130000')
+
+    def test_shared_expense_sets_normalized_shares_from_other_share_amount(self, service_with_split, mock_llm_parser):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 200000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'Gasté 200k en Carulla con Eli, 70k son de Eli',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+            'payer': 'user',
+            'other_share_amount': 70000,
+        }
+
+        result = service_with_split.process_message(
+            TELEGRAM_ID,
+            'Gasté 200k en Carulla con Eli, 70k son de Eli',
+        )
+
+        assert result.expense_result.success is True
+        expense = result.expense_result.expense
+        assert expense.split_user_share_amount == Decimal('130000')
+        assert expense.split_other_share_amount == Decimal('70000')
+
+    def test_shared_expense_conflicting_share_amounts_return_clear_error(
+        self,
+        service_with_split,
+        mock_llm_parser,
+        mock_ynab_repository,
+    ):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 200000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': '80k son míos y 150k son de Eli',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': None,
+            'payer': 'user',
+            'user_share_amount': 80000,
+            'other_share_amount': 150000,
+        }
+
+        result = service_with_split.process_message(
+            TELEGRAM_ID,
+            'Gasté 200k en Carulla con Eli, 80k son míos y 150k son de Eli',
+        )
+
+        assert result.expense_result.success is False
+        assert 'no coinciden con el total' in result.expense_result.error_message
+        mock_ynab_repository.create_transaction.assert_not_called()
+
+    def test_other_paid_zero_user_share_does_not_create_transaction(
+        self,
+        service_with_split,
+        mock_llm_parser,
+        mock_ynab_repository,
+    ):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 50000.0,
+            'category': 'Groceries',
+            'payee': 'Carulla',
+            'account': None,
+            'memo': 'Eli gastó 50k en Carulla para ella',
+            'confidence': 0.9,
+            'person': 'Juan',
+            'proportion': '0',
+            'payer': 'other',
+        }
+
+        result = service_with_split.process_message(
+            TELEGRAM_ID,
+            'Eli gastó 50k en Carulla para ella',
+        )
+
+        assert result.expense_result.success is False
+        assert 'no hay un gasto tuyo' in result.expense_result.error_message.lower()
+        mock_ynab_repository.create_transaction.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # _parse_proportion
@@ -1655,6 +1763,85 @@ class TestParseProportion:
 
     def test_empty_string_falls_back(self):
         assert ExpenseService._parse_proportion('') == Decimal('0.5')
+
+
+class TestNormalizeSplitShares:
+
+    def test_defaults_to_half_when_no_explicit_share(self):
+        user_share, other_share = ExpenseService._normalize_split_shares(
+            Decimal('200000'),
+            {'proportion': None},
+            Decimal('0.5'),
+        )
+
+        assert user_share == Decimal('100000')
+        assert other_share == Decimal('100000')
+
+    def test_proportion_zero_means_all_other_share(self):
+        user_share, other_share = ExpenseService._normalize_split_shares(
+            Decimal('100000'),
+            {'proportion': '0'},
+            Decimal('0'),
+        )
+
+        assert user_share == Decimal('0')
+        assert other_share == Decimal('100000')
+
+    def test_proportion_one_means_all_user_share(self):
+        user_share, other_share = ExpenseService._normalize_split_shares(
+            Decimal('200000'),
+            {'proportion': '1'},
+            Decimal('1'),
+        )
+
+        assert user_share == Decimal('200000')
+        assert other_share == Decimal('0')
+
+    def test_user_share_amount_sets_user_share_and_calculates_other_share(self):
+        user_share, other_share = ExpenseService._normalize_split_shares(
+            Decimal('200000'),
+            {'user_share_amount': 70000},
+            Decimal('0.5'),
+        )
+
+        assert user_share == Decimal('70000')
+        assert other_share == Decimal('130000')
+
+    def test_other_share_amount_sets_other_share_and_calculates_user_share(self):
+        user_share, other_share = ExpenseService._normalize_split_shares(
+            Decimal('200000'),
+            {'other_share_amount': 70000},
+            Decimal('0.5'),
+        )
+
+        assert user_share == Decimal('130000')
+        assert other_share == Decimal('70000')
+
+    def test_split_amount_remains_legacy_other_share_amount(self):
+        user_share, other_share = ExpenseService._normalize_split_shares(
+            Decimal('60000'),
+            {'split_amount': 36700},
+            Decimal('0.5'),
+        )
+
+        assert user_share == Decimal('23300')
+        assert other_share == Decimal('36700')
+
+    def test_fixed_share_greater_than_total_is_rejected_with_spanish_message(self):
+        with pytest.raises(ValueError, match='mayor que el total'):
+            ExpenseService._normalize_split_shares(
+                Decimal('100000'),
+                {'other_share_amount': 150000},
+                Decimal('0.5'),
+            )
+
+    def test_conflicting_fixed_shares_are_rejected_with_spanish_message(self):
+        with pytest.raises(ValueError, match='no coinciden con el total'):
+            ExpenseService._normalize_split_shares(
+                Decimal('200000'),
+                {'user_share_amount': 80000, 'other_share_amount': 150000},
+                Decimal('0.5'),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -2486,6 +2673,31 @@ class TestPrepareSharedExpense:
         }
         result = service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 50k')
         assert result.expense.split_fixed_amount is None
+
+    def test_conflicting_share_amounts_raise_spanish_user_message(
+        self,
+        service_with_split,
+        mock_user_repository,
+        mock_llm_parser,
+        authorized_user,
+    ):
+        """Conflicting fixed shares preserve the clear Spanish message in preview flows."""
+        mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 200000.0, 'category': 'Groceries',
+            'payee': 'Carulla', 'memo': 'montos conflictivos', 'confidence': 0.9,
+            'person': 'Juan', 'proportion': None, 'payer': 'user',
+            'user_share_amount': 120000,
+            'other_share_amount': 90000,
+        }
+
+        from domain.exceptions import ExpenseParsingException
+
+        with pytest.raises(ExpenseParsingException) as exc_info:
+            service_with_split.prepare_shared_expense(TELEGRAM_ID, 'mercado con Juan 200k')
+
+        assert exc_info.value.user_message == "Las partes declaradas no coinciden con el total del gasto."
 
 
 # ---------------------------------------------------------------------------

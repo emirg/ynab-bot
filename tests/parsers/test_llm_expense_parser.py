@@ -426,6 +426,49 @@ class TestSplitAmountValidation:
         assert result is not None
         assert result['split_amount'] is None
 
+    def test_user_share_amount_is_preserved(self, parser, mock_openai_client):
+        """user_share_amount carries an explicit amount owned by the bot user."""
+        payload = {**self._shared_expense_base(), 'user_share_amount': 70000}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('Eli gastó 200k conmigo, 70k son míos')
+        assert result is not None
+        assert result['user_share_amount'] == 70000.0
+        assert result['other_share_amount'] is None
+
+    def test_other_share_amount_is_preserved(self, parser, mock_openai_client):
+        """other_share_amount carries an explicit amount owned by the other person."""
+        payload = {**self._shared_expense_base(), 'other_share_amount': 70000}
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('Gasté 200k con Eli, 70k son de Eli')
+        assert result is not None
+        assert result['other_share_amount'] == 70000.0
+        assert result['user_share_amount'] is None
+
+    def test_owner_specific_share_amounts_can_both_pass_for_service_validation(self, parser, mock_openai_client):
+        """Conflicting explicit shares are preserved so ExpenseService can reject them clearly."""
+        payload = {
+            **self._shared_expense_base(),
+            'user_share_amount': 80000,
+            'other_share_amount': 150000,
+        }
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('80k son míos y 150k son de Eli')
+        assert result is not None
+        assert result['user_share_amount'] == 80000.0
+        assert result['other_share_amount'] == 150000.0
+
+    def test_invalid_owner_specific_share_amounts_normalise_to_none(self, parser, mock_openai_client):
+        payload = {
+            **self._shared_expense_base(),
+            'user_share_amount': -1,
+            'other_share_amount': 'abc',
+        }
+        _mock_response(mock_openai_client, json.dumps(payload))
+        result = parser.parse_message('test')
+        assert result is not None
+        assert result['user_share_amount'] is None
+        assert result['other_share_amount'] is None
+
 
 class TestParseExpenseUnchanged:
     """Verify parse_expense() still works independently."""

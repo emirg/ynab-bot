@@ -111,6 +111,22 @@ path = "docs/ARCHITECTURE.md"
 snippet = "outflow from real category balanced by inflow to split tracking category"
 
 [[fixture]]
+id = "splitwise_responsibility_matrix_controls_ynab_shape"
+label = "Splitwise responsibility matrix controls YNAB transaction shape"
+risk_area = "shared expense construction"
+protected_rule = "Shared expense transaction shape must follow payer and responsibility, including one-category 100% user-paid cases."
+owner_path = "src/domain/models/expense.py"
+assertion = "splitwise_responsibility_matrix_controls_ynab_shape"
+
+[[fixture.pytest_evidence]]
+path = "tests/domain/models/test_domain_models.py"
+snippet = "class TestNormalizedSplitShares:"
+
+[[fixture.doc_evidence]]
+path = "docs/specs/archive/2026-05-03-splitwise-expense-semantics.md"
+snippet = "| `Gaste 100k en Carulla por Eli` | User payment account, e.g. `RappiCard` | Regular transaction: `Gastos Splitwise -100k` |"
+
+[[fixture]]
 id = "account_balance_reads_from_account_fields"
 label = "Account balance queries read from account fields"
 risk_area = "account balance source"
