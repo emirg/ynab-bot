@@ -116,6 +116,7 @@ class TestParseMessageExpense:
         assert kwargs['response_format']['type'] == 'json_schema'
         assert kwargs['response_format']['json_schema']['name'] == 'expense_parser_response'
         assert kwargs['response_format']['json_schema']['strict'] is True
+        assert kwargs['max_tokens'] >= 1000
 
     def test_parse_message_model_can_be_overridden_by_environment(self, mock_openai_client):
         with patch.dict('os.environ', {
@@ -170,6 +171,63 @@ class TestParseMessageExpense:
         assert result['intent'] == 'expense'
         assert result['account'] is None
         assert result['date'] is None
+
+    def test_parse_message_ignores_flat_structured_fields_for_expense_intent(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': "Me pedi en McDonald's, me gaste como 25 lucas",
+            'date': None,
+            'confidence': 0.9,
+            'query_type': None,
+            'query_target': None,
+            'person': None,
+            'proportion': None,
+            'split_amount': None,
+            'user_share_amount': None,
+            'other_share_amount': None,
+            'payer': 'user',
+        })
+        _mock_response(mock_openai_client, response)
+
+        result = parser.parse_message("Me pedi en McDonald's, me gaste como 25 lucas")
+
+        assert result is not None
+        assert result['intent'] == 'expense'
+        assert result['amount'] == 25000.0
+        assert 'payer' not in result
+
+    def test_parse_message_ignores_flat_structured_fields_for_query_intent(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'query',
+            'amount': 1000.0,
+            'category': 'Restaurants',
+            'payee': 'Pret',
+            'account': None,
+            'memo': 'ignored',
+            'date': None,
+            'confidence': 0.9,
+            'query_type': 'category_balance',
+            'query_target': 'Restaurants',
+            'person': None,
+            'proportion': None,
+            'split_amount': None,
+            'user_share_amount': None,
+            'other_share_amount': None,
+            'payer': 'other',
+        })
+        _mock_response(mock_openai_client, response)
+
+        result = parser.parse_message('cuanto queda en restaurantes')
+
+        assert result is not None
+        assert result['intent'] == 'query'
+        assert result['query_type'] == 'category_balance'
+        assert 'amount' not in result
+        assert 'payer' not in result
 
 
 class TestParseMessageErrors:

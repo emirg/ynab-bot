@@ -428,7 +428,7 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                     {"role": "user", "content": message}
                 ],
                 temperature=0.1,
-                max_tokens=300,
+                max_tokens=1000,
                 response_format=self._message_response_format(),
             )
 
@@ -498,9 +498,23 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                     return None
 
                 try:
+                    fields_by_intent = {
+                        'query': {'intent', 'query_type', 'query_target', 'confidence'},
+                        'expense': {
+                            'intent', 'amount', 'category', 'payee', 'account',
+                            'memo', 'date', 'confidence',
+                        },
+                        'shared_expense': {
+                            'intent', 'amount', 'category', 'payee', 'account',
+                            'memo', 'date', 'confidence', 'person', 'proportion',
+                            'split_amount', 'user_share_amount', 'other_share_amount',
+                            'payer',
+                        },
+                    }
+                    allowed_fields = fields_by_intent[result['intent']]
                     schema_result = {
                         key: value for key, value in result.items()
-                        if value is not None
+                        if key in allowed_fields and value is not None
                     }
                     return ParsedExpenseResponse.model_validate(schema_result).to_parser_dict()
                 except ValidationError as e:
