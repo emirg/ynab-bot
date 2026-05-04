@@ -117,11 +117,12 @@ class TestParseMessageExpense:
         assert kwargs['response_format']['json_schema']['name'] == 'expense_parser_response'
         assert kwargs['response_format']['json_schema']['strict'] is True
         assert kwargs['max_tokens'] >= 1000
+        assert 'max_completion_tokens' not in kwargs
 
     def test_parse_message_model_can_be_overridden_by_environment(self, mock_openai_client):
         with patch.dict('os.environ', {
             'OPENAI_API_KEY': 'test-key',
-            'OPENAI_EXPENSE_PARSER_MODEL': 'gpt-5.4-nano',
+            'OPENAI_EXPENSE_PARSER_MODEL': 'gpt-5-nano',
         }):
             from parsers.llm_expense_parser import LLMExpenseParser
             parser = LLMExpenseParser(
@@ -142,7 +143,63 @@ class TestParseMessageExpense:
         parser.parse_message('25 lucas almuerzo')
 
         kwargs = mock_openai_client.chat.completions.create.call_args.kwargs
-        assert kwargs['model'] == 'gpt-5.4-nano'
+        assert kwargs['model'] == 'gpt-5-nano'
+
+    def test_parse_message_uses_max_completion_tokens_for_gpt5_models(self, mock_openai_client):
+        with patch.dict('os.environ', {
+            'OPENAI_API_KEY': 'test-key',
+            'OPENAI_EXPENSE_PARSER_MODEL': 'gpt-5-mini',
+        }):
+            from parsers.llm_expense_parser import LLMExpenseParser
+            parser = LLMExpenseParser(
+                ynab_categories=[{'name': 'Groceries'}, {'name': 'Restaurants'}],
+                ynab_accounts=['Nu Card', 'Efectivo'],
+            )
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+
+        parser.parse_message('25 lucas almuerzo')
+
+        kwargs = mock_openai_client.chat.completions.create.call_args.kwargs
+        assert kwargs['model'] == 'gpt-5-mini'
+        assert kwargs['max_completion_tokens'] >= 1000
+        assert 'max_tokens' not in kwargs
+
+    def test_parse_message_retries_rate_limit_errors(self, parser, mock_openai_client):
+        class FakeRateLimitError(Exception):
+            status_code = 429
+
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'confidence': 0.85,
+        })
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = response
+        mock_openai_client.chat.completions.create.side_effect = [
+            FakeRateLimitError('Rate limit reached. Please try again in 2.752s.'),
+            mock_resp,
+        ]
+
+        with patch('parsers.llm_expense_parser.time.sleep') as sleep:
+            result = parser.parse_message('25 lucas almuerzo')
+
+        assert result['intent'] == 'expense'
+        assert mock_openai_client.chat.completions.create.call_count == 2
+        sleep.assert_called_once_with(2.752)
 
     def test_parse_message_accepts_structured_output_null_fields(self, parser, mock_openai_client):
         response = json.dumps({

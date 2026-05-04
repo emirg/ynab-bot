@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -83,10 +84,34 @@ def evaluate_scenarios(
         mismatches = compare_expected(scenario['expected'], actual)
         results.append({
             'id': scenario['id'],
+            'message': scenario['message'],
             'passed': not mismatches,
+            'expected': scenario['expected'],
+            'actual': actual,
             'mismatches': mismatches,
+            'categories': scenario.get('categories', []),
+            'accounts': scenario.get('accounts', []),
+            'learning_hints': scenario.get('learning_hints'),
         })
     return results
+
+
+def build_output_document(fixture_dir: str, model_results: dict[str, list[dict]]) -> dict:
+    models = {}
+    for model, results in model_results.items():
+        passed_count = sum(1 for result in results if result['passed'])
+        total_count = len(results)
+        models[model] = {
+            'passed_count': passed_count,
+            'failed_count': total_count - passed_count,
+            'total_count': total_count,
+            'scenarios': results,
+        }
+    return {
+        'generated_at': datetime.now(timezone.utc).isoformat(),
+        'fixture_dir': fixture_dir,
+        'models': models,
+    }
 
 
 def _print_model_results(model: str, results: list[dict]) -> None:
@@ -116,6 +141,11 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_FIXTURE_DIR,
         help='Directory containing golden scenario JSON files.',
     )
+    parser.add_argument(
+        '--output',
+        type=Path,
+        help='JSON file to save evaluation results.',
+    )
     args = parser.parse_args(argv)
 
     if not os.getenv('OPENAI_API_KEY'):
@@ -124,11 +154,27 @@ def main(argv: list[str] | None = None) -> int:
 
     scenarios = load_scenarios(args.fixture_dir)
     exit_code = 0
+    all_results = {}
     for model in args.model:
-        results = evaluate_scenarios(model, scenarios)
+        results = evaluate_scenarios(
+            model,
+            scenarios,
+            parser_factory=_default_parser_factory,
+        )
+        all_results[model] = results
         _print_model_results(model, results)
         if any(not result['passed'] for result in results):
             exit_code = 1
+    
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        output_document = build_output_document(
+            fixture_dir=str(args.fixture_dir),
+            model_results=all_results,
+        )
+        args.output.write_text(json.dumps(output_document, indent=2, ensure_ascii=False))
+        print(f"\nResults saved to: {args.output}")
+        
     return exit_code
 
 

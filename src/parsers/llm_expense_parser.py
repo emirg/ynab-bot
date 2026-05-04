@@ -1,6 +1,8 @@
 import os
 import json
 import logging
+import re
+import time
 from datetime import datetime
 from typing import Dict, Optional, List
 from openai import OpenAI
@@ -19,6 +21,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 DEFAULT_EXPENSE_PARSER_MODEL = 'gpt-4o-mini'
+DEFAULT_EXPENSE_PARSER_MAX_RETRIES = 3
+DEFAULT_EXPENSE_PARSER_RETRY_BASE_SECONDS = 1.0
 
 
 class LLMExpenseParser:
@@ -411,6 +415,89 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             },
         }
 
+    def _message_completion_token_limit_kwargs(self, model: Optional[str] = None) -> dict:
+        """Return model-compatible completion length parameters."""
+        model = (model or self.expense_parser_model).lower()
+        if model.startswith('gpt-5') or model.startswith('o'):
+            return {'max_completion_tokens': 1000}
+        return {'max_tokens': 1000}
+
+    def _model_supports_custom_temperature(self, model: str) -> bool:
+        """Return True if the model supports temperature values other than 1.0."""
+        model = model.lower()
+        # o1-series and future gpt-5 (per user report) do not support custom temperature
+        if model.startswith('o') or model.startswith('gpt-5'):
+            return False
+        return True
+
+    def _expense_parser_max_retries(self) -> int:
+        """Return retry count for transient parser API failures."""
+        try:
+            return max(0, int(os.getenv(
+                'OPENAI_EXPENSE_PARSER_MAX_RETRIES',
+                str(DEFAULT_EXPENSE_PARSER_MAX_RETRIES),
+            )))
+        except ValueError:
+            return DEFAULT_EXPENSE_PARSER_MAX_RETRIES
+
+    def _expense_parser_retry_base_seconds(self) -> float:
+        """Return base backoff delay for parser API retries."""
+        try:
+            return max(0.0, float(os.getenv(
+                'OPENAI_EXPENSE_PARSER_RETRY_BASE_SECONDS',
+                str(DEFAULT_EXPENSE_PARSER_RETRY_BASE_SECONDS),
+            )))
+        except ValueError:
+            return DEFAULT_EXPENSE_PARSER_RETRY_BASE_SECONDS
+
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """Detect OpenAI rate-limit errors without coupling tests to SDK internals."""
+        return (
+            getattr(error, 'status_code', None) == 429
+            or getattr(error, 'code', None) == 'rate_limit_exceeded'
+            or 'rate limit' in str(error).lower()
+        )
+
+    def _retry_delay_seconds(self, error: Exception, attempt: int) -> float:
+        """Prefer OpenAI's suggested retry delay when present, otherwise back off."""
+        match = re.search(r'try again in ([0-9]+(?:\.[0-9]+)?)s', str(error), re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+        return self._expense_parser_retry_base_seconds() * (2 ** attempt)
+
+    def _create_message_completion(self, **kwargs):
+        """Create a message completion with bounded retries for rate limits and model-specific parameter handling."""
+        model = kwargs.get('model', self.expense_parser_model)
+        
+        # Handle temperature constraints
+        if 'temperature' in kwargs and not self._model_supports_custom_temperature(model):
+            logger.debug(f"Removing temperature parameter for model {model}")
+            kwargs.pop('temperature')
+
+        # Handle Structured Outputs (response_format) constraints
+        # o1-series and future gpt-5 might have issues or lack support for strict schemas
+        model_lower = model.lower()
+        if 'response_format' in kwargs and (model_lower.startswith('o') or model_lower.startswith('gpt-5')):
+            logger.debug(f"Removing response_format for model {model} to ensure compatibility")
+            kwargs.pop('response_format')
+
+        max_retries = self._expense_parser_max_retries()
+        for attempt in range(max_retries + 1):
+            try:
+                return self.client.chat.completions.create(**kwargs)
+            except Exception as error:
+                if not self._is_rate_limit_error(error) or attempt >= max_retries:
+                    raise
+                delay_seconds = self._retry_delay_seconds(error, attempt)
+                logger.warning(
+                    "OpenAI rate limit while parsing expense message; retrying in %.3fs "
+                    "(attempt %s/%s)",
+                    delay_seconds,
+                    attempt + 1,
+                    max_retries,
+                )
+                time.sleep(delay_seconds)
+
     def parse_message(self, message: str, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
         Classify the message intent and return the corresponding structure.
@@ -421,24 +508,37 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
         try:
             system_prompt = self._generate_message_system_prompt(timezone_str, learning_hints=learning_hints)
 
-            response = self.client.chat.completions.create(
+            response = self._create_message_completion(
                 model=self.expense_parser_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message}
                 ],
                 temperature=0.1,
-                max_tokens=1000,
                 response_format=self._message_response_format(),
+                **self._message_completion_token_limit_kwargs(self.expense_parser_model),
             )
 
-            content = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            if content is None:
+                logger.error(f"OpenAI returned None content for model {self.expense_parser_model}. Finish reason: {response.choices[0].finish_reason}")
+                return None
+            
+            content = content.strip()
+            if not content:
+                logger.error(f"OpenAI returned empty string content for model {self.expense_parser_model}. Finish reason: {response.choices[0].finish_reason}")
+                return None
+
             content = self._strip_markdown_code_blocks(content)
 
             try:
                 result = json.loads(content)
+                
+                # Unwrap the 'result' field if present (from the new nested schema)
+                if isinstance(result, dict) and 'result' in result:
+                    result = result['result']
 
-                if 'intent' not in result or 'confidence' not in result:
+                if not isinstance(result, dict) or 'intent' not in result or 'confidence' not in result:
                     logger.error(f"Response missing intent or confidence: {result}")
                     return None
 
@@ -544,18 +644,28 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             # Build a dynamic prompt with the current categories
             system_prompt = self._generate_system_prompt(timezone_str, learning_hints=learning_hints)
             
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+            model = "gpt-4o-mini"
+            response = self._create_message_completion(
+                model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message}
                 ],
                 temperature=0.1,  # Lower temperature for more consistent responses
-                max_tokens=200
+                **self._message_completion_token_limit_kwargs(model),
             )
             
             # Extract the response content
-            content = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            if content is None:
+                logger.error(f"OpenAI parse_expense returned None content for model {model}")
+                return None
+            
+            content = content.strip()
+            if not content:
+                logger.error(f"OpenAI parse_expense returned empty content for model {model}")
+                return None
+            
             content = self._strip_markdown_code_blocks(content)
             
             # Parse the JSON payload
@@ -625,17 +735,27 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                     "text": f"Contexto adicional proporcionado por el usuario: {caption}"
                 })
 
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+            model = "gpt-4o-mini"
+            response = self._create_message_completion(
+                model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
                 ],
                 temperature=0.1,
-                max_tokens=500
+                **self._message_completion_token_limit_kwargs(model),
             )
 
-            content = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            if content is None:
+                logger.error(f"OpenAI parse_receipt_image returned None content for model {model}")
+                return None
+            
+            content = content.strip()
+            if not content:
+                logger.error(f"OpenAI parse_receipt_image returned empty content for model {model}")
+                return None
+            
             content = self._strip_markdown_code_blocks(content)
 
             try:

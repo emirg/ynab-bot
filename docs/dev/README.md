@@ -90,6 +90,8 @@ Edit `config/.env` with:
 | `POSTGRES_DSN` | PostgreSQL DSN used by the runtime app | Yes |
 | `DATABASE_PATH` | Path to legacy SQLite database used only for migration tooling | No |
 | `OPENAI_EXPENSE_PARSER_MODEL` | Optional text parser model override for local/manual evaluation | No |
+| `OPENAI_EXPENSE_PARSER_MAX_RETRIES` | Optional retry count for OpenAI rate-limit responses during parser calls; defaults to `3` | No |
+| `OPENAI_EXPENSE_PARSER_RETRY_BASE_SECONDS` | Optional exponential-backoff base delay when OpenAI does not return a retry hint; defaults to `1.0` | No |
 
 Generate a Fernet encryption key with:
 
@@ -332,11 +334,15 @@ To compare real OpenAI models manually, set `OPENAI_API_KEY` and run:
 ```bash
 .venv/bin/python scripts/evals/evaluate_expense_parser.py \
   --model gpt-4o-mini \
-  --model gpt-5.4-nano \
-  --model gpt-5.4-mini
+  --model gpt-5-nano \
+  --model gpt-5-mini \
+  --model gpt-4.1 \
+  --output tmp/expense-parser-eval.json
 ```
 
-This manual command calls OpenAI and reports field-level differences against the committed golden fixture suite. Do not change the production parser default without evidence from this suite.
+This manual command calls OpenAI, reports field-level differences against the committed golden fixture suite, and can write a JSON artifact with each scenario's message, expected payload, actual payload, mismatches, categories, accounts, and learning hints for later review. Do not change the production parser default without evidence from this suite.
+
+If OpenAI returns `429` rate-limit errors during the manual evaluator, the parser retries boundedly and uses OpenAI's suggested `try again in ...s` delay when present. For very constrained TPM limits, lower the number of models per run or increase `OPENAI_EXPENSE_PARSER_MAX_RETRIES` for the manual session.
 
 For the PostgreSQL integration smoke test specifically:
 

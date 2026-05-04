@@ -2,12 +2,20 @@
   {
     "id": "expense_meal_delivery_mcdonalds_lucas",
     "message": "Me pedi en McDonald's, me gaste como 25 lucas",
-    "categories": ["Groceries", "Restaurants", "Meal Delivery"],
-    "accounts": ["Rappi Card", "Nu Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🥗 Meal delivery"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Nu Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 25000.0,
-      "category": "Meal Delivery",
+      "category": "🥗 Meal delivery",
       "payee": "McDonald's",
       "account": null,
       "memo": "Me pedi en McDonald's, me gaste como 25 lucas",
@@ -18,12 +26,20 @@
   {
     "id": "expense_groceries_carulla_rappicard",
     "message": "Gaste 120k en Carulla con mi Rappi Card",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Nu Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Nu Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 120000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Carulla",
       "account": "Rappi Card",
       "memo": "Gaste 120k en Carulla con mi Rappi Card",
@@ -34,12 +50,20 @@
   {
     "id": "expense_restaurant_pret_no_account",
     "message": "71800 en Pret",
-    "categories": ["Groceries", "Restaurants", "Coffee"],
-    "accounts": ["Rappi Card", "Nu Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🥗 Meal delivery"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Nu Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 71800.0,
-      "category": "Restaurants",
+      "category": "🍽️ Dining out",
       "payee": "Pret",
       "account": null,
       "memo": "71800 en Pret",
@@ -50,12 +74,20 @@
   {
     "id": "expense_healthcare_farmatodo",
     "message": "Compre medicina en Farmatodo por 32000",
-    "categories": ["Groceries", "Healthcare", "Personal Care"],
-    "accounts": ["Rappi Card", "Nu Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🏥 Medical and Personal Care",
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Nu Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 32000.0,
-      "category": "Healthcare",
+      "category": "🏥 Medical and Personal Care",
       "payee": "Farmatodo",
       "account": null,
       "memo": "Compre medicina en Farmatodo por 32000",
@@ -66,12 +98,20 @@
   {
     "id": "expense_personal_care_exito_visa",
     "message": "Gaste 20k en productos de belleza en Exito con mi Visa",
-    "categories": ["Groceries", "Personal Care", "Shopping"],
-    "accounts": ["Visa", "Nu Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🏥 Medical and Personal Care",
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Visa",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 20000.0,
-      "category": "Personal Care",
+      "category": "🏥 Medical and Personal Care",
       "payee": "Exito",
       "account": "Visa",
       "memo": "Gaste 20k en productos de belleza en Exito con mi Visa",
@@ -82,12 +122,20 @@
   {
     "id": "expense_rideshare_uber_airport",
     "message": "Uber al aeropuerto 80k con mi rappi card",
-    "categories": ["Restaurants", "Rideshare", "Travel"],
-    "accounts": ["Rappi Card", "Nu Card", "Efectivo"],
+    "categories": [
+      "🍽️ Dining out",
+      "🚙 Rideshare (Uber/Lyft/etc.)",
+      "🇦🇷 Argentina"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Nu Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 80000.0,
-      "category": "Rideshare",
+      "category": "🚙 Rideshare (Uber/Lyft/etc.)",
       "payee": "Uber",
       "account": "Rappi Card",
       "memo": "Uber al aeropuerto 80k con mi rappi card",
@@ -98,12 +146,21 @@
   {
     "id": "expense_subscription_netflix",
     "message": "Netflix mensual 15900 con Bancolombia",
-    "categories": ["Subscriptions", "Restaurants", "Utilities"],
-    "accounts": ["Bancolombia", "Nu Card", "Efectivo"],
+    "categories": [
+      "🌳 YNAB subscription",
+      "🍽️ Dining out",
+      "⚡ Energy",
+      "📺 Netflix"
+    ],
+    "accounts": [
+      "Bancolombia",
+      "Nu Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 15900.0,
-      "category": "Subscriptions",
+      "category": "📺 Netflix",
       "payee": "Netflix",
       "account": "Bancolombia",
       "memo": "Netflix mensual 15900 con Bancolombia",
@@ -114,12 +171,20 @@
   {
     "id": "expense_shopping_mercadolibre",
     "message": "Compre una botella en MercadoLibre por 12345 con mi nu card",
-    "categories": ["Shopping", "Groceries", "Personal Care"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)",
+      "🛒 Groceries",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 12345.0,
-      "category": "Shopping",
+      "category": "🛍️Shopping (MercadoLibre/Amazon/etc.)",
       "payee": "MercadoLibre",
       "account": "Nu Card",
       "memo": "Compre una botella en MercadoLibre por 12345 con mi nu card",
@@ -130,12 +195,20 @@
   {
     "id": "expense_cash_supermarket",
     "message": "Compras del super: 150 mil pesos en efectivo",
-    "categories": ["Groceries", "Restaurants", "Shopping"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 150000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Supermercado",
       "account": "Efectivo",
       "memo": "Compras del super: 150 mil pesos en efectivo",
@@ -146,12 +219,20 @@
   {
     "id": "expense_decimal_comma",
     "message": "Cafe 12500,50 en Starbucks",
-    "categories": ["Coffee", "Restaurants", "Groceries"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🍽️ Dining out",
+      "🥗 Meal delivery",
+      "🛒 Groceries"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 12500.5,
-      "category": "Coffee",
+      "category": "🍽️ Dining out",
       "payee": "Starbucks",
       "account": null,
       "memo": "Cafe 12500,50 en Starbucks",
@@ -162,12 +243,20 @@
   {
     "id": "expense_relative_date_yesterday",
     "message": "Ayer almuerzo 25 lucas en Crepes",
-    "categories": ["Restaurants", "Groceries", "Meal Delivery"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🍽️ Dining out",
+      "🛒 Groceries",
+      "🥗 Meal delivery"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 25000.0,
-      "category": "Restaurants",
+      "category": "🍽️ Dining out",
       "payee": "Crepes",
       "account": null,
       "memo": "Ayer almuerzo 25 lucas en Crepes",
@@ -178,12 +267,20 @@
   {
     "id": "expense_absolute_date_without_year",
     "message": "El 24/07 pague 50000 de gasolina en Terpel",
-    "categories": ["Gas", "Restaurants", "Transportation"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🌡️Gas",
+      "🍽️ Dining out",
+      "🚙 Rideshare (Uber/Lyft/etc.)"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 50000.0,
-      "category": "Gas",
+      "category": "🌡️Gas",
       "payee": "Terpel",
       "account": null,
       "memo": "El 24/07 pague 50000 de gasolina en Terpel",
@@ -194,20 +291,36 @@
   {
     "id": "query_category_balance_groceries",
     "message": "Cuanto me queda en comida?",
-    "categories": ["Groceries", "Restaurants", "Shopping"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "query",
       "query_type": "category_balance",
-      "query_target": "Groceries",
+      "query_target": "🛒 Groceries",
       "confidence": 0.8
     }
   },
   {
     "id": "query_account_balance_nu",
     "message": "Cuanto debo en mi Nu Card?",
-    "categories": ["Groceries", "Restaurants", "Shopping"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "query",
       "query_type": "account_balance",
@@ -218,8 +331,16 @@
   {
     "id": "query_budget_summary",
     "message": "Como va mi presupuesto?",
-    "categories": ["Groceries", "Restaurants", "Shopping"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "query",
       "query_type": "budget_summary",
@@ -228,26 +349,41 @@
     }
   },
   {
-    "id": "query_spending_restaurants",
+    "id": "query_spending_dinning_out",
     "message": "Cuanto he gastado en restaurantes este mes?",
-    "categories": ["Groceries", "Restaurants", "Shopping"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🛍️Shopping (MercadoLibre/Amazon/etc.)"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "query",
       "query_type": "category_balance",
-      "query_target": "Restaurants",
+      "query_target": "🍽️ Dining out",
       "confidence": 0.8
     }
   },
   {
     "id": "split_user_paid_half_with_person",
     "message": "Gaste 200k en Carulla con Frank",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 200000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Carulla",
       "account": null,
       "memo": "Gaste 200k en Carulla con Frank",
@@ -264,12 +400,19 @@
   {
     "id": "split_other_paid_half_conmigo",
     "message": "Frank gasto 200k en Carulla conmigo",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 200000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Carulla",
       "account": null,
       "memo": "Frank gasto 200k en Carulla conmigo",
@@ -286,12 +429,19 @@
   {
     "id": "split_other_paid_half_implicit_context",
     "message": "Frank gasto 71800 en Pret",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 71800.0,
-      "category": "Restaurants",
+      "category": "🍽️ Dining out",
       "payee": "Pret",
       "account": null,
       "memo": "Frank gasto 71800 en Pret",
@@ -308,12 +458,19 @@
   {
     "id": "split_user_paid_full_other_share",
     "message": "Gaste 100k en Carulla por Frank",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 100000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Carulla",
       "account": null,
       "memo": "Gaste 100k en Carulla por Frank",
@@ -330,12 +487,19 @@
   {
     "id": "split_other_paid_full_user_share",
     "message": "Frank gasto 200k por mi en Carulla",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 200000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Carulla",
       "account": null,
       "memo": "Frank gasto 200k por mi en Carulla",
@@ -352,12 +516,19 @@
   {
     "id": "split_other_paid_me_compro_farmatodo",
     "message": "Frank me compro un agua oxigenada en Farmatodo por 14200",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 14200.0,
-      "category": "Healthcare",
+      "category": "🏥 Medical and Personal Care",
       "payee": "Farmatodo",
       "account": null,
       "memo": "Frank me compro un agua oxigenada en Farmatodo por 14200",
@@ -373,16 +544,23 @@
   },
   {
     "id": "split_user_paid_fixed_other_share",
-    "message": "gaste 60000 en restaurante, 36700 son por Juan",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "message": "gaste 60000 en Crepes, 36700 son por Juan",
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 60000.0,
-      "category": "Restaurants",
-      "payee": "Restaurante",
+      "category": "🍽️ Dining out",
+      "payee": "Crepes",
       "account": null,
-      "memo": "gaste 60000 en restaurante, 36700 son por Juan",
+      "memo": "gaste 60000 en Crepes, 36700 son por Juan",
       "date": null,
       "confidence": 0.8,
       "person": "Juan",
@@ -395,16 +573,23 @@
   },
   {
     "id": "split_other_paid_fixed_user_share",
-    "message": "Frank gasto 200k conmigo, 70k son mios",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "message": "Frank gasto 200k conmigo en El Corral, 70k son mios",
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 200000.0,
-      "category": "Restaurants",
-      "payee": "Restaurante",
+      "category": "🍽️ Dining out",
+      "payee": "El Corral",
       "account": null,
-      "memo": "Frank gasto 200k conmigo, 70k son mios",
+      "memo": "Frank gasto 200k conmigo en El Corral, 70k son mios",
       "date": null,
       "confidence": 0.8,
       "person": "Frank",
@@ -417,16 +602,23 @@
   },
   {
     "id": "split_other_paid_fixed_other_share",
-    "message": "Frank gasto 200k conmigo, 70k son de Frank",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "message": "Frank gasto 200k conmigo en El Corral, 70k son de Frank",
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 200000.0,
-      "category": "Restaurants",
-      "payee": "Restaurante",
+      "category": "🍽️ Dining out",
+      "payee": "El Corral",
       "account": null,
-      "memo": "Frank gasto 200k conmigo, 70k son de Frank",
+      "memo": "Frank gasto 200k conmigo en El Corral, 70k son de Frank",
       "date": null,
       "confidence": 0.8,
       "person": "Frank",
@@ -439,16 +631,23 @@
   },
   {
     "id": "split_user_paid_two_thirds_user",
-    "message": "gaste 60000 en restaurante con Juan, 2/3 son mios",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "message": "gaste 60000 en Crepes con Juan, 2/3 son mios",
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 60000.0,
-      "category": "Restaurants",
-      "payee": "Restaurante",
+      "category": "🍽️ Dining out",
+      "payee": "Crepes",
       "account": null,
-      "memo": "gaste 60000 en restaurante con Juan, 2/3 son mios",
+      "memo": "gaste 60000 en Crepes con Juan, 2/3 son mios",
       "date": null,
       "confidence": 0.8,
       "person": "Juan",
@@ -462,12 +661,19 @@
   {
     "id": "split_user_paid_para_maria",
     "message": "Pague 80k en supermercado para Maria",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 80000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Supermercado",
       "account": null,
       "memo": "Pague 80k en supermercado para Maria",
@@ -484,12 +690,19 @@
   {
     "id": "split_user_paid_prestamo_farmacia",
     "message": "Le preste 50000 a Juan para farmacia",
-    "categories": ["Groceries", "Restaurants", "Healthcare"],
-    "accounts": ["Rappi Card", "Shared Transactions"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "🏥 Medical and Personal Care"
+    ],
+    "accounts": [
+      "Rappi Card",
+      "Shared Transactions"
+    ],
     "expected": {
       "intent": "shared_expense",
       "amount": 50000.0,
-      "category": "Healthcare",
+      "category": "🏥 Medical and Personal Care",
       "payee": "Farmacia",
       "account": null,
       "memo": "Le preste 50000 a Juan para farmacia",
@@ -506,12 +719,20 @@
   {
     "id": "expense_account_name_not_category",
     "message": "Me gaste 3000 en Carulla con mi Nu Card",
-    "categories": ["Groceries", "Restaurants", "Nu Card"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "🛒 Groceries",
+      "🍽️ Dining out",
+      "Nu Card"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 3000.0,
-      "category": "Groceries",
+      "category": "🛒 Groceries",
       "payee": "Carulla",
       "account": "Nu Card",
       "memo": "Me gaste 3000 en Carulla con mi Nu Card",
@@ -522,13 +743,21 @@
   {
     "id": "expense_learning_context_payee_ambiguous",
     "message": "Movistar internet 90000",
-    "categories": ["Internet", "Phone", "Utilities"],
-    "accounts": ["Nu Card", "Bancolombia", "Efectivo"],
+    "categories": [
+      "💻 Internet",
+      "📱Phone",
+      "⚡ Energy"
+    ],
+    "accounts": [
+      "Nu Card",
+      "BBVA",
+      "Efectivo"
+    ],
     "learning_hints": "Movistar: Phone 70%, Internet 30%",
     "expected": {
       "intent": "expense",
       "amount": 90000.0,
-      "category": "Internet",
+      "category": "💻 Internet",
       "payee": "Movistar",
       "account": null,
       "memo": "Movistar internet 90000",
@@ -539,8 +768,16 @@
   {
     "id": "expense_transport_bus",
     "message": "Transmi 3200",
-    "categories": ["Public Transit", "Rideshare", "Restaurants"],
-    "accounts": ["Nu Card", "Rappi Card", "Efectivo"],
+    "categories": [
+      "Public Transit",
+      "🚙 Rideshare (Uber/Lyft/etc.)",
+      "🍽️ Dining out"
+    ],
+    "accounts": [
+      "Nu Card",
+      "Rappi Card",
+      "Efectivo"
+    ],
     "expected": {
       "intent": "expense",
       "amount": 3200.0,

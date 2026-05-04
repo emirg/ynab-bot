@@ -153,14 +153,30 @@ def test_parser_response_schema_validates_discriminated_union():
     assert parsed.to_parser_dict()['intent'] == 'query'
 
 
-def test_openai_message_response_schema_is_strict_flat_object():
+def test_openai_message_response_schema_is_discriminated_union():
     from parsers.expense_parser_schemas import message_response_format_schema
 
     schema = message_response_format_schema()
 
     assert schema['type'] == 'object'
-    assert schema['additionalProperties'] is False
-    assert 'oneOf' not in schema
-    assert 'anyOf' not in schema
-    assert set(schema['required']) == set(schema['properties'])
-    assert schema['properties']['intent']['enum'] == ['query', 'expense', 'shared_expense']
+    assert 'properties' in schema
+    assert 'result' in schema['properties']
+    
+    result_schema = schema['properties']['result']
+    assert 'anyOf' in result_schema
+    assert len(result_schema['anyOf']) == 3
+    
+    # Verify branches
+    intents = [s['properties']['intent']['enum'][0] for s in result_schema['anyOf']]
+    assert set(intents) == {'query', 'expense', 'shared_expense'}
+    
+    for branch in result_schema['anyOf']:
+        assert branch['type'] == 'object'
+        assert branch['additionalProperties'] is False
+        assert set(branch['required']) == set(branch['properties'])
+        
+        # Check specific constraints
+        intent = branch['properties']['intent']['enum'][0]
+        if intent == 'shared_expense':
+            assert branch['properties']['person']['type'] == 'string'
+            assert 'null' not in branch['properties']['person'].get('type', [])
