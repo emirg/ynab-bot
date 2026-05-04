@@ -378,3 +378,12 @@ Se corrigió la semántica de gastos compartidos para separar quién pagó de qu
 - Los casos donde otra persona paga siguen usando la cuenta `Shared Transactions` con transacciones zero-sum cuando hay deuda del usuario
 - Los montos explícitos "son míos" y "son de Eli" se normalizan por dueño; montos conflictivos se rechazan con mensaje claro en español
 - El arnés conductual protege la matriz principal de Splitwise contra regresiones
+
+### E.32 — Third-Party Shared Expense Inference [COMPLETADO]
+
+Se corrigió la inferencia de mensajes donde otra persona pagó o compró algo:
+
+- "Eli me compró ..." se interpreta como gasto compartido pagado por Eli donde el usuario debe el 100%
+- "Eli gastó 71800 en Pret" se interpreta como gasto compartido 50/50 pagado por Eli, aunque no diga "conmigo"
+- El prompt del parser documenta que el bot recibe mensajes para registrar gastos relevantes, no reportes casuales sobre terceros
+- La ruta de servicio existente usa la cuenta `Shared Transactions` y mantiene las transacciones zero-sum

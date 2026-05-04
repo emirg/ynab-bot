@@ -313,7 +313,7 @@ Para GASTOS:
     "confidence": <0.0_a_1.0>
 }}
 
-Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó", "por mí", "me compró", "para mí", "por [persona]", "para [persona]", "le presté", "le compré"):
+Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó", "[persona] compró", "por mí", "me compró", "para mí", "por [persona]", "para [persona]", "le presté", "le compré"):
 {{
     "intent": "shared_expense",
     "amount": <número_decimal>,
@@ -337,11 +337,13 @@ REGLAS CRÍTICAS:
 3. "budget_summary": pregunta general sobre el presupuesto (ej: "cómo va mi presupuesto"). query_target debe ser null.
 4. Para GASTOS, la categoría DEBE ser una de la lista de CATEGORÍAS DISPONIBLES.
 5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
-6. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Eli gastó 50k en carulla conmigo", "Juan pagó la cena"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
-7. "proportion", "user_share_amount", "other_share_amount" y "split_amount" en gastos compartidos:
+6. Contexto operativo: el usuario escribe para registrar gastos propios o compartidos en su presupuesto. Si el mensaje dice que una persona pagó/gastó/compró algo, NO lo trates como un gasto ajeno irrelevante; asume que involucra al usuario salvo que el texto diga explícitamente lo contrario.
+7. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Eli gastó 50k en carulla conmigo", "Eli gasto 71800 en Pret", "Juan pagó la cena", "Eli me compró algo"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
+8. "proportion", "user_share_amount", "other_share_amount" y "split_amount" en gastos compartidos:
 
    a) "proportion": SIEMPRE es la fracción del USUARIO (nunca la de la otra persona). CRÍTICO: si alguien dice "X son por [persona]" o "la parte de [persona] es X", eso es la parte de LA OTRA PERSONA, NO del usuario.
       - "a medias" / "con Eli" / "conmigo" → proportion: "1/2", user_share_amount: null, other_share_amount: null, split_amount: null
+      - "[persona] gastó/pagó/compró X en [lugar]" sin "conmigo" pero sin excluir al usuario → proportion: "1/2", user_share_amount: null, other_share_amount: null, split_amount: null
       - "mi parte es 1/3" → proportion: "1/3", user_share_amount: null, other_share_amount: null, split_amount: null
       - "2/3 son míos" → proportion: "2/3", user_share_amount: null, other_share_amount: null, split_amount: null
       - "por mí" / "me compró" / "para mí" + payer:other → proportion: "1", split_amount: null
@@ -363,8 +365,10 @@ REGLAS CRÍTICAS:
 EJEMPLOS DE GASTOS COMPARTIDOS:
 - "Gasté 200k en Carulla con Eli" → proportion: "1/2", payer: "user", user_share_amount: null, other_share_amount: null
 - "Eli gastó 200k en Carulla conmigo" → proportion: "1/2", payer: "other", user_share_amount: null, other_share_amount: null
+- "Eli gasto 71800 en Pret" → proportion: "1/2", payer: "other", user_share_amount: null, other_share_amount: null (se asume compartido 50/50 por contexto del bot)
 - "Gasté 100k en Carulla por Eli" → proportion: "0", payer: "user", user_share_amount: null, other_share_amount: null (100% es para Eli)
 - "Eli gastó 200k por mí en Carulla" → proportion: "1", payer: "other", user_share_amount: null, other_share_amount: null (usuario debe el 100%)
+- "Eli me compró un agua oxigenada en Farmatodo por 14200" → proportion: "1", payer: "other", user_share_amount: null, other_share_amount: null (usuario debe el 100%)
 - "gasté 60000 en restaurante con Juan, 2/3 son míos" → proportion: "2/3", split_amount: null, payer: "user" (la parte del usuario es 2/3)
 - "gasté 60000 en restaurante, 36700 son por Juan" → proportion: null, other_share_amount: 36700, split_amount: null, payer: "user" (Juan debe 36700 fijo)
 - "Eli gastó 200k en Carulla conmigo, 70k son míos" → proportion: null, user_share_amount: 70000, other_share_amount: null, payer: "other"

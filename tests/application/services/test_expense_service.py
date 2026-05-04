@@ -1534,6 +1534,88 @@ class TestProcessMessage:
         assert expense.account_id == sample_shared_account.account_id
         assert expense.account_name == sample_shared_account.account_name
 
+    def test_other_paid_me_compro_uses_shared_account_and_full_user_share(
+        self,
+        service_with_split,
+        mock_llm_parser,
+        mock_ynab_repository,
+        sample_shared_account,
+    ):
+        mock_ynab_repository.get_categories.return_value = [
+            YNABCategory(
+                id='cat-healthcare',
+                name='Healthcare',
+                group_name='Health',
+                full_name='Health -> Healthcare',
+            ),
+        ]
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 14200.0,
+            'category': 'Healthcare',
+            'payee': 'Farmatodo',
+            'account': None,
+            'memo': 'Eli me compró un agua oxigenada en Farmatodo por 14200',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1',
+            'payer': 'other',
+        }
+
+        result = service_with_split.process_message(
+            TELEGRAM_ID,
+            'Eli me compró un agua oxigenada en Farmatodo por 14200',
+        )
+
+        assert result.intent == 'shared_expense'
+        assert result.expense_result.success is True
+        expense = result.expense_result.expense
+        assert expense.payer == 'other'
+        assert expense.account_id == sample_shared_account.account_id
+        assert expense.category_id == 'cat-healthcare'
+        assert expense.split_user_share_amount == Decimal('14200.0')
+        assert expense.split_other_share_amount == Decimal('0.0')
+        mock_ynab_repository.create_transaction.assert_called_once_with(
+            expense,
+            'budget-uuid-1',
+            sample_shared_account.account_id,
+        )
+
+    def test_other_person_gasto_without_conmigo_defaults_to_shared_half(
+        self,
+        service_with_split,
+        mock_llm_parser,
+        mock_ynab_repository,
+        sample_shared_account,
+    ):
+        mock_llm_parser.parse_message.return_value = {
+            'intent': 'shared_expense',
+            'amount': 71800.0,
+            'category': 'Restaurants',
+            'payee': 'Pret',
+            'account': None,
+            'memo': 'Eli gasto 71800 en Pret',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1/2',
+            'payer': 'other',
+        }
+
+        result = service_with_split.process_message(TELEGRAM_ID, 'Eli gasto 71800 en Pret')
+
+        assert result.intent == 'shared_expense'
+        assert result.expense_result.success is True
+        expense = result.expense_result.expense
+        assert expense.payer == 'other'
+        assert expense.account_id == sample_shared_account.account_id
+        assert expense.split_user_share_amount == Decimal('35900.00')
+        assert expense.split_other_share_amount == Decimal('35900.00')
+        mock_ynab_repository.create_transaction.assert_called_once_with(
+            expense,
+            'budget-uuid-1',
+            sample_shared_account.account_id,
+        )
+
     def test_other_paid_no_shared_account_returns_error(self, service_with_split, mock_llm_parser, mock_split_config_repository):
         """When payer='other' and no shared account configured, return an error."""
         mock_split_config_repository.get_shared_account.return_value = None

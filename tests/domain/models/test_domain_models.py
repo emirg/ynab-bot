@@ -481,6 +481,48 @@ class TestNormalizedSplitShares:
             {'amount': 200000000, 'category_id': self.SPLIT_CAT_ID},
         ]
 
+    def test_other_paid_me_compro_full_user_share_zero_sum_shape(self):
+        e = Expense(
+            amount=Decimal('14200'), payee='Farmatodo', memo='Eli me compro agua oxigenada',
+            category_id=self.REAL_CAT_ID,
+            account_id='shared-transactions',
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_user_share_amount=Decimal('14200'),
+            split_other_share_amount=Decimal('0'),
+            payer='other',
+        )
+
+        txn = e.to_ynab_format('budget-1', 'fallback-account')['transaction']
+
+        assert txn['account_id'] == 'shared-transactions'
+        assert txn['amount'] == 0
+        assert txn['subtransactions'] == [
+            {'amount': -14200000, 'category_id': self.REAL_CAT_ID},
+            {'amount': 14200000, 'category_id': self.SPLIT_CAT_ID},
+        ]
+
+    def test_other_person_gasto_without_conmigo_half_share_zero_sum_shape(self):
+        e = Expense(
+            amount=Decimal('71800'), payee='Pret', memo='Eli gasto en Pret',
+            category_id=self.REAL_CAT_ID,
+            account_id='shared-transactions',
+            is_split=True,
+            split_category_id=self.SPLIT_CAT_ID,
+            split_user_share_amount=Decimal('35900'),
+            split_other_share_amount=Decimal('35900'),
+            payer='other',
+        )
+
+        txn = e.to_ynab_format('budget-1', 'fallback-account')['transaction']
+
+        assert txn['account_id'] == 'shared-transactions'
+        assert txn['amount'] == 0
+        assert txn['subtransactions'] == [
+            {'amount': -35900000, 'category_id': self.REAL_CAT_ID},
+            {'amount': 35900000, 'category_id': self.SPLIT_CAT_ID},
+        ]
+
 
 class TestZeroProportionFullDebt:
     """Tests for split_proportion=0 (user paid 100% for someone else, like a loan)."""

@@ -242,7 +242,9 @@ The bot supports shared expenses by separating the payer from the person respons
 ```
 "Almuerzo compartido con Juan 30k"           → 50/50 split, user paid
 "Cena con María 60k, ella pagó"              → 50/50 split, third-party paid
+"Eli gastó 71800 en Pret"                    → 50/50 split, third-party paid
 "Juan pagó 100k de mercado por mí"           → 100% debt, third-party paid
+"Eli me compró algo en Farmatodo por 14200"  → 100% debt, third-party paid
 "Compré una hamburguesa para Juan 100k"      → 100% debt, user paid
 ```
 
@@ -251,6 +253,8 @@ The bot supports shared expenses by separating the payer from the person respons
 **User-paid 100% other responsibility**: Creates one regular transaction in the Splitwise tracking category. It does not create a split with a zero real-category leg.
 
 **Third-party paid split**: Creates a zero-sum transaction — the real category outflow is balanced by an inflow from the Splitwise tracking category, so your budget reflects the debt without affecting your account balance.
+
+When a configured split person is the subject of "gastó", "pagó", or "compró", the parser assumes the message is registering a shared expense involving the user. The user does not need to write "conmigo" for the default 50/50 case.
 
 Configure split groups, person aliases, and tracking accounts via `/splitwise`.
 

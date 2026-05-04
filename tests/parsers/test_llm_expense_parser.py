@@ -351,6 +351,56 @@ class TestParseMessageSharedExpense:
         assert result['person'] == 'Eli'
         assert result['amount'] == 100000.0
 
+    def test_other_paid_me_compro_maps_to_full_user_share(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 14200.0,
+            'category': 'Healthcare',
+            'payee': 'Farmatodo',
+            'account': None,
+            'memo': 'Eli me compró un agua oxigenada en Farmatodo por 14200',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1',
+            'payer': 'other',
+        })
+        _mock_response(mock_openai_client, response)
+
+        result = parser.parse_message('Eli me compró un agua oxigenada en Farmatodo por 14200')
+
+        assert result is not None
+        assert result['intent'] == 'shared_expense'
+        assert result['payer'] == 'other'
+        assert result['proportion'] == '1'
+        assert result['person'] == 'Eli'
+        prompt = mock_openai_client.chat.completions.create.call_args.kwargs['messages'][0]['content']
+        assert '"Eli me compró un agua oxigenada en Farmatodo por 14200"' in prompt
+
+    def test_other_person_gasto_without_conmigo_defaults_to_shared_half(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'shared_expense',
+            'amount': 71800.0,
+            'category': 'Restaurants',
+            'payee': 'Pret',
+            'account': None,
+            'memo': 'Eli gasto 71800 en Pret',
+            'confidence': 0.9,
+            'person': 'Eli',
+            'proportion': '1/2',
+            'payer': 'other',
+        })
+        _mock_response(mock_openai_client, response)
+
+        result = parser.parse_message('Eli gasto 71800 en Pret')
+
+        assert result is not None
+        assert result['intent'] == 'shared_expense'
+        assert result['payer'] == 'other'
+        assert result['proportion'] == '1/2'
+        assert result['person'] == 'Eli'
+        prompt = mock_openai_client.chat.completions.create.call_args.kwargs['messages'][0]['content']
+        assert '"Eli gasto 71800 en Pret"' in prompt
+
 
 class TestSplitAmountValidation:
     """Tests for split_amount field validation in shared_expense responses."""

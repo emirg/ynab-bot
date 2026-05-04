@@ -169,6 +169,7 @@ Split expenses use YNAB subtransactions or regular one-category transactions to 
 - **User-paid 100% other responsibility**: Regular transaction categorized only to the split tracking category. This avoids zero-amount real-category split legs.
 - **User-paid 100% user responsibility**: Regular transaction categorized only to the real category. This avoids zero-amount split tracking legs.
 - **Third-party paid split** (zero-sum): Transaction amount is `$0` with two subtransactions — outflow from real category balanced by inflow to split tracking category. Uses the shared tracking account configured via `/splitwise`.
+- **Third-party paid inference**: When a configured split person is the subject of "gastó", "pagó", or "compró", the parser treats the message as a shared expense involving the user. Without an explicit share, it defaults to 50/50; "me compró", "por mí", and "para mí" make the user's share 100%.
 - **Third-party paid zero user responsibility**: No YNAB transaction is created because there is no user expense or debt to register.
 - **Fixed shares**: Parser output can identify either `user_share_amount` (e.g., "70k son míos") or `other_share_amount` (e.g., "70k son de Eli"). Conflicting explicit shares are rejected before YNAB creation.
 - **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Runtime data lives in the PostgreSQL `split_groups`, `split_person_aliases`, and `split_shared_account` tables.
