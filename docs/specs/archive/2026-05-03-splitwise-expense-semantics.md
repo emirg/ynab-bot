@@ -8,7 +8,7 @@
 - **Related ADRs:** None
 
 ## Summary
-Shared expense parsing must distinguish who paid from who is financially responsible for the purchase. Messages such as "gaste en Carulla con Eli", "gaste por Eli", "Eli gasto conmigo", and "Eli gasto por mi" currently rely on ambiguous LLM fields that can invert the YNAB result. This feature defines a deterministic contract for converting natural-language shared-expense messages into YNAB transactions and Splitwise tracking entries.
+Shared expense parsing must distinguish who paid from who is financially responsible for the purchase. Messages such as "gaste en Carulla con Frank", "gaste por Frank", "Frank gasto conmigo", and "Frank gasto por mi" currently rely on ambiguous LLM fields that can invert the YNAB result. This feature defines a deterministic contract for converting natural-language shared-expense messages into YNAB transactions and Splitwise tracking entries.
 
 ## Problem
 - The current shared-expense parser depends on a small set of fields (`payer`, `proportion`, `split_amount`) whose meaning is easy for the LLM to invert.
@@ -49,7 +49,7 @@ Then it must create the YNAB transaction based on the payer and shares.
 - `<persona> gasto/pago/compro ... por mi` or `para mi` means the other person paid for the user and the default user share is 100%.
 - Explicit proportions override defaults.
 - Explicit fixed amounts must be interpreted by textual owner:
-  - `70k son de Eli`, `70k son para Eli`, or `70k son por Eli` means Eli's share is 70k.
+  - `70k son de Frank`, `70k son para Frank`, or `70k son por Frank` means Frank's share is 70k.
   - `70k son mios`, `mi parte son 70k`, or equivalent wording means the user's share is 70k.
   - If the message says the other person's share, user share is `total - other_share`.
   - If the message says the user's share, other share is `total - user_share`.
@@ -92,14 +92,14 @@ Then it must create the YNAB transaction based on the payer and shares.
 ## Behavior Matrix
 | Message | Account | Expected YNAB Category Shape |
 |---|---|---|
-| `Gaste 200k en Carulla con Eli` | User payment account, e.g. `RappiCard` | Split: `Groceries -100k`, `Gastos Splitwise -100k` |
-| `Eli gasto 200k en Carulla conmigo` | `Shared Transactions` | Zero-sum split: `Groceries -100k`, `Gastos Splitwise +100k` |
-| `Gaste 100k en Carulla por Eli` | User payment account, e.g. `RappiCard` | Regular transaction: `Gastos Splitwise -100k` |
-| `Eli gasto 200k por mi en Carulla` | `Shared Transactions` | Zero-sum split: `Groceries -200k`, `Gastos Splitwise +200k` |
-| `Gaste 200k en Carulla con Eli, 70k son de Eli` | User payment account | Split: `Groceries -130k`, `Gastos Splitwise -70k` |
-| `Eli gasto 200k en Carulla conmigo, 70k son mios` | `Shared Transactions` | Zero-sum split: `Groceries -70k`, `Gastos Splitwise +70k` |
-| `Eli gasto 200k en Carulla conmigo, 70k son de Eli` | `Shared Transactions` | Zero-sum split: `Groceries -130k`, `Gastos Splitwise +130k` |
-| `Gaste 200k en Carulla con Eli, todo es mio` | User payment account | Regular transaction: `Groceries -200k` |
+| `Gaste 200k en Carulla con Frank` | User payment account, e.g. `RappiCard` | Split: `Groceries -100k`, `Gastos Splitwise -100k` |
+| `Frank gasto 200k en Carulla conmigo` | `Shared Transactions` | Zero-sum split: `Groceries -100k`, `Gastos Splitwise +100k` |
+| `Gaste 100k en Carulla por Frank` | User payment account, e.g. `RappiCard` | Regular transaction: `Gastos Splitwise -100k` |
+| `Frank gasto 200k por mi en Carulla` | `Shared Transactions` | Zero-sum split: `Groceries -200k`, `Gastos Splitwise +200k` |
+| `Gaste 200k en Carulla con Frank, 70k son de Frank` | User payment account | Split: `Groceries -130k`, `Gastos Splitwise -70k` |
+| `Frank gasto 200k en Carulla conmigo, 70k son mios` | `Shared Transactions` | Zero-sum split: `Groceries -70k`, `Gastos Splitwise +70k` |
+| `Frank gasto 200k en Carulla conmigo, 70k son de Frank` | `Shared Transactions` | Zero-sum split: `Groceries -130k`, `Gastos Splitwise +130k` |
+| `Gaste 200k en Carulla con Frank, todo es mio` | User payment account | Regular transaction: `Groceries -200k` |
 
 ## Edge Cases and Failure Handling
 - If a fixed share amount is greater than the total, reject the parsed shared expense with a Spanish error instead of creating an invalid transaction.

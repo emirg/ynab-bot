@@ -123,18 +123,18 @@ class TestExpenseResponseFormatter:
 
     def test_format_success_other_paid_expense(self):
         expense = Expense(
-            amount=Decimal('50000'), payee='Carulla', memo='Eli gastó 50k en carulla conmigo',
+            amount=Decimal('50000'), payee='Carulla', memo='Frank gastó 50k en carulla conmigo',
             category_name='Groceries', account_name='Nu Savings',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
-            split_category_name='Gastos con Eli',
+            split_category_name='Gastos con Frank',
             payer='other',
         )
         result = ExpenseResult.success_result(expense, 'txn-2')
         msg = ExpenseResponseFormatter.format_success(result)
-        assert 'pagado por Eli' in msg
-        assert 'Eli' in msg
+        assert 'pagado por Frank' in msg
+        assert 'Frank' in msg
         assert '$50,000' in msg
         assert '$25,000' in msg
         assert 'Tu deuda (50%)' in msg
@@ -158,17 +158,17 @@ class TestExpenseResponseFormatter:
         """100% debt case: other person paid, user owes full amount."""
         expense = Expense(
             amount=Decimal('100000'), payee='MercadoLibre',
-            memo='Eli gastó 100k en MercadoLibre por mí',
+            memo='Frank gastó 100k en MercadoLibre por mí',
             category_name='Groceries', account_name='Nu Savings',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('1'),
-            split_category_name='Gastos con Eli',
+            split_category_name='Gastos con Frank',
             payer='other',
         )
         result = ExpenseResult.success_result(expense, 'txn-5')
         msg = ExpenseResponseFormatter.format_success(result)
-        assert 'pagado por Eli' in msg
+        assert 'pagado por Frank' in msg
         assert 'Tu deuda (100%)' in msg
         assert '$100,000' in msg
         assert 'Groceries' in msg
@@ -178,7 +178,7 @@ class TestExpenseResponseFormatter:
         """Other-paid format should NOT show the 'Splitwise (x%)' line."""
         expense = Expense(
             amount=Decimal('50000'), payee='Test', memo='test',
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
             payer='other',
         )
@@ -296,12 +296,12 @@ class TestExpenseResponseFormatterPreview:
 
     def test_format_preview_other_paid_split(self):
         expense = Expense(
-            amount=Decimal('50000'), payee='Carulla', memo='Eli gastó por mí',
+            amount=Decimal('50000'), payee='Carulla', memo='Frank gastó por mí',
             category_name='Groceries', account_name='Nu Savings',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
-            split_category_name='Gastos con Eli',
+            split_category_name='Gastos con Frank',
             payer='other',
         )
         result = ExpenseResult.success_result(expense)
@@ -309,7 +309,7 @@ class TestExpenseResponseFormatterPreview:
         assert 'Voy a registrar' in msg
         assert 'registrado exitosamente' not in msg
         assert 'Pagado por' in msg
-        assert 'Eli' in msg
+        assert 'Frank' in msg
         assert '$50,000' in msg
         assert '$25,000' in msg
         assert 'Tu deuda (50%)' in msg
@@ -410,19 +410,19 @@ class TestExpenseDateDisplay:
     def test_other_paid_shows_date_line(self):
         past = datetime(2026, 3, 12)
         expense = Expense(
-            amount=Decimal('50000'), payee='Carulla', memo='Eli compro',
+            amount=Decimal('50000'), payee='Carulla', memo='Frank compro',
             category_name='Groceries', account_name='Nu Savings',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
-            split_category_name='Gastos con Eli',
+            split_category_name='Gastos con Frank',
             payer='other',
             date=past,
         )
         result = ExpenseResult.success_result(expense, 'txn-4')
         msg = ExpenseResponseFormatter.format_success(result)
         assert '📅 *Fecha:* 12/03/2026' in msg
-        assert 'pagado por Eli' in msg
+        assert 'pagado por Frank' in msg
 
     def test_split_today_does_not_show_date_line(self):
         today = date.today()
@@ -514,19 +514,19 @@ class TestExpenseFormatterFixedAmount:
     def test_format_success_other_paid_fixed_amount(self):
         """Other-paid split with fixed amount shows user debt without percentage."""
         expense = Expense(
-            amount=Decimal('60000'), payee='Supermercado', memo='Eli pagó',
+            amount=Decimal('60000'), payee='Supermercado', memo='Frank pagó',
             category_name='Groceries', account_name='Nu Savings',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
-            split_category_name='Gastos con Eli',
+            split_category_name='Gastos con Frank',
             payer='other',
             split_fixed_amount=Decimal('25000'),
         )
         result = ExpenseResult.success_result(expense, 'txn-fixed-2')
         msg = ExpenseResponseFormatter.format_success(result)
 
-        assert 'pagado por Eli' in msg
+        assert 'pagado por Frank' in msg
         assert '$60,000' in msg
         # user_share = 60000 - 25000 = 35000
         assert 'Tu deuda:' in msg
@@ -561,12 +561,12 @@ class TestExpenseFormatterFixedAmount:
     def test_format_preview_other_paid_fixed_amount(self):
         """Preview: other-paid split with fixed amount shows user debt without percentage."""
         expense = Expense(
-            amount=Decimal('60000'), payee='Supermercado', memo='Eli pagó',
+            amount=Decimal('60000'), payee='Supermercado', memo='Frank pagó',
             category_name='Groceries', account_name='Nu Savings',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
-            split_category_name='Gastos con Eli',
+            split_category_name='Gastos con Frank',
             payer='other',
             split_fixed_amount=Decimal('25000'),
         )
@@ -600,12 +600,12 @@ class TestExpenseFormatterFixedAmount:
     def test_format_preview_proportion_based_unchanged_when_no_fixed_amount(self):
         """Proportion-based preview display is unchanged when split_fixed_amount is None."""
         expense = Expense(
-            amount=Decimal('50000'), payee='Carulla', memo='Eli gastó por mí',
+            amount=Decimal('50000'), payee='Carulla', memo='Frank gastó por mí',
             category_name='Groceries', account_name='Nu Savings',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
-            split_category_name='Gastos con Eli',
+            split_category_name='Gastos con Frank',
             payer='other',
         )
         result = ExpenseResult.success_result(expense)
@@ -619,7 +619,7 @@ class TestExpenseFormatterFixedAmount:
             amount=Decimal('200000'), payee='Carulla', memo='70k son míos',
             category_name='Groceries', account_name='Shared Transactions',
             confidence=0.9,
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_proportion=Decimal('0.5'),
             split_category_name='Gastos Splitwise',
             split_user_share_amount=Decimal('70000'),
@@ -635,10 +635,10 @@ class TestExpenseFormatterFixedAmount:
 
     def test_format_success_user_paid_zero_user_share_as_regular_splitwise_expense(self):
         expense = Expense(
-            amount=Decimal('100000'), payee='Randy', memo='hamburguesa por Eli',
+            amount=Decimal('100000'), payee='Randy', memo='hamburguesa por Frank',
             category_name='Meal Delivery', account_name='RappiCard',
             confidence=0.9, category_explanation='sugerido por IA',
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_category_name='Gastos Splitwise',
             split_user_share_amount=Decimal('0'),
             split_other_share_amount=Decimal('100000'),
@@ -656,7 +656,7 @@ class TestExpenseFormatterFixedAmount:
             amount=Decimal('200000'), payee='Carulla', memo='todo es mio',
             category_name='Groceries', account_name='RappiCard',
             confidence=0.9, category_explanation='sugerido por IA',
-            is_split=True, split_person='Eli',
+            is_split=True, split_person='Frank',
             split_category_name='Gastos Splitwise',
             split_user_share_amount=Decimal('200000'),
             split_other_share_amount=Decimal('0'),

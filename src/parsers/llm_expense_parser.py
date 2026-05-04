@@ -5,13 +5,20 @@ from datetime import datetime
 from typing import Dict, Optional, List
 from openai import OpenAI
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 from domain.time_utils import user_now, DEFAULT_TIMEZONE
+from parsers.expense_parser_schemas import (
+    ParsedExpenseResponse,
+    message_response_format_schema,
+)
 
 # Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_EXPENSE_PARSER_MODEL = 'gpt-4o-mini'
 
 
 class LLMExpenseParser:
@@ -25,6 +32,10 @@ class LLMExpenseParser:
         self.client = OpenAI(api_key=self.api_key)
         self.ynab_categories = ynab_categories or []
         self.ynab_accounts = ynab_accounts or []
+        self.expense_parser_model = (
+            os.getenv('OPENAI_EXPENSE_PARSER_MODEL', DEFAULT_EXPENSE_PARSER_MODEL).strip()
+            or DEFAULT_EXPENSE_PARSER_MODEL
+        )
         
         # The prompt is generated dynamically from the current categories and accounts
         self.base_system_prompt = """
@@ -338,11 +349,11 @@ REGLAS CRÍTICAS:
 4. Para GASTOS, la categoría DEBE ser una de la lista de CATEGORÍAS DISPONIBLES.
 5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
 6. Contexto operativo: el usuario escribe para registrar gastos propios o compartidos en su presupuesto. Si el mensaje dice que una persona pagó/gastó/compró algo, NO lo trates como un gasto ajeno irrelevante; asume que involucra al usuario salvo que el texto diga explícitamente lo contrario.
-7. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Eli gastó 50k en carulla conmigo", "Eli gasto 71800 en Pret", "Juan pagó la cena", "Eli me compró algo"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
+7. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Frank gastó 50k en carulla conmigo", "Frank gasto 71800 en Pret", "Juan pagó la cena", "Frank me compró algo"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
 8. "proportion", "user_share_amount", "other_share_amount" y "split_amount" en gastos compartidos:
 
    a) "proportion": SIEMPRE es la fracción del USUARIO (nunca la de la otra persona). CRÍTICO: si alguien dice "X son por [persona]" o "la parte de [persona] es X", eso es la parte de LA OTRA PERSONA, NO del usuario.
-      - "a medias" / "con Eli" / "conmigo" → proportion: "1/2", user_share_amount: null, other_share_amount: null, split_amount: null
+      - "a medias" / "con Frank" / "conmigo" → proportion: "1/2", user_share_amount: null, other_share_amount: null, split_amount: null
       - "[persona] gastó/pagó/compró X en [lugar]" sin "conmigo" pero sin excluir al usuario → proportion: "1/2", user_share_amount: null, other_share_amount: null, split_amount: null
       - "mi parte es 1/3" → proportion: "1/3", user_share_amount: null, other_share_amount: null, split_amount: null
       - "2/3 son míos" → proportion: "2/3", user_share_amount: null, other_share_amount: null, split_amount: null
@@ -351,29 +362,29 @@ REGLAS CRÍTICAS:
       - Sin lenguaje de proporción → proportion: null (default 50/50)
 
    b) "user_share_amount": cuando el usuario especifica un MONTO FIJO que es SU parte (ej: "70k son míos", "mi parte son 70000"). Devuelve ese monto en user_share_amount y pon proportion: null.
-      - "Eli gastó 200k conmigo, 70k son míos" → proportion: null, user_share_amount: 70000, other_share_amount: null
+      - "Frank gastó 200k conmigo, 70k son míos" → proportion: null, user_share_amount: 70000, other_share_amount: null
 
-   c) "other_share_amount": cuando el usuario especifica un MONTO FIJO para la OTRA PERSONA (ej: "36700 son por Juan", "la parte de Eli es 25000", "70k son de Eli"). Devuelve ese monto en other_share_amount y pon proportion: null.
+   c) "other_share_amount": cuando el usuario especifica un MONTO FIJO para la OTRA PERSONA (ej: "36700 son por Juan", "la parte de Frank es 25000", "70k son de Frank"). Devuelve ese monto en other_share_amount y pon proportion: null.
       - "gasté 60000, 36700 son por Juan" → proportion: null, other_share_amount: 36700
-      - "almuerzo 80000, la parte de Eli es 25000" → proportion: null, other_share_amount: 25000
-      - "Eli gastó 200k conmigo, 70k son de Eli" → proportion: null, other_share_amount: 70000
+      - "almuerzo 80000, la parte de Frank es 25000" → proportion: null, other_share_amount: 25000
+      - "Frank gastó 200k conmigo, 70k son de Frank" → proportion: null, other_share_amount: 70000
 
    d) "split_amount" queda soportado por compatibilidad y significa lo mismo que other_share_amount. Prefiere other_share_amount en respuestas nuevas.
 
    e) Si no se especifica ni proporción ni monto fijo: proportion: null, user_share_amount: null, other_share_amount: null, split_amount: null → se asume 50/50.
 
 EJEMPLOS DE GASTOS COMPARTIDOS:
-- "Gasté 200k en Carulla con Eli" → proportion: "1/2", payer: "user", user_share_amount: null, other_share_amount: null
-- "Eli gastó 200k en Carulla conmigo" → proportion: "1/2", payer: "other", user_share_amount: null, other_share_amount: null
-- "Eli gasto 71800 en Pret" → proportion: "1/2", payer: "other", user_share_amount: null, other_share_amount: null (se asume compartido 50/50 por contexto del bot)
-- "Gasté 100k en Carulla por Eli" → proportion: "0", payer: "user", user_share_amount: null, other_share_amount: null (100% es para Eli)
-- "Eli gastó 200k por mí en Carulla" → proportion: "1", payer: "other", user_share_amount: null, other_share_amount: null (usuario debe el 100%)
-- "Eli me compró un agua oxigenada en Farmatodo por 14200" → proportion: "1", payer: "other", user_share_amount: null, other_share_amount: null (usuario debe el 100%)
+- "Gasté 200k en Carulla con Frank" → proportion: "1/2", payer: "user", user_share_amount: null, other_share_amount: null
+- "Frank gastó 200k en Carulla conmigo" → proportion: "1/2", payer: "other", user_share_amount: null, other_share_amount: null
+- "Frank gasto 71800 en Pret" → proportion: "1/2", payer: "other", user_share_amount: null, other_share_amount: null (se asume compartido 50/50 por contexto del bot)
+- "Gasté 100k en Carulla por Frank" → proportion: "0", payer: "user", user_share_amount: null, other_share_amount: null (100% es para Frank)
+- "Frank gastó 200k por mí en Carulla" → proportion: "1", payer: "other", user_share_amount: null, other_share_amount: null (usuario debe el 100%)
+- "Frank me compró un agua oxigenada en Farmatodo por 14200" → proportion: "1", payer: "other", user_share_amount: null, other_share_amount: null (usuario debe el 100%)
 - "gasté 60000 en restaurante con Juan, 2/3 son míos" → proportion: "2/3", split_amount: null, payer: "user" (la parte del usuario es 2/3)
 - "gasté 60000 en restaurante, 36700 son por Juan" → proportion: null, other_share_amount: 36700, split_amount: null, payer: "user" (Juan debe 36700 fijo)
-- "Eli gastó 200k en Carulla conmigo, 70k son míos" → proportion: null, user_share_amount: 70000, other_share_amount: null, payer: "other"
-- "Eli gastó 200k en Carulla conmigo, 70k son de Eli" → proportion: null, user_share_amount: null, other_share_amount: 70000, payer: "other"
-- "almuerzo 50000 a medias con Eli" → proportion: "1/2", split_amount: null, payer: "user"
+- "Frank gastó 200k en Carulla conmigo, 70k son míos" → proportion: null, user_share_amount: 70000, other_share_amount: null, payer: "other"
+- "Frank gastó 200k en Carulla conmigo, 70k son de Frank" → proportion: null, user_share_amount: null, other_share_amount: 70000, payer: "other"
+- "almuerzo 50000 a medias con Frank" → proportion: "1/2", split_amount: null, payer: "user"
 - "Le presté 50000 a Juan para farmacia" → proportion: "0", split_amount: null, payer: "user" (100% es para Juan)
 - "Pagué 80k en supermercado para María" → proportion: "0", split_amount: null, payer: "user" (100% es para María)
 """
@@ -389,6 +400,17 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                 content = "\n".join([line for line in lines if not line.strip().startswith("```")])
         return content.strip()
 
+    def _message_response_format(self) -> dict:
+        """Build the Structured Outputs response format for message parsing."""
+        return {
+            'type': 'json_schema',
+            'json_schema': {
+                'name': 'expense_parser_response',
+                'strict': True,
+                'schema': message_response_format_schema(),
+            },
+        }
+
     def parse_message(self, message: str, timezone_str: str = DEFAULT_TIMEZONE, learning_hints: Optional[str] = None) -> Optional[Dict]:
         """
         Classify the message intent and return the corresponding structure.
@@ -400,13 +422,14 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
             system_prompt = self._generate_message_system_prompt(timezone_str, learning_hints=learning_hints)
 
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=self.expense_parser_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message}
                 ],
                 temperature=0.1,
-                max_tokens=300
+                max_tokens=300,
+                response_format=self._message_response_format(),
             )
 
             content = response.choices[0].message.content.strip()
@@ -474,7 +497,15 @@ EJEMPLOS DE GASTOS COMPARTIDOS:
                     logger.error(f"Unknown intent: {result['intent']}")
                     return None
 
-                return result
+                try:
+                    schema_result = {
+                        key: value for key, value in result.items()
+                        if value is not None
+                    }
+                    return ParsedExpenseResponse.model_validate(schema_result).to_parser_dict()
+                except ValidationError as e:
+                    logger.error(f"Structured parser response validation failed: {result}, Error: {e}")
+                    return None
 
             except json.JSONDecodeError as e:
                 logger.error(f"Error parsing OpenAI JSON response: {content}, Error: {e}")

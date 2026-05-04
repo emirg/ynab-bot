@@ -8,11 +8,11 @@
 - **Related ADRs:** None
 
 ## Summary
-Shared-expense parsing must treat messages where a configured split person paid or bought something as relevant shared-expense input. The bot receives expense-registration messages, so "Eli gasto 71800 en Pret" should not be interpreted as casual reporting about Eli; it should infer a 50/50 shared expense paid by Eli unless the message explicitly says the user is not involved. Likewise, "Eli me compro ..." must be a 100% user-responsibility third-party-paid shared expense.
+Shared-expense parsing must treat messages where a configured split person paid or bought something as relevant shared-expense input. The bot receives expense-registration messages, so "Frank gasto 71800 en Pret" should not be interpreted as casual reporting about Frank; it should infer a 50/50 shared expense paid by Frank unless the message explicitly says the user is not involved. Likewise, "Frank me compro ..." must be a 100% user-responsibility third-party-paid shared expense.
 
 ## Problem
-- Messages such as "Eli me compro un agua oxigenada..." can be misclassified as user-paid expenses categorized to Splitwise.
-- Messages such as "Eli gasto 71800 en Pret" lack explicit "conmigo" wording but still represent shared expenses in the bot's operating context.
+- Messages such as "Frank me compro un agua oxigenada..." can be misclassified as user-paid expenses categorized to Splitwise.
+- Messages such as "Frank gasto 71800 en Pret" lack explicit "conmigo" wording but still represent shared expenses in the bot's operating context.
 - The parser prompt and tests do not yet protect these natural Spanish patterns.
 
 ## Goals
@@ -30,8 +30,8 @@ Shared-expense parsing must treat messages where a configured split person paid 
 - HTTP text expense consumers that reuse the same `ExpenseService` parser pipeline.
 
 ## Expected Behavior
-- "Eli me compro un agua oxigenada en Farmatodo por 14200" creates a `Shared Transactions` zero-sum transaction with Healthcare `-14200` and Gastos Splitwise `+14200`.
-- "Eli gasto 71800 en Pret" creates a `Shared Transactions` zero-sum transaction for 50% of the amount in the real category and a matching positive Splitwise tracking leg.
+- "Frank me compro un agua oxigenada en Farmatodo por 14200" creates a `Shared Transactions` zero-sum transaction with Healthcare `-14200` and Gastos Splitwise `+14200`.
+- "Frank gasto 71800 en Pret" creates a `Shared Transactions` zero-sum transaction for 50% of the amount in the real category and a matching positive Splitwise tracking leg.
 - If the parser returns `payer=other` and `proportion=null` for a known split person, service normalization keeps default 50/50.
 
 ## Inputs and Outputs
@@ -51,7 +51,7 @@ Shared-expense parsing must treat messages where a configured split person paid 
 - If future parser output explicitly indicates the user has no share, preserve the existing Spanish no-op message.
 
 ## Acceptance Criteria
-- [x] The parser prompt includes explicit examples for "Eli me compro..." and "Eli gasto ... en Pret".
+- [x] The parser prompt includes explicit examples for "Frank me compro..." and "Frank gasto ... en Pret".
 - [x] Parser tests protect the intended structured output for both patterns.
 - [x] Service tests prove the two parsed forms produce `payer=other`, normalized shares, and shared account usage.
 - [x] Domain payload tests prove the expected zero-sum category shapes.

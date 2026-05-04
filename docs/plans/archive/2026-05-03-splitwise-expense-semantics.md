@@ -34,7 +34,7 @@
 - **Action:** Add optional request-local fields to `Expense` for normalized responsibility, such as `split_user_share_amount: Optional[Decimal]` and `split_other_share_amount: Optional[Decimal]`. Update `to_ynab_format()` so these fields take precedence over legacy `split_proportion` / `split_fixed_amount`.
 - **Tests:** Add tests for:
   - user paid 200k, 50/50 → split subtransactions `-100k` real and `-100k` Splitwise.
-  - user paid 100k for Eli → regular transaction categorized only to Splitwise, no `subtransactions`.
+  - user paid 100k for Frank → regular transaction categorized only to Splitwise, no `subtransactions`.
   - user paid 200k all user's responsibility → regular transaction categorized only to real category.
   - other paid 200k for user → zero-sum `-200k` real and `+200k` Splitwise.
   - other paid with user share 0 → no domain payload should be requested by service; domain test can document zero-share behavior defensively if needed.
@@ -80,11 +80,11 @@
 #### [x] Step 7: Update shared-expense prompt examples
 - **Files:** `src/parsers/llm_expense_parser.py`, `tests/parsers/test_llm_expense_parser.py`
 - **Action:** Update prompt rules and examples to match the SPEC matrix:
-  - `con Eli` / `conmigo` default 50/50.
-  - `por Eli` / `para Eli` user share 0 when user paid.
+  - `con Frank` / `conmigo` default 50/50.
+  - `por Frank` / `para Frank` user share 0 when user paid.
   - `por mi` / `para mi` user share 100% when other paid.
   - `70k son mios` maps to `user_share_amount`.
-  - `70k son de Eli` maps to `other_share_amount`.
+  - `70k son de Frank` maps to `other_share_amount`.
 - **Tests:** Prompt-content tests should assert the critical examples are present or parser validation tests should cover the fields.
 
 ### Group 4 (depends on: Group 3)

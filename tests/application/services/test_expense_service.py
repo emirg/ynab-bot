@@ -1520,13 +1520,13 @@ class TestProcessMessage:
             'category': 'Groceries',
             'payee': 'Carulla',
             'account': None,
-            'memo': 'Eli gastó 50k en carulla conmigo',
+            'memo': 'Frank gastó 50k en carulla conmigo',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1/2',
             'payer': 'other',
         }
-        result = service_with_split.process_message(TELEGRAM_ID, 'Eli gastó 50k en carulla conmigo')
+        result = service_with_split.process_message(TELEGRAM_ID, 'Frank gastó 50k en carulla conmigo')
         assert result.intent == 'shared_expense'
         assert result.expense_result.success is True
         expense = result.expense_result.expense
@@ -1555,16 +1555,16 @@ class TestProcessMessage:
             'category': 'Healthcare',
             'payee': 'Farmatodo',
             'account': None,
-            'memo': 'Eli me compró un agua oxigenada en Farmatodo por 14200',
+            'memo': 'Frank me compró un agua oxigenada en Farmatodo por 14200',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1',
             'payer': 'other',
         }
 
         result = service_with_split.process_message(
             TELEGRAM_ID,
-            'Eli me compró un agua oxigenada en Farmatodo por 14200',
+            'Frank me compró un agua oxigenada en Farmatodo por 14200',
         )
 
         assert result.intent == 'shared_expense'
@@ -1594,14 +1594,14 @@ class TestProcessMessage:
             'category': 'Restaurants',
             'payee': 'Pret',
             'account': None,
-            'memo': 'Eli gasto 71800 en Pret',
+            'memo': 'Frank gasto 71800 en Pret',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1/2',
             'payer': 'other',
         }
 
-        result = service_with_split.process_message(TELEGRAM_ID, 'Eli gasto 71800 en Pret')
+        result = service_with_split.process_message(TELEGRAM_ID, 'Frank gasto 71800 en Pret')
 
         assert result.intent == 'shared_expense'
         assert result.expense_result.success is True
@@ -1625,13 +1625,13 @@ class TestProcessMessage:
             'category': 'Groceries',
             'payee': 'Carulla',
             'account': None,
-            'memo': 'Eli gastó 50k en carulla conmigo',
+            'memo': 'Frank gastó 50k en carulla conmigo',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1/2',
             'payer': 'other',
         }
-        result = service_with_split.process_message(TELEGRAM_ID, 'Eli gastó 50k en carulla conmigo')
+        result = service_with_split.process_message(TELEGRAM_ID, 'Frank gastó 50k en carulla conmigo')
         assert result.expense_result.success is False
         assert 'compartida' in result.expense_result.error_message
 
@@ -1719,7 +1719,7 @@ class TestProcessMessage:
             'category': 'Groceries',
             'payee': 'Carulla',
             'account': None,
-            'memo': 'Eli gastó 200k en Carulla conmigo, 70k son míos',
+            'memo': 'Frank gastó 200k en Carulla conmigo, 70k son míos',
             'confidence': 0.9,
             'person': 'Juan',
             'proportion': None,
@@ -1729,7 +1729,7 @@ class TestProcessMessage:
 
         result = service_with_split.process_message(
             TELEGRAM_ID,
-            'Eli gastó 200k en Carulla conmigo, 70k son míos',
+            'Frank gastó 200k en Carulla conmigo, 70k son míos',
         )
 
         assert result.expense_result.success is True
@@ -1744,7 +1744,7 @@ class TestProcessMessage:
             'category': 'Groceries',
             'payee': 'Carulla',
             'account': None,
-            'memo': 'Gasté 200k en Carulla con Eli, 70k son de Eli',
+            'memo': 'Gasté 200k en Carulla con Frank, 70k son de Frank',
             'confidence': 0.9,
             'person': 'Juan',
             'proportion': None,
@@ -1754,7 +1754,7 @@ class TestProcessMessage:
 
         result = service_with_split.process_message(
             TELEGRAM_ID,
-            'Gasté 200k en Carulla con Eli, 70k son de Eli',
+            'Gasté 200k en Carulla con Frank, 70k son de Frank',
         )
 
         assert result.expense_result.success is True
@@ -1774,7 +1774,7 @@ class TestProcessMessage:
             'category': 'Groceries',
             'payee': 'Carulla',
             'account': None,
-            'memo': '80k son míos y 150k son de Eli',
+            'memo': '80k son míos y 150k son de Frank',
             'confidence': 0.9,
             'person': 'Juan',
             'proportion': None,
@@ -1785,7 +1785,7 @@ class TestProcessMessage:
 
         result = service_with_split.process_message(
             TELEGRAM_ID,
-            'Gasté 200k en Carulla con Eli, 80k son míos y 150k son de Eli',
+            'Gasté 200k en Carulla con Frank, 80k son míos y 150k son de Frank',
         )
 
         assert result.expense_result.success is False
@@ -1804,7 +1804,7 @@ class TestProcessMessage:
             'category': 'Groceries',
             'payee': 'Carulla',
             'account': None,
-            'memo': 'Eli gastó 50k en Carulla para ella',
+            'memo': 'Frank gastó 50k en Carulla para él',
             'confidence': 0.9,
             'person': 'Juan',
             'proportion': '0',
@@ -1813,7 +1813,7 @@ class TestProcessMessage:
 
         result = service_with_split.process_message(
             TELEGRAM_ID,
-            'Eli gastó 50k en Carulla para ella',
+            'Frank gastó 50k en Carulla para él',
         )
 
         assert result.expense_result.success is False

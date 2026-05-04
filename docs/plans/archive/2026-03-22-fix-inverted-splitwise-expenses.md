@@ -4,7 +4,7 @@
 - **Status:** Completed
 - **Harness Roadmap Marker:** 2.2
 - **Goal:** Fix two bugs in shared expense handling: (1) inverted category assignment for non-50/50 proportion splits, and (2) precision loss when users specify fixed amounts for the other person's share.
-- **Why:** When a user says "36700.5 son por Eli" (fixed amount for the other person), the LLM converts it to a proportion, which gets converted back to an amount, losing precision and potentially inverting which share goes to which category. The root cause is ambiguous proportion semantics (user's share vs other's share) and lack of a fixed-amount field.
+- **Why:** When a user says "36700.5 son por Frank" (fixed amount for the other person), the LLM converts it to a proportion, which gets converted back to an amount, losing precision and potentially inverting which share goes to which category. The root cause is ambiguous proportion semantics (user's share vs other's share) and lack of a fixed-amount field.
 
 ## Bug Analysis
 
@@ -12,7 +12,7 @@
 The LLM prompt says `proportion` represents the user's fraction, but the wording is ambiguous. When a user says "2/3 son por Juan" (2/3 is Juan's), the LLM may return `proportion: "2/3"` meaning Juan's share. The code in `to_ynab_format()` treats `split_proportion` as the **user's share**, so it assigns 2/3 of the total to the user's real category and 1/3 to Splitwise — the exact inverse of what was intended.
 
 ### Bug 2: Precision loss on fixed amounts
-When the user says "36700.5 son por Eli" out of a 60000 total, the LLM must convert to a proportion (0.6117...), then the code converts back to an amount. This round-trip loses precision. The fix is to allow the LLM to return a `split_amount` directly.
+When the user says "36700.5 son por Frank" out of a 60000 total, the LLM must convert to a proportion (0.6117...), then the code converts back to an amount. This round-trip loses precision. The fix is to allow the LLM to return a `split_amount` directly.
 
 ## Affected Components
 - `src/parsers/llm_expense_parser.py` — Add `split_amount` field to shared_expense JSON schema; clarify that `proportion` is always the **user's fraction**
@@ -97,13 +97,13 @@ When the user says "36700.5 son por Eli" out of a 60000 total, the LLM must conv
      ```
   2. Update rule 7 to clearly distinguish three cases:
      - **proportion**: Always the USER's fraction of the total. "a medias" = `"1/2"`, "mi parte es 1/3" = `"1/3"`, "2/3 son míos" = `"2/3"`. CRITICAL: this is ALWAYS the user's share, never the other person's.
-     - **split_amount**: When the user specifies a FIXED AMOUNT for the other person (e.g., "36700 son por Juan", "la parte de Eli es 25000"), return that amount in `split_amount` and set `proportion` to null.
+     - **split_amount**: When the user specifies a FIXED AMOUNT for the other person (e.g., "36700 son por Juan", "la parte de Frank es 25000"), return that amount in `split_amount` and set `proportion` to null.
      - **default**: If neither proportion nor split_amount is specified, both are null → defaults to 50/50.
   3. Add examples:
      - "gasté 60000 en restaurantes con Juan, 2/3 son míos" → `proportion: "2/3"`, `split_amount: null` (user's share is 2/3)
      - "gasté 60000 en restaurantes, 36700 son por Juan" → `proportion: null`, `split_amount: 36700` (Juan's fixed amount)
-     - "almuerzo 50000 a medias con Eli" → `proportion: "1/2"`, `split_amount: null`
-     - "Eli pagó 100k por mí" → `proportion: "1"`, `payer: "other"` (user owes 100%)
+     - "almuerzo 50000 a medias con Frank" → `proportion: "1/2"`, `split_amount: null`
+     - "Frank pagó 100k por mí" → `proportion: "1"`, `payer: "other"` (user owes 100%)
   4. Add `split_amount` to the validation in `parse_message()`: if present and is a valid number > 0, keep it; otherwise set to None.
 - **Tests:** `tests/test_llm_expense_parser.py` — Add test for `split_amount` field validation: verify that when LLM returns `split_amount: 36700`, it passes validation. Verify that `split_amount: null` or missing is accepted. Verify that `split_amount: -100` or `split_amount: "abc"` is normalized to None.
 
@@ -147,7 +147,7 @@ When the user says "36700.5 son por Eli" out of a 60000 total, the LLM must conv
 
 ## Verification
 - [x] Run full test suite: `.venv/bin/pytest` — all existing tests pass
-- [x] Manual test: Send "gasté 60000 en restaurantes, 36700 son por Eli" — verify Splitwise gets 36700 and real category gets 23300
+- [x] Manual test: Send "gasté 60000 en restaurantes, 36700 son por Frank" — verify Splitwise gets 36700 and real category gets 23300
 - [x] Manual test: Send "almuerzo 50000 a medias con Juan" — verify 50/50 split (25000 each)
 - [x] Manual test: Send "gasté 90000 en mercado con Juan, 2/3 son míos" — verify user gets 60000 in real category, Juan gets 30000 in Splitwise
-- [x] Manual test: Send "Eli gastó 80000 en restaurantes por mí" — verify user debt is 80000 (proportion=1, payer=other)
+- [x] Manual test: Send "Frank gastó 80000 en restaurantes por mí" — verify user debt is 80000 (proportion=1, payer=other)

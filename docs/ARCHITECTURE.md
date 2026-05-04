@@ -1,6 +1,6 @@
 # Architecture
 
-YNAB Telegram Bot — a multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using OpenAI GPT-4o-mini for natural language parsing and Whisper for voice transcription. Each user connects their own YNAB account via OAuth. Targeted at Spanish-speaking users managing budgets in Colombian pesos. All UI text and prompts are in Spanish.
+YNAB Telegram Bot — a multi-user Telegram bot that logs expenses to YNAB (You Need A Budget) using OpenAI for natural language parsing and Whisper for voice transcription. Each user connects their own YNAB account via OAuth. Targeted at Spanish-speaking users managing budgets in Colombian pesos. All UI text and prompts are in Spanish.
 
 Layered architecture with dependency injection and explicit runtime modes:
 
@@ -98,7 +98,7 @@ Integration behavior is controlled separately by `EXTERNAL_MODE`:
 
 ## Supporting Modules
 
-- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser` (GPT-4o-mini), used by `ExpenseService` via DI. `parse_message()` classifies intent (`expense` | `query` | `shared_expense`) in a single LLM call; the LLM performs semantic matching to map user terms (e.g., "comida") to exact YNAB category names (e.g., "🛒 Groceries") using up to 100 categories in the prompt. Also extracts optional `date` field (relative or absolute, resolved to `YYYY-MM-DD`) and shared expense fields (`person`, `proportion`, `payer`, `user_share_amount`, `other_share_amount`; legacy `split_amount` remains accepted). `parse_receipt_image()` handles vision-based receipt extraction using the same JSON output format. `parse_expense()` is retained for backward compatibility (voice handler).
+- **`src/parsers/llm_expense_parser.py`** — `LLMExpenseParser`, used by `ExpenseService` via DI. `parse_message()` classifies intent (`expense` | `query` | `shared_expense`) in a single LLM call using OpenAI Structured Outputs; the default text parser model is `gpt-4o-mini` and can be overridden with `OPENAI_EXPENSE_PARSER_MODEL` for manual evaluation. The LLM performs semantic matching to map user terms (e.g., "comida") to exact YNAB category names (e.g., "🛒 Groceries") using up to 100 categories in the prompt. It also extracts optional `date` field (relative or absolute, resolved to `YYYY-MM-DD`) and shared expense fields (`person`, `proportion`, `payer`, `user_share_amount`, `other_share_amount`; legacy `split_amount` remains accepted). `src/parsers/expense_parser_schemas.py` defines the typed parser response contract. `parse_receipt_image()` and legacy `parse_expense()` remain on the existing free-form JSON path for compatibility and are excluded from the first text-only golden eval slice.
 - **`src/integrations/speech_to_text.py`** — Whisper-based voice transcription, used by `ExpenseHandler` via DI.
 
 ## Data Flow
@@ -171,7 +171,7 @@ Split expenses use YNAB subtransactions or regular one-category transactions to 
 - **Third-party paid split** (zero-sum): Transaction amount is `$0` with two subtransactions — outflow from real category balanced by inflow to split tracking category. Uses the shared tracking account configured via `/splitwise`.
 - **Third-party paid inference**: When a configured split person is the subject of "gastó", "pagó", or "compró", the parser treats the message as a shared expense involving the user. Without an explicit share, it defaults to 50/50; "me compró", "por mí", and "para mí" make the user's share 100%.
 - **Third-party paid zero user responsibility**: No YNAB transaction is created because there is no user expense or debt to register.
-- **Fixed shares**: Parser output can identify either `user_share_amount` (e.g., "70k son míos") or `other_share_amount` (e.g., "70k son de Eli"). Conflicting explicit shares are rejected before YNAB creation.
+- **Fixed shares**: Parser output can identify either `user_share_amount` (e.g., "70k son míos") or `other_share_amount` (e.g., "70k son de Frank"). Conflicting explicit shares are rejected before YNAB creation.
 - **Configuration**: `SplitConfigService` manages split groups (linked to YNAB categories), person aliases, and shared account — validates against YNAB API before persisting. Runtime data lives in the PostgreSQL `split_groups`, `split_person_aliases`, and `split_shared_account` tables.
 
 ## User Authentication
@@ -196,6 +196,7 @@ Core settings:
 Required only when the selected runtime needs them:
 - `TELEGRAM_BOT_TOKEN` when Telegram polling is enabled
 - `OPENAI_API_KEY`, `YNAB_CLIENT_ID`, `YNAB_CLIENT_SECRET`, `YNAB_REDIRECT_URI` when `EXTERNAL_MODE=live`
+- `OPENAI_EXPENSE_PARSER_MODEL` optionally overrides the text parser model for local/manual evaluation; default is `gpt-4o-mini`
 - `DEV_API_KEY` when `APP_MODE=http-dev`
 - `ENABLE_DEV_ROUTES=true` only with `APP_MODE=http-dev`
 

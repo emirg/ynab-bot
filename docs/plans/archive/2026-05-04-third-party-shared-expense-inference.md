@@ -25,7 +25,7 @@
 
 #### [x] Step 1: Add failing parser prompt/output tests
 - **Files:** `tests/parsers/test_llm_expense_parser.py`
-- **Action:** Add tests for "Eli me compro un agua oxigenada..." and "Eli gasto 71800 en Pret" expected fields.
+- **Action:** Add tests for "Frank me compro un agua oxigenada..." and "Frank gasto 71800 en Pret" expected fields.
 - **Tests:** Run the new parser tests and confirm they fail for missing prompt expectations.
 
 #### [x] Step 2: Add failing service/domain behavior tests

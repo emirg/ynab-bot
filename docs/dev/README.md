@@ -89,6 +89,7 @@ Edit `config/.env` with:
 | `HTTP_API_KEY` | Bearer token required for authenticated HTTP API endpoints | Yes |
 | `POSTGRES_DSN` | PostgreSQL DSN used by the runtime app | Yes |
 | `DATABASE_PATH` | Path to legacy SQLite database used only for migration tooling | No |
+| `OPENAI_EXPENSE_PARSER_MODEL` | Optional text parser model override for local/manual evaluation | No |
 
 Generate a Fernet encryption key with:
 
@@ -319,6 +320,23 @@ You can also import the committed Postman bundle from `docs/dev/postman/` and ru
 ```bash
 .venv/bin/pytest
 ```
+
+Parser golden fixtures are deterministic and do not call OpenAI:
+
+```bash
+.venv/bin/pytest tests/evals/test_expense_parser_golden_fixtures.py
+```
+
+To compare real OpenAI models manually, set `OPENAI_API_KEY` and run:
+
+```bash
+.venv/bin/python scripts/evals/evaluate_expense_parser.py \
+  --model gpt-4o-mini \
+  --model gpt-5.4-nano \
+  --model gpt-5.4-mini
+```
+
+This manual command calls OpenAI and reports field-level differences against the committed golden fixture suite. Do not change the production parser default without evidence from this suite.
 
 For the PostgreSQL integration smoke test specifically:
 

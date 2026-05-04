@@ -97,6 +97,80 @@ class TestParseMessageExpense:
         assert result['amount'] == 25000.0
         assert result['category'] == 'Restaurants'
 
+    def test_parse_message_uses_default_structured_output_model(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+
+        parser.parse_message('25 lucas almuerzo')
+
+        kwargs = mock_openai_client.chat.completions.create.call_args.kwargs
+        assert kwargs['model'] == 'gpt-4o-mini'
+        assert kwargs['response_format']['type'] == 'json_schema'
+        assert kwargs['response_format']['json_schema']['name'] == 'expense_parser_response'
+        assert kwargs['response_format']['json_schema']['strict'] is True
+
+    def test_parse_message_model_can_be_overridden_by_environment(self, mock_openai_client):
+        with patch.dict('os.environ', {
+            'OPENAI_API_KEY': 'test-key',
+            'OPENAI_EXPENSE_PARSER_MODEL': 'gpt-5.4-nano',
+        }):
+            from parsers.llm_expense_parser import LLMExpenseParser
+            parser = LLMExpenseParser(
+                ynab_categories=[{'name': 'Groceries'}, {'name': 'Restaurants'}],
+                ynab_accounts=['Nu Card', 'Efectivo'],
+            )
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'confidence': 0.85,
+        })
+        _mock_response(mock_openai_client, response)
+
+        parser.parse_message('25 lucas almuerzo')
+
+        kwargs = mock_openai_client.chat.completions.create.call_args.kwargs
+        assert kwargs['model'] == 'gpt-5.4-nano'
+
+    def test_parse_message_accepts_structured_output_null_fields(self, parser, mock_openai_client):
+        response = json.dumps({
+            'intent': 'expense',
+            'amount': 25000.0,
+            'category': 'Restaurants',
+            'payee': "McDonald's",
+            'account': None,
+            'memo': '25 lucas almuerzo',
+            'date': None,
+            'confidence': 0.85,
+            'query_type': None,
+            'query_target': None,
+            'person': None,
+            'proportion': None,
+            'split_amount': None,
+            'user_share_amount': None,
+            'other_share_amount': None,
+            'payer': None,
+        })
+        _mock_response(mock_openai_client, response)
+
+        result = parser.parse_message('25 lucas almuerzo')
+
+        assert result is not None
+        assert result['intent'] == 'expense'
+        assert result['account'] is None
+        assert result['date'] is None
+
 
 class TestParseMessageErrors:
 
@@ -260,17 +334,17 @@ class TestParseMessageSharedExpense:
             'category': 'Groceries',
             'payee': 'Carulla',
             'account': None,
-            'memo': 'Eli gastó 50k en carulla conmigo',
+            'memo': 'Frank gastó 50k en carulla conmigo',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1/2',
             'payer': 'other',
         })
         _mock_response(mock_openai_client, response)
-        result = parser.parse_message('Eli gastó 50k en carulla conmigo')
+        result = parser.parse_message('Frank gastó 50k en carulla conmigo')
         assert result is not None
         assert result['payer'] == 'other'
-        assert result['person'] == 'Eli'
+        assert result['person'] == 'Frank'
 
     def test_payer_user_is_preserved(self, parser, mock_openai_client):
         """When LLM returns payer='user', it must be preserved."""
@@ -336,19 +410,19 @@ class TestParseMessageSharedExpense:
             'category': 'Groceries',
             'payee': 'MercadoLibre',
             'account': None,
-            'memo': 'Eli gastó 100k en MercadoLibre por mí',
+            'memo': 'Frank gastó 100k en MercadoLibre por mí',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1',
             'payer': 'other',
         })
         _mock_response(mock_openai_client, response)
-        result = parser.parse_message('Eli gastó 100k en MercadoLibre por mí')
+        result = parser.parse_message('Frank gastó 100k en MercadoLibre por mí')
         assert result is not None
         assert result['intent'] == 'shared_expense'
         assert result['payer'] == 'other'
         assert result['proportion'] == '1'
-        assert result['person'] == 'Eli'
+        assert result['person'] == 'Frank'
         assert result['amount'] == 100000.0
 
     def test_other_paid_me_compro_maps_to_full_user_share(self, parser, mock_openai_client):
@@ -358,23 +432,23 @@ class TestParseMessageSharedExpense:
             'category': 'Healthcare',
             'payee': 'Farmatodo',
             'account': None,
-            'memo': 'Eli me compró un agua oxigenada en Farmatodo por 14200',
+            'memo': 'Frank me compró un agua oxigenada en Farmatodo por 14200',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1',
             'payer': 'other',
         })
         _mock_response(mock_openai_client, response)
 
-        result = parser.parse_message('Eli me compró un agua oxigenada en Farmatodo por 14200')
+        result = parser.parse_message('Frank me compró un agua oxigenada en Farmatodo por 14200')
 
         assert result is not None
         assert result['intent'] == 'shared_expense'
         assert result['payer'] == 'other'
         assert result['proportion'] == '1'
-        assert result['person'] == 'Eli'
+        assert result['person'] == 'Frank'
         prompt = mock_openai_client.chat.completions.create.call_args.kwargs['messages'][0]['content']
-        assert '"Eli me compró un agua oxigenada en Farmatodo por 14200"' in prompt
+        assert '"Frank me compró un agua oxigenada en Farmatodo por 14200"' in prompt
 
     def test_other_person_gasto_without_conmigo_defaults_to_shared_half(self, parser, mock_openai_client):
         response = json.dumps({
@@ -383,23 +457,23 @@ class TestParseMessageSharedExpense:
             'category': 'Restaurants',
             'payee': 'Pret',
             'account': None,
-            'memo': 'Eli gasto 71800 en Pret',
+            'memo': 'Frank gasto 71800 en Pret',
             'confidence': 0.9,
-            'person': 'Eli',
+            'person': 'Frank',
             'proportion': '1/2',
             'payer': 'other',
         })
         _mock_response(mock_openai_client, response)
 
-        result = parser.parse_message('Eli gasto 71800 en Pret')
+        result = parser.parse_message('Frank gasto 71800 en Pret')
 
         assert result is not None
         assert result['intent'] == 'shared_expense'
         assert result['payer'] == 'other'
         assert result['proportion'] == '1/2'
-        assert result['person'] == 'Eli'
+        assert result['person'] == 'Frank'
         prompt = mock_openai_client.chat.completions.create.call_args.kwargs['messages'][0]['content']
-        assert '"Eli gasto 71800 en Pret"' in prompt
+        assert '"Frank gasto 71800 en Pret"' in prompt
 
 
 class TestSplitAmountValidation:
@@ -480,7 +554,7 @@ class TestSplitAmountValidation:
         """user_share_amount carries an explicit amount owned by the bot user."""
         payload = {**self._shared_expense_base(), 'user_share_amount': 70000}
         _mock_response(mock_openai_client, json.dumps(payload))
-        result = parser.parse_message('Eli gastó 200k conmigo, 70k son míos')
+        result = parser.parse_message('Frank gastó 200k conmigo, 70k son míos')
         assert result is not None
         assert result['user_share_amount'] == 70000.0
         assert result['other_share_amount'] is None
@@ -489,7 +563,7 @@ class TestSplitAmountValidation:
         """other_share_amount carries an explicit amount owned by the other person."""
         payload = {**self._shared_expense_base(), 'other_share_amount': 70000}
         _mock_response(mock_openai_client, json.dumps(payload))
-        result = parser.parse_message('Gasté 200k con Eli, 70k son de Eli')
+        result = parser.parse_message('Gasté 200k con Frank, 70k son de Frank')
         assert result is not None
         assert result['other_share_amount'] == 70000.0
         assert result['user_share_amount'] is None
@@ -502,7 +576,7 @@ class TestSplitAmountValidation:
             'other_share_amount': 150000,
         }
         _mock_response(mock_openai_client, json.dumps(payload))
-        result = parser.parse_message('80k son míos y 150k son de Eli')
+        result = parser.parse_message('80k son míos y 150k son de Frank')
         assert result is not None
         assert result['user_share_amount'] == 80000.0
         assert result['other_share_amount'] == 150000.0

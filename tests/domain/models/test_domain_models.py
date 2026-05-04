@@ -234,7 +234,7 @@ class TestExpense:
     def test_to_ynab_format_other_paid_zero_sum(self):
         """Other-paid: transaction amount is 0, subtransactions cancel each other out."""
         e = Expense(
-            amount=Decimal('50000'), payee='Carulla', memo='mercado con Eli',
+            amount=Decimal('50000'), payee='Carulla', memo='mercado con Frank',
             category_id='550e8400-e29b-41d4-a716-446655440000',
             is_split=True,
             split_category_id='660e8400-e29b-41d4-a716-446655440000',
@@ -320,7 +320,7 @@ class TestSplitFixedAmount:
         """User paid 60000 total; other person's fixed share is 36700.
         Splitwise gets 36700, user gets (60000 - 36700) = 23300."""
         e = Expense(
-            amount=Decimal('60000'), payee='Restaurante', memo='con Eli',
+            amount=Decimal('60000'), payee='Restaurante', memo='con Frank',
             category_id=self.REAL_CAT_ID,
             is_split=True,
             split_category_id=self.SPLIT_CAT_ID,
@@ -342,7 +342,7 @@ class TestSplitFixedAmount:
         """Other person paid 60000; other person's fixed share is 30000 (of 60000 total).
         User's debt = total - 30000 = 30000. Splitwise inflow = 30000."""
         e = Expense(
-            amount=Decimal('60000'), payee='Eli', memo='Eli pagó',
+            amount=Decimal('60000'), payee='Frank', memo='Frank pagó',
             category_id=self.REAL_CAT_ID,
             is_split=True,
             split_category_id=self.SPLIT_CAT_ID,
@@ -408,7 +408,7 @@ class TestNormalizedSplitShares:
 
     def test_user_paid_normalized_shares_create_split_subtransactions(self):
         e = Expense(
-            amount=Decimal('200000'), payee='Carulla', memo='con Eli',
+            amount=Decimal('200000'), payee='Carulla', memo='con Frank',
             category_id=self.REAL_CAT_ID,
             is_split=True,
             split_category_id=self.SPLIT_CAT_ID,
@@ -428,7 +428,7 @@ class TestNormalizedSplitShares:
 
     def test_user_paid_zero_user_share_creates_regular_splitwise_transaction(self):
         e = Expense(
-            amount=Decimal('100000'), payee='Randy', memo='por Eli',
+            amount=Decimal('100000'), payee='Randy', memo='por Frank',
             category_id=self.REAL_CAT_ID,
             is_split=True,
             split_category_id=self.SPLIT_CAT_ID,
@@ -462,7 +462,7 @@ class TestNormalizedSplitShares:
 
     def test_other_paid_normalized_user_share_creates_zero_sum_transaction(self):
         e = Expense(
-            amount=Decimal('200000'), payee='Eli', memo='por mi en Carulla',
+            amount=Decimal('200000'), payee='Frank', memo='por mi en Carulla',
             category_id=self.REAL_CAT_ID,
             account_id='shared-transactions',
             is_split=True,
@@ -483,7 +483,7 @@ class TestNormalizedSplitShares:
 
     def test_other_paid_me_compro_full_user_share_zero_sum_shape(self):
         e = Expense(
-            amount=Decimal('14200'), payee='Farmatodo', memo='Eli me compro agua oxigenada',
+            amount=Decimal('14200'), payee='Farmatodo', memo='Frank me compro agua oxigenada',
             category_id=self.REAL_CAT_ID,
             account_id='shared-transactions',
             is_split=True,
@@ -504,7 +504,7 @@ class TestNormalizedSplitShares:
 
     def test_other_person_gasto_without_conmigo_half_share_zero_sum_shape(self):
         e = Expense(
-            amount=Decimal('71800'), payee='Pret', memo='Eli gasto en Pret',
+            amount=Decimal('71800'), payee='Pret', memo='Frank gasto en Pret',
             category_id=self.REAL_CAT_ID,
             account_id='shared-transactions',
             is_split=True,
@@ -534,7 +534,7 @@ class TestZeroProportionFullDebt:
         """User paid 100k but proportion=0 means it's entirely for the other person.
         user_share=0, split_share=full amount."""
         e = Expense(
-            amount=Decimal('100000'), payee='Carulla', memo='por Eli',
+            amount=Decimal('100000'), payee='Carulla', memo='por Frank',
             category_id=self.REAL_CAT_ID,
             is_split=True,
             split_category_id=self.SPLIT_CAT_ID,
@@ -550,7 +550,7 @@ class TestZeroProportionFullDebt:
     def test_other_paid_zero_proportion_user_owes_nothing(self):
         """Other person paid and proportion=0 means user owes nothing (other paid for themselves)."""
         e = Expense(
-            amount=Decimal('50000'), payee='Restaurante', memo='Eli pagó',
+            amount=Decimal('50000'), payee='Restaurante', memo='Frank pagó',
             category_id=self.REAL_CAT_ID,
             is_split=True,
             split_category_id=self.SPLIT_CAT_ID,

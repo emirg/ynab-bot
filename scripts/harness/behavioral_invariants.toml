@@ -124,7 +124,7 @@ snippet = "class TestNormalizedSplitShares:"
 
 [[fixture.doc_evidence]]
 path = "docs/specs/archive/2026-05-03-splitwise-expense-semantics.md"
-snippet = "| `Gaste 100k en Carulla por Eli` | User payment account, e.g. `RappiCard` | Regular transaction: `Gastos Splitwise -100k` |"
+snippet = "| `Gaste 100k en Carulla por Frank` | User payment account, e.g. `RappiCard` | Regular transaction: `Gastos Splitwise -100k` |"
 
 [[fixture]]
 id = "account_balance_reads_from_account_fields"

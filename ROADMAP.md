@@ -372,18 +372,29 @@ Se creó una fuente canónica de contratos de agentes reutilizable por Claude, C
 
 Se corrigió la semántica de gastos compartidos para separar quién pagó de quién asume el gasto:
 
-- Mensajes tipo "con Eli" / "conmigo" mantienen 50/50 por defecto
-- Mensajes tipo "por Eli" / "por mí" soportan responsabilidad 100%
+- Mensajes tipo "con Frank" / "conmigo" mantienen 50/50 por defecto
+- Mensajes tipo "por Frank" / "por mí" soportan responsabilidad 100%
 - Los casos donde el usuario paga y una parte asume el 100% crean transacciones regulares de una sola categoría, no splits con legs en cero
 - Los casos donde otra persona paga siguen usando la cuenta `Shared Transactions` con transacciones zero-sum cuando hay deuda del usuario
-- Los montos explícitos "son míos" y "son de Eli" se normalizan por dueño; montos conflictivos se rechazan con mensaje claro en español
+- Los montos explícitos "son míos" y "son de Frank" se normalizan por dueño; montos conflictivos se rechazan con mensaje claro en español
 - El arnés conductual protege la matriz principal de Splitwise contra regresiones
 
 ### E.32 — Third-Party Shared Expense Inference [COMPLETADO]
 
 Se corrigió la inferencia de mensajes donde otra persona pagó o compró algo:
 
-- "Eli me compró ..." se interpreta como gasto compartido pagado por Eli donde el usuario debe el 100%
-- "Eli gastó 71800 en Pret" se interpreta como gasto compartido 50/50 pagado por Eli, aunque no diga "conmigo"
+- "Frank me compró ..." se interpreta como gasto compartido pagado por Frank donde el usuario debe el 100%
+- "Frank gastó 71800 en Pret" se interpreta como gasto compartido 50/50 pagado por Frank, aunque no diga "conmigo"
 - El prompt del parser documenta que el bot recibe mensajes para registrar gastos relevantes, no reportes casuales sobre terceros
 - La ruta de servicio existente usa la cuenta `Shared Transactions` y mantiene las transacciones zero-sum
+
+### E.33 — Expense Parser Structured Outputs and Golden Evals [COMPLETADO]
+
+Se endureció el contrato del parser de mensajes y se agregó una base de evaluación para comparar modelos con evidencia:
+
+- `parse_message()` usa OpenAI Structured Outputs con schema estricto y mantiene compatibilidad con los dicts consumidos por `ExpenseService`
+- El modelo de parseo de texto queda configurable con `OPENAI_EXPENSE_PARSER_MODEL`, conservando `gpt-4o-mini` como default
+- La batería dorada inicial incluye 30 escenarios de gastos, queries, fechas, categorías/cuentas ambiguas y Splitwise
+- CI valida schemas y fixtures sin llamar a OpenAI
+- `scripts/evals/evaluate_expense_parser.py` compara modelos reales manualmente y reporta diferencias por campo
+- Recibos/imágenes quedan fuera de esta primera fase para evitar mezclar evaluación de visión con el contrato textual
