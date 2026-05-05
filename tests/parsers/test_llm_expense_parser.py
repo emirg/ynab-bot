@@ -97,7 +97,7 @@ class TestParseMessageExpense:
         assert result['amount'] == 25000.0
         assert result['category'] == 'Restaurants'
 
-    def test_parse_message_uses_default_structured_output_model(self, parser, mock_openai_client):
+    def test_parse_message_uses_default_model_parameters(self, parser, mock_openai_client):
         response = json.dumps({
             'intent': 'expense',
             'amount': 25000.0,
@@ -112,12 +112,10 @@ class TestParseMessageExpense:
         parser.parse_message('25 lucas almuerzo')
 
         kwargs = mock_openai_client.chat.completions.create.call_args.kwargs
-        assert kwargs['model'] == 'gpt-4o-mini'
-        assert kwargs['response_format']['type'] == 'json_schema'
-        assert kwargs['response_format']['json_schema']['name'] == 'expense_parser_response'
-        assert kwargs['response_format']['json_schema']['strict'] is True
-        assert kwargs['max_tokens'] >= 1000
-        assert 'max_completion_tokens' not in kwargs
+        assert kwargs['model'] == 'gpt-5-mini'
+        assert 'response_format' not in kwargs
+        assert kwargs['max_completion_tokens'] >= 1000
+        assert 'max_tokens' not in kwargs
 
     def test_parse_message_model_can_be_overridden_by_environment(self, mock_openai_client):
         with patch.dict('os.environ', {

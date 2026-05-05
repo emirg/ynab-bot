@@ -20,7 +20,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EXPENSE_PARSER_MODEL = 'gpt-4o-mini'
+DEFAULT_EXPENSE_PARSER_MODEL = 'gpt-5-mini'
 DEFAULT_EXPENSE_PARSER_MAX_RETRIES = 3
 DEFAULT_EXPENSE_PARSER_RETRY_BASE_SECONDS = 1.0
 
