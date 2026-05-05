@@ -981,3 +981,22 @@ class TestDateContext:
         with patch('parsers.llm_expense_parser.user_now', return_value=fixed_dt):
             context = parser._get_date_context()
             assert '2026-03-18' in context
+
+class TestMessagePromptRules:
+    """Verify that specific parsing rules are injected into the message system prompt."""
+
+    def test_message_system_prompt_contains_currency_rules(self, parser):
+        prompt = parser._generate_message_system_prompt()
+        assert 'FORMATO DE MONEDA COLOMBIANA' in prompt
+        assert '"lucas" equivalen a miles' in prompt
+
+    def test_message_system_prompt_contains_account_detection(self, parser):
+        parser.ynab_accounts = ["Nequi", "Bancolombia"]
+        prompt = parser._generate_message_system_prompt()
+        assert 'DETECCIÓN DE CUENTAS (Para GASTOS)' in prompt
+        assert 'NUNCA asignes una cuenta en el campo de categoría' in prompt
+
+    def test_message_system_prompt_contains_name_collision_rule(self, parser):
+        prompt = parser._generate_message_system_prompt()
+        assert 'COLISIÓN DE NOMBRES' in prompt
+

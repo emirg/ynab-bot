@@ -276,14 +276,19 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
             for account in self.ynab_accounts:
                 accounts_text += f"- {account}\n"
             
-            accounts_text += "\nSi el usuario pregunta por una cuenta, usa el NOMBRE EXACTO de esta lista."
+            accounts_text += "\nDETECCIÓN DE CUENTAS (Para GASTOS):\n"
+            accounts_text += "- Busca menciones como: 'con mi [cuenta]', 'usando [cuenta]', 'pagado con [cuenta]'.\n"
+            accounts_text += "- NUNCA asignes una cuenta en el campo de categoría.\n"
+            accounts_text += "\nPara CONSULTAS:\n"
+            accounts_text += "- Si el usuario pregunta por una cuenta, usa el NOMBRE EXACTO de esta lista."
 
         if learning_hints and learning_hints.strip():
             learning_hints_section = (
                 "HISTORIAL DE CATEGORIZACIÓN DEL USUARIO:\n"
-                "Estos son los patrones de categorización previos del usuario. Úsalos como contexto adicional,\n"
-                "pero PRIORIZA las pistas del mensaje actual (ej: si dice \"internet\", elige la categoría de internet\n"
-                "aunque el historial muestre otra categoría como más frecuente).\n\n"
+                "Estos son los patrones de categorización previos del usuario. Úsalos como contexto adicional.\n"
+                "REGLAS PARA USAR EL HISTORIAL:\n"
+                "1. PRIORIZA las pistas explícitas en el mensaje actual (ej: si dice 'internet', elige la categoría de internet).\n"
+                "2. Si el mensaje NO da pistas explícitas y el comercio tiene varias categorías en el historial, ELIGE SIEMPRE la que tenga el mayor porcentaje (%).\n\n"
                 f"{learning_hints}"
             )
         else:
@@ -292,6 +297,11 @@ RESPONDE SIEMPRE EN FORMATO JSON con esta estructura exacta:
         return f"""Eres un asistente que clasifica mensajes de usuarios de una app de presupuesto en español colombiano.
 
 Debes determinar si el mensaje es un GASTO o una CONSULTA sobre el presupuesto.
+
+FORMATO DE MONEDA COLOMBIANA:
+- "k" o "mil" equivalen a miles (ej: "40k" = 40000, "40 mil" = 40000).
+- "lucas" equivalen a miles (ej: "25 lucas" = 25000).
+- Los decimales pueden usar coma o punto.
 
 CONSULTAS: mensajes que preguntan sobre saldos, presupuesto, o estado financiero.
 Palabras clave de consulta: "cuánto", "cómo va", "resumen", "saldo", "debo", "queda", "he gastado", "presupuesto", "disponible", "balance".
@@ -328,6 +338,14 @@ Para GASTOS:
     "confidence": <0.0_a_1.0>
 }}
 
+EJEMPLOS DE GASTOS REGULARES Y CONSULTAS:
+- "Me gasté 25 lucas en McDonald's con Nequi" → intent: "expense", amount: 25000.0, category: "🥗 Meal delivery", payee: "McDonald's", account: "Nequi"
+- "Uber al aeropuerto 80k con mi rappi card" → intent: "expense", amount: 80000.0, category: "🚙 Rideshare (Uber/Lyft/etc.)", payee: "Uber", account: "Rappi Card"
+- "Netflix mensual 15.900 con bancolombia" → intent: "expense", amount: 15900.0, category: "📺Netflix", payee: "Netflix", account: "Bancolombia"
+- "Gasté 20k en productos de belleza en Éxito con mi Visa" → intent: "expense", amount: 20000.0, category: "🧴 Personal Care", payee: "Éxito", account: "Visa"
+- "Cuánto me queda en entretenimiento?" → intent: "query", query_type: "category_balance", query_target: "🍿 Entertainment"
+- "Cómo voy con mi presupuesto general?" → intent: "query", query_type: "budget_summary", query_target: null
+
 Para GASTOS COMPARTIDOS ("a medias", "mitad", "compartido", "split", "con [persona]", "[persona] pagó", "[persona] gastó", "[persona] compró", "por mí", "me compró", "para mí", "por [persona]", "para [persona]", "le presté", "le compré"):
 {{
     "intent": "shared_expense",
@@ -354,7 +372,8 @@ REGLAS CRÍTICAS:
 5. NO inventes nombres. Si no encuentras un match claro, usa el nombre más probable o devuelve confidence baja.
 6. Contexto operativo: el usuario escribe para registrar gastos propios o compartidos en su presupuesto. Si el mensaje dice que una persona pagó/gastó/compró algo, NO lo trates como un gasto ajeno irrelevante; asume que involucra al usuario salvo que el texto diga explícitamente lo contrario.
 7. "payer" en gastos compartidos: debe ser "other" si otra persona pagó el gasto (ej. "Frank gastó 50k en carulla conmigo", "Frank gasto 71800 en Pret", "Juan pagó la cena", "Frank me compró algo"), o "user" si el usuario lo pagó (ej. "pagué el almuerzo con Juan a medias"). Si no está claro quién pagó, usa "user".
-8. "proportion", "user_share_amount", "other_share_amount" y "split_amount" en gastos compartidos:
+8. COLISIÓN DE NOMBRES: Si el nombre de una persona (ej: "Eli") coincide parcialmente con una CATEGORÍA, prioriza asignar la categoría basada en el lugar/comercio del gasto, y usa el nombre únicamente para el campo 'person'.
+9. "proportion", "user_share_amount", "other_share_amount" y "split_amount" en gastos compartidos:
 
    a) "proportion": SIEMPRE es la fracción del USUARIO (nunca la de la otra persona). CRÍTICO: si alguien dice "X son por [persona]" o "la parte de [persona] es X", eso es la parte de LA OTRA PERSONA, NO del usuario.
       - "a medias" / "con Frank" / "conmigo" → proportion: "1/2", user_share_amount: null, other_share_amount: null, split_amount: null
