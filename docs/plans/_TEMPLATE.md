@@ -37,7 +37,7 @@ GROUPING RULES:
 - **Write Scope:** `path/to/impl.py`
 - **Read Scope:** `path/to/context.py`, `docs/specs/YYYY-MM-DD-feature-name.md`
 - **Depends On:** None
-- **Auto-Delegable:** [yes / no]
+- **Auto-Delegable:** [yes / no; yes still requires session opt-in, client support, and client-level permission]
 - **Escalation Target:** [Debugger / Lead Architect / User]
 - **Action:** [Concise technical logic to implement]
 - **Verification:** `.venv/bin/pytest path/to/test.py -q`
@@ -48,7 +48,7 @@ GROUPING RULES:
 - **Write Scope:** `path/to/other.py`
 - **Read Scope:** `path/to/context.py`, `docs/specs/YYYY-MM-DD-feature-name.md`
 - **Depends On:** None
-- **Auto-Delegable:** [yes / no]
+- **Auto-Delegable:** [yes / no; yes still requires session opt-in, client support, and client-level permission]
 - **Escalation Target:** [Debugger / Lead Architect / User]
 - **Action:** [Concise technical logic to implement]
 - **Verification:** `.venv/bin/pytest path/to/test_other.py -q`
@@ -62,7 +62,7 @@ GROUPING RULES:
 - **Write Scope:** `path/to/wiring.py`
 - **Read Scope:** `path/to/impl.py`, `path/to/other.py`, `docs/specs/YYYY-MM-DD-feature-name.md`
 - **Depends On:** Group 1
-- **Auto-Delegable:** [yes / no]
+- **Auto-Delegable:** [yes / no; yes still requires session opt-in, client support, and client-level permission]
 - **Escalation Target:** [Debugger / Lead Architect / User]
 - **Action:** [Concise technical logic to implement]
 - **Verification:** `.venv/bin/pytest path/to/test_wiring.py -q`

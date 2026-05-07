@@ -37,6 +37,7 @@ Delegation is a capability, not an obligation. A client may use subagents only w
 - **Positive:** Plans become easier for agents and humans to review for safe parallelism.
 - **Positive:** Harness checks can catch unsafe write-scope overlap before implementation starts.
 - **Positive:** Codex, Claude, Gemini, and future clients can share the same delegation expectations.
+- **Positive:** The repository now records the user's standing preference to use the repo-native multi-agent protocol when useful, while still deferring to client-level permission rules.
 - **Negative:** Plans will require more metadata, which adds drafting overhead.
 - **Negative:** Harness parsing must stay intentionally simple unless a structured plan format is adopted later.
 - **Negative:** Repo policy still cannot override client-level permission restrictions for spawning subagents.

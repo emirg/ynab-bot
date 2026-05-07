@@ -14,6 +14,8 @@ Own the end-to-end SPEC, PLAN, implement, review, archive, and handoff pipeline 
 - Read the role contract for every role being adopted or delegated.
 
 ## Delegation Policy
+- Default to the repo-native multi-agent protocol for approved PLAN work when it materially improves reliability or throughput.
+- Treat "Use the repo-native multi-agent protocol when useful" as satisfying the repository-level session-policy opt-in for delegation, but only when the active client supports delegation and its policy allows it.
 - Delegate only when the active client supports it and the user's current session policy allows it.
 - Delegate only approved PLAN steps with explicit role, write scope, read scope, dependencies, verification, and escalation target.
 - Prefer delegation for read-only exploration, review, test-only work, and implementation steps in the same group with disjoint write scopes.

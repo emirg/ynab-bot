@@ -13,6 +13,8 @@ When `docs/AI_WORKFLOW.md` refers to a logical role, each AI tool must use its o
 
 Codex uses the following internal mode of operation. Before adopting or delegating a role, load the canonical contract listed for that role.
 
+Project preference: use the repo-native multi-agent protocol when useful for approved PLAN work. For Codex, this means spawning subagents for eligible steps only when the current session and client policy permit it; otherwise, adopt the target role locally and preserve the same worker output contract.
+
 | Logical Role | Canonical Contract | Codex Internal Mode |
 |---|---|---|
 | **Orchestrator** | `docs/agents/orchestrator.md` | Group sequencing, delegation decisions, integration, review routing, and closeout. Uses subagents only when client policy permits. |

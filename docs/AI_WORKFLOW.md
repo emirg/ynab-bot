@@ -87,6 +87,8 @@ Execute the plan **group by group** in order:
 
 The active assistant is the **Orchestrator**. Before delegating or adopting any role, read `docs/agents/orchestrator.md` and the canonical contract for the target role.
 
+- Project preference is to use the repo-native multi-agent protocol whenever it is useful for approved PLAN work.
+- The user phrase "Use the repo-native multi-agent protocol when useful" is a session-level repository opt-in to use this delegation protocol when appropriate. It does not override client-level subagent availability, approval prompts, sandbox rules, or platform policy.
 - Delegation is allowed only when the active AI client supports subagents, the session policy permits spawning them, and the PLAN step includes role, write scope, read scope, dependencies, verification, and escalation metadata.
 - If the client cannot delegate, the Orchestrator must adopt the logical role locally using the same canonical contract.
 - Parallel delegation is limited to steps in the same PLAN group with disjoint write scopes and no unresolved dependency between them.
