@@ -105,20 +105,20 @@ path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
 snippet = "local recent metadata can drift"
 
 [[fixture]]
-id = "undo_reconciliation_blocks_stale_recent_reference"
-label = "Undo reconciliation blocks stale local recent references"
+id = "undo_reconciliation_trusts_live_identity"
+label = "Undo reconciliation trusts existing live YNAB transaction identity"
 risk_area = "recent undo reconciliation"
-protected_rule = "/deshacer must block stale local recent references before destructive deletion."
+protected_rule = "/deshacer must trust an existing live YNAB transaction id despite local recent drift."
 owner_path = "src/application/services/expense_service.py"
-assertion = "undo_reconciliation_blocks_stale_recent_reference"
+assertion = "undo_reconciliation_trusts_live_identity"
 
 [[fixture.pytest_evidence]]
 path = "tests/application/services/test_expense_service.py"
-snippet = "def test_success_removes_from_recent_transactions"
+snippet = "def test_live_cache_drift_does_not_block_undo_when_transaction_exists"
 
 [[fixture.doc_evidence]]
-path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
-snippet = "ADR: Recent Edit Live YNAB Reconciliation"
+path = "docs/specs/archive/2026-05-06-fix-recent-undo-live-identity-reconciliation.md"
+snippet = "`/deshacer` should attempt deletion even if cached payee"
 
 [[fixture]]
 id = "shared_expense_construction_preserves_zero_sum"
@@ -292,6 +292,13 @@ def make_minimal_repo(root: Path) -> None:
         "- **Related Plan:** `docs/plans/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`\n",
     )
     write(
+        root / "docs/specs/archive/2026-05-06-fix-recent-undo-live-identity-reconciliation.md",
+        "# Spec: Fix Recent Undo Live Identity Reconciliation\n\n"
+        "`/deshacer` should attempt deletion even if cached payee, amount, category, or split metadata differs.\n"
+        "## Metadata\n"
+        "- **Status:** Approved\n",
+    )
+    write(
         root / "docs/specs/archive/2026-04-12-ynab-source-of-truth-hardening.md",
         "# Spec: YNAB Source Of Truth\n\n"
         "## Metadata\n"
@@ -426,6 +433,14 @@ def make_minimal_repo(root: Path) -> None:
         "        if live is None:\n"
         "            return None, 'ynab_transaction_missing'\n"
         "        return live, None\n\n"
+        "    def _get_live_transaction_state_by_id(self, ynab_repository, budget_id, cached_transaction, *, operation):\n"
+        "        transaction_id = cached_transaction.get('ynab_transaction_id')\n"
+        "        if not transaction_id:\n"
+        "            return None, 'no_ynab_transaction_id'\n"
+        "        live = ynab_repository.get_transaction_by_id(budget_id, transaction_id)\n"
+        "        if live is None:\n"
+        "            return None, 'ynab_transaction_missing'\n"
+        "        return live, None\n\n"
         "    def _get_live_transaction_state(self, ynab_repository, budget_id, cached_transaction):\n"
         "        transaction_id = cached_transaction.get('ynab_transaction_id')\n"
         "        if not transaction_id:\n"
@@ -490,7 +505,7 @@ def make_minimal_repo(root: Path) -> None:
         "    assert True\n\n"
         "def test_success_removes_from_recent_transactions():\n"
         "    assert True\n\n"
-        "def test_stale_live_ynab_transaction_blocks_undo():\n"
+        "def test_live_cache_drift_does_not_block_undo_when_transaction_exists():\n"
         "    assert True\n",
     )
     write(
@@ -1307,8 +1322,8 @@ def test_behavioral_invariants_report_pass_findings(tmp_path: Path) -> None:
         "[recent edit reconciliation: /editar must trust an existing live YNAB transaction id despite local recent drift.]"
     ) in messages
     assert (
-        "Behavioral invariant holds: Undo reconciliation blocks stale local recent references "
-        "[recent undo reconciliation: /deshacer must block stale local recent references before destructive deletion.]"
+        "Behavioral invariant holds: Undo reconciliation trusts existing live YNAB transaction identity "
+        "[recent undo reconciliation: /deshacer must trust an existing live YNAB transaction id despite local recent drift.]"
     ) in messages
 
 

@@ -48,7 +48,7 @@ The financial invariant harness currently verifies that documentation, source fi
 - Net spending must reduce month totals for categorized inflows while excluding `Inflow: Ready to Assign`.
 - Budget health fixtures must preserve YNAB category `balance` and filter hidden, deleted, and inactive categories.
 - `/editar` must use the live YNAB transaction identity when the transaction still exists, even if local recent fields drift.
-- `/deshacer` must remain strict and block stale local recent references before deletion.
+- `/deshacer` must use the live YNAB transaction identity when the transaction still exists, while still blocking missing live transactions before deletion.
 - Harness code must use only the Python standard library.
 
 ## Edge Cases and Failure Handling

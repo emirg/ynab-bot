@@ -257,7 +257,7 @@ def _assertion_registry() -> dict[str, Callable[[Path], None]]:
         "net_spending_offsets_categorized_inflows": _assert_net_spending_offsets_categorized_inflows,
         "budget_snapshots_preserve_balance": _assert_budget_snapshots_preserve_balance,
         "edit_reconciliation_trusts_live_identity": _assert_edit_reconciliation_trusts_live_identity,
-        "undo_reconciliation_blocks_stale_recent_reference": _assert_undo_reconciliation_blocks_stale_recent_reference,
+        "undo_reconciliation_trusts_live_identity": _assert_undo_reconciliation_trusts_live_identity,
         "shared_expense_construction_preserves_zero_sum": _assert_shared_expense_construction_preserves_zero_sum,
         "splitwise_responsibility_matrix_controls_ynab_shape": _assert_splitwise_responsibility_matrix_controls_ynab_shape,
         "account_balance_reads_from_account_fields": _assert_account_balance_reads_from_account_fields,
@@ -444,13 +444,13 @@ def _assert_edit_reconciliation_trusts_live_identity(root: Path) -> None:
     assert result == live_transaction, f"expected live transaction, got {result!r}"
 
 
-def _assert_undo_reconciliation_blocks_stale_recent_reference(root: Path) -> None:
+def _assert_undo_reconciliation_trusts_live_identity(root: Path) -> None:
     service = _new_expense_service(root)
     live_transaction = {
         "id": "txn-undo-1",
         "amount": -30_000_000,
-        "payee_name": "Cached Payee",
-        "category_id": "cat-cached",
+        "payee_name": "Live Payee",
+        "category_id": "cat-live",
     }
     cached_transaction = {
         "ynab_transaction_id": "txn-undo-1",
@@ -459,14 +459,25 @@ def _assert_undo_reconciliation_blocks_stale_recent_reference(root: Path) -> Non
         "category_id": "cat-cached",
     }
 
-    result, error = service._get_live_transaction_state(
+    result, error = service._get_live_transaction_state_by_id(
         FakeYNABRepository({"txn-undo-1": live_transaction}),
         "budget-1",
         cached_transaction,
+        operation="undo_last_transaction",
     )
 
-    assert result is None, f"expected stale undo reference to return no transaction, got {result!r}"
-    assert error == "ynab_transaction_stale", f"expected stale error, got {error!r}"
+    assert error is None, f"expected undo reconciliation to pass, got {error!r}"
+    assert result == live_transaction, f"expected live transaction, got {result!r}"
+
+    missing_result, missing_error = service._get_live_transaction_state_by_id(
+        FakeYNABRepository({}),
+        "budget-1",
+        cached_transaction,
+        operation="undo_last_transaction",
+    )
+
+    assert missing_result is None, f"expected missing undo reference to return no transaction, got {missing_result!r}"
+    assert missing_error == "ynab_transaction_missing", f"expected missing error, got {missing_error!r}"
 
 
 def _assert_shared_expense_construction_preserves_zero_sum(root: Path) -> None:

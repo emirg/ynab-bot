@@ -601,24 +601,28 @@ class TestUndoLastTransaction:
         assert result == {'error': 'ynab_transaction_missing'}
         mock_ynab_repository.delete_transaction.assert_not_called()
 
-    def test_stale_live_ynab_transaction_blocks_undo(
+    def test_live_cache_drift_does_not_block_undo_when_transaction_exists(
         self, service, mock_user_repository, mock_learning_repository,
         mock_ynab_repository, authorized_user,
     ):
         mock_user_repository.find_by_telegram_id.return_value = authorized_user
+        mock_ynab_repository.delete_transaction.return_value = True
         mock_ynab_repository.get_transaction_by_id.side_effect = None
         mock_ynab_repository.get_transaction_by_id.return_value = {
             'id': 'txn-undo-1',
             'amount': -30_000_000,
-            'payee_name': 'McDonalds',
-            'category_id': 'cat-2',
+            'payee_name': "McDonald's Canonical",
+            'category_id': 'cat-live',
         }
         mock_learning_repository.get_recent_transactions.return_value = [self._recent_txn()]
 
         result = service.undo_last_transaction(TELEGRAM_ID)
 
-        assert result == {'error': 'ynab_transaction_stale'}
-        mock_ynab_repository.delete_transaction.assert_not_called()
+        assert result is not None
+        assert 'error' not in result
+        mock_ynab_repository.delete_transaction.assert_called_once_with(
+            authorized_user.budget_id, 'txn-undo-1'
+        )
 
     def test_no_recent_transactions_returns_error(
         self, service, mock_user_repository, mock_learning_repository, authorized_user,

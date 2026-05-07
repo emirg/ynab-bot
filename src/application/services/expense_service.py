@@ -1336,9 +1336,24 @@ class ExpenseService:
 
         `/editar` targets a concrete YNAB transaction id. If that id still exists,
         YNAB is authoritative and benign drift in local recent fields should be
-        reconciled instead of blocking the requested update. Deletion remains
-        stricter and keeps using `_get_live_transaction_state`.
+        reconciled instead of blocking the requested update.
         """
+        return self._get_live_transaction_state_by_id(
+            ynab_repository,
+            budget_id,
+            cached_transaction,
+            operation="edit_last_transaction",
+        )
+
+    def _get_live_transaction_state_by_id(
+        self,
+        ynab_repository,
+        budget_id: str,
+        cached_transaction: dict,
+        *,
+        operation: str,
+    ) -> tuple[dict | None, str | None]:
+        """Return live YNAB transaction by cached id, allowing local metadata drift."""
         transaction_id = cached_transaction.get('ynab_transaction_id')
         if not transaction_id:
             return None, "no_ynab_transaction_id"
@@ -1352,7 +1367,7 @@ class ExpenseService:
                 "Recent transaction cache drifted from live YNAB state; using live transaction for edit",
                 extra={
                     "ynab_transaction_id": transaction_id,
-                    "operation": "edit_last_transaction",
+                    "operation": operation,
                 },
             )
 
@@ -1448,10 +1463,11 @@ class ExpenseService:
 
             # Delete from YNAB
             ynab_repository = self.ynab_factory.get_repository(user_config)
-            _live_transaction, reconciliation_error = self._get_live_transaction_state(
+            _live_transaction, reconciliation_error = self._get_live_transaction_state_by_id(
                 ynab_repository,
                 user_config.budget_id,
                 transaction,
+                operation="undo_last_transaction",
             )
             if reconciliation_error:
                 return {"error": reconciliation_error}

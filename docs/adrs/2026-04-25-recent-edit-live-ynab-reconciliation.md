@@ -6,7 +6,7 @@
 - **Related Spec:** `docs/specs/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`
 - **Related Plan:** `docs/plans/archive/2026-04-25-fix-recent-transaction-edit-reconciliation.md`
 - **Supersedes:** None
-- **Superseded By:** None
+- **Superseded By:** Undo-specific strict stale-check consequence superseded by `docs/adrs/2026-05-06-recent-undo-live-ynab-reconciliation.md`
 
 ## Context
 
@@ -27,7 +27,7 @@ The implementation:
 - no longer blocks `/editar` because cached payee, amount, or category differ from live YNAB
 - logs cache drift for diagnosis
 - refreshes the local recent cache from live YNAB after a successful edit where relevant
-- keeps `/deshacer` on the stricter stale-check path because deleting an entire transaction has higher risk than editing requested fields
+- originally kept `/deshacer` on the stricter stale-check path because deleting an entire transaction has higher risk than editing requested fields; this undo-specific consequence is superseded by `docs/adrs/2026-05-06-recent-undo-live-ynab-reconciliation.md`
 
 ## Alternatives Considered
 
@@ -39,7 +39,7 @@ The implementation:
 
 - **Positive:** Legitimate `/editar` requests work even after harmless or user-driven YNAB changes.
 - **Positive:** The flow better follows the YNAB source-of-truth rule.
-- **Positive:** `/deshacer` remains conservative for destructive deletion.
+- **Superseded:** `/deshacer` no longer blocks benign local metadata drift when YNAB still returns the referenced live transaction ID.
 - **Negative:** A user can edit a live YNAB transaction whose cached display metadata no longer matches what `/recent` showed. The target is still the same transaction ID, but the UI may feel stale until `/recent` is refreshed.
 - **Follow-up:** Consider a later `/recent` improvement that refreshes displayed rows from live YNAB before showing edit indices.
 

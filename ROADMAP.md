@@ -182,7 +182,7 @@ Se corrigió una regresión de `/editar` donde referencias recientes legítimas 
 - `/editar` usa el `ynab_transaction_id` vivo en YNAB como identidad autoritativa
 - Si la transacción existe, payee/monto/categoría cacheados ya no bloquean la edición
 - El cache reciente se refresca desde YNAB después de una edición exitosa
-- `/deshacer` mantiene validación estricta porque elimina la transacción completa
+- `/deshacer` también usa el `ynab_transaction_id` vivo como identidad autoritativa para evitar falsos stale por canonicalización de YNAB
 
 ### E.11 — Executable Harness Gates [COMPLETADO]
 
@@ -299,7 +299,7 @@ Se amplió el harness financiero desde evidencia estática hacia fixtures ejecut
 
 - Fixtures determinísticos para agregación split-aware y transacciones shared zero-sum
 - Validación ejecutable de gasto neto tipo Reflect y snapshots de categorías con `balance` de YNAB
-- Validación ejecutable de reconciliación: `/editar` confía en identidad viva de YNAB y `/deshacer` bloquea referencias stale
+- Validación ejecutable de reconciliación: `/editar` y `/deshacer` confían en identidad viva de YNAB y bloquean transacciones live faltantes
 - Comando local `.venv/bin/python scripts/harness/check_behavioral_invariants.py` para diagnóstico directo
 - `verify.py --ci` bloquea si las invariantes conductuales fallan antes de correr `pytest`
 

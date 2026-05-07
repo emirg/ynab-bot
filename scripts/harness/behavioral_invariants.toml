@@ -79,20 +79,20 @@ path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
 snippet = "treats the live YNAB transaction as authoritative"
 
 [[fixture]]
-id = "undo_reconciliation_blocks_stale_recent_reference"
-label = "Undo reconciliation blocks stale local recent references"
+id = "undo_reconciliation_trusts_live_identity"
+label = "Undo reconciliation trusts existing live YNAB transaction identity"
 risk_area = "recent undo reconciliation"
-protected_rule = "/deshacer must block stale local recent references before destructive deletion."
+protected_rule = "/deshacer must trust an existing live YNAB transaction id despite local recent drift."
 owner_path = "src/application/services/expense_service.py"
-assertion = "undo_reconciliation_blocks_stale_recent_reference"
+assertion = "undo_reconciliation_trusts_live_identity"
 
 [[fixture.pytest_evidence]]
 path = "tests/application/services/test_expense_service.py"
-snippet = "def test_stale_live_ynab_transaction_blocks_undo"
+snippet = "def test_live_cache_drift_does_not_block_undo_when_transaction_exists"
 
 [[fixture.doc_evidence]]
-path = "docs/adrs/2026-04-25-recent-edit-live-ynab-reconciliation.md"
-snippet = "stale-reference error"
+path = "docs/specs/archive/2026-05-06-fix-recent-undo-live-identity-reconciliation.md"
+snippet = "`/deshacer` should attempt deletion even if cached payee"
 
 [[fixture]]
 id = "shared_expense_construction_preserves_zero_sum"
