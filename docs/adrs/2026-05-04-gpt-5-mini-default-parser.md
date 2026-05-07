@@ -1,7 +1,12 @@
 # ADR: Use gpt-5-mini as Default Expense Parser
 
-## Status
-Proposed
+## Metadata
+- **Status:** Accepted
+- **Date:** 2026-05-04
+- **Related Spec:** `docs/specs/archive/2026-05-04-update-parser-model-gpt-5-mini.md`
+- **Related Plan:** `docs/plans/archive/2026-05-04-update-parser-model-gpt-5-mini.md`
+- **Supersedes:** None
+- **Superseded By:** None
 
 ## Context
 A multi-model evaluation was performed on 2026-05-04 comparing `gpt-4o-mini`, `gpt-5-nano`, and `gpt-5-mini` against a consolidated "golden" dataset of 31 scenarios.

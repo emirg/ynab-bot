@@ -83,6 +83,16 @@ Execute the plan **group by group** in order:
    - Once fixed, re-run the step's tests to verify, then continue the pipeline.
    - If an architectural issue is found, **halt the pipeline** and surface it to the user.
 
+### Delegation Rules
+
+The active assistant is the **Orchestrator**. Before delegating or adopting any role, read `docs/agents/orchestrator.md` and the canonical contract for the target role.
+
+- Delegation is allowed only when the active AI client supports subagents, the session policy permits spawning them, and the PLAN step includes role, write scope, read scope, dependencies, verification, and escalation metadata.
+- If the client cannot delegate, the Orchestrator must adopt the logical role locally using the same canonical contract.
+- Parallel delegation is limited to steps in the same PLAN group with disjoint write scopes and no unresolved dependency between them.
+- Database-sensitive work stays sequential until Database Advisor review is complete.
+- The Orchestrator remains responsible for reviewing worker outputs, integrating results, routing failures, final review, archive closeout, and `docs/wip_state.md`.
+
 ### 3. Review
 
 When all groups are complete:
@@ -133,6 +143,7 @@ Each AI assistant maps these logical roles to their own specific capabilities (s
 | Logical Role | Responsibility |
 |---|---|
 | **Lead Architect** | Milestone planning, architectural reviews, high-level design. |
+| **Orchestrator** | Group sequencing, delegation decisions, worker integration, review routing, and closeout. |
 | **Database Advisor** | Schema design, migration review, complex SQL optimization. |
 | **Step Implementer** | Coding individual plan steps, following architectural patterns. |
 | **Code Reviewer** | Reviewing implementation against invariants and best practices. |

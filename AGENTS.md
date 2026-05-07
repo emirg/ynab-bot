@@ -15,6 +15,7 @@ Codex uses the following internal mode of operation. Before adopting or delegati
 
 | Logical Role | Canonical Contract | Codex Internal Mode |
 |---|---|---|
+| **Orchestrator** | `docs/agents/orchestrator.md` | Group sequencing, delegation decisions, integration, review routing, and closeout. Uses subagents only when client policy permits. |
 | **Lead Architect** | `docs/agents/lead-architect.md` | Analysis of `ROADMAP.md` & `_TEMPLATE.md` based planning. |
 | **Database Advisor** | `docs/agents/database-advisor.md` | Schema & migration safety specialist. |
 | **Step Implementer** | `docs/agents/step-implementer.md` | Clean code & milliunit invariant enforcement. |
@@ -43,7 +44,7 @@ Reusable cross-agent skills live in `.agents/skills/`.
 Keep this file concise: do not paste autoskills-generated inventories here. Refer agents to the skill directory and load only the specific `SKILL.md` files needed for the task.
 
 ## Shared Agent Contracts
-Canonical cross-client agent contracts live in `docs/agents/`. Tool-specific agent files and wrappers must reference these contracts instead of becoming independent sources of role behavior.
+Canonical cross-client agent contracts live in `docs/agents/`, including the Orchestrator delegation contract. Tool-specific agent files and wrappers must reference these contracts instead of becoming independent sources of role behavior.
 
 ## Handoff Protocol
 When the user triggers a handoff, overwrite `docs/wip_state.md` following the strict structure defined in `docs/AI_WORKFLOW.md`. State clearly that the last worker was **Codex**.

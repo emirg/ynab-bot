@@ -7,6 +7,7 @@ When `docs/AI_WORKFLOW.md` refers to a logical role, use the corresponding agent
 
 | Logical Role | Canonical Contract | Claude Agent |
 |---|---|---|
+| **Orchestrator** | `docs/agents/orchestrator.md` | Active Claude Code session; dispatches `.claude/agents/` only when the PLAN and session policy allow it |
 | **Lead Architect** | `docs/agents/lead-architect.md` | `ynab-lead-architect` |
 | **Database Advisor** | `docs/agents/database-advisor.md` | `dba-advisor` |
 | **Step Implementer** | `docs/agents/step-implementer.md` | `plan-step-implementer` |

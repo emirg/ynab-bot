@@ -46,6 +46,7 @@ TERMINAL_STATUSES = {"completed", "implemented"}
 VALID_SPEC_STATUSES = {"draft", "approved", "superseded", "completed", "implemented"}
 VALID_PLAN_STATUSES = {"draft", "in progress", "completed", "implemented", "superseded"}
 LOGICAL_ROLES = (
+    "Orchestrator",
     "Lead Architect",
     "Database Advisor",
     "Step Implementer",
@@ -55,6 +56,7 @@ LOGICAL_ROLES = (
     "Refactor Advisor",
 )
 LOGICAL_ROLE_CONTRACTS = {
+    "Orchestrator": "docs/agents/orchestrator.md",
     "Lead Architect": "docs/agents/lead-architect.md",
     "Database Advisor": "docs/agents/database-advisor.md",
     "Step Implementer": "docs/agents/step-implementer.md",
@@ -101,9 +103,21 @@ ROADMAP_IGNORE_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 UNCHECKED_TASK_RE = re.compile(r"^\s*-\s+\[\s\]\s+", re.MULTILINE)
+PLAN_GROUP_RE = re.compile(r"^###\s+(Group\s+\d+(?:[^\n]*)?)\s*$")
+PLAN_STEP_RE = re.compile(r"^####\s+\[[ xX]\]\s+(Step\s+\d+:\s+.+?)\s*$")
+PLAN_STEP_FIELD_RE = re.compile(r"^\s*-\s+\*\*([^*]+):\*\*\s*(.*?)\s*$")
 COMMAND_REGISTRY_DOC = "docs/harness/COMMANDS.md"
 WORKFLOW_COMMAND_DOCS = ("docs/AI_WORKFLOW.md",)
 WIP_STATE_FIELD_RE = re.compile(r"^([^:\n]+):", re.MULTILINE)
+PLAN_STEP_REQUIRED_FIELDS = (
+    "Role",
+    "Write Scope",
+    "Read Scope",
+    "Depends On",
+    "Auto-Delegable",
+    "Escalation Target",
+    "Verification",
+)
 
 
 @dataclass(frozen=True)
@@ -113,6 +127,13 @@ class Finding:
     path: str | None = None
     family: str | None = None
     hint: str | None = None
+
+
+@dataclass(frozen=True)
+class PlanStep:
+    group: str
+    title: str
+    fields: dict[str, str]
 
 
 @dataclass(frozen=True)
@@ -315,6 +336,7 @@ def run_checks(root: Path | str) -> list[Finding]:
     findings.extend(check_wip_state(repo_root))
     findings.extend(check_active_specs(repo_root))
     findings.extend(check_active_plans(repo_root))
+    findings.extend(check_active_plan_delegation_metadata(repo_root))
     findings.extend(check_adr_references(repo_root))
     findings.extend(check_agent_entrypoints(repo_root))
     findings.extend(check_agent_contracts(repo_root))
@@ -423,6 +445,79 @@ def check_active_plans(root: Path) -> list[Finding]:
             )
         else:
             findings.append(Finding(PASS, f"Active PLAN Source Spec exists: {relative}", relative, family))
+    return findings
+
+
+def check_active_plan_delegation_metadata(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    plans_dir = root / "docs/plans"
+    family = "Delegation Safety"
+    for path in sorted(plans_dir.glob("*.md")) if plans_dir.is_dir() else []:
+        if path.name == "_TEMPLATE.md":
+            continue
+        relative = relative_path(path, root)
+        steps = parse_plan_steps(read_text(path))
+        if not steps:
+            findings.append(Finding(PASS, f"Active PLAN has no step metadata to validate: {relative}", relative, family))
+            continue
+
+        plan_failures: list[Finding] = []
+        for step in steps:
+            for field in PLAN_STEP_REQUIRED_FIELDS:
+                if not step.fields.get(field, "").strip():
+                    plan_failures.append(
+                        Finding(
+                            FAIL,
+                            f"PLAN step is missing delegation metadata: {relative} -> {step.title} -> {field}",
+                            relative,
+                            family,
+                            f"Add '- **{field}:** ...' to {step.title}.",
+                        )
+                    )
+
+            auto_delegable = step.fields.get("Auto-Delegable", "").strip().lower()
+            if auto_delegable and auto_delegable not in {"yes", "no"}:
+                plan_failures.append(
+                    Finding(
+                        FAIL,
+                        f"PLAN step Auto-Delegable must be yes or no: {relative} -> {step.title}",
+                        relative,
+                        family,
+                        "Use '- **Auto-Delegable:** yes' or '- **Auto-Delegable:** no'.",
+                    )
+                )
+
+        plan_failures.extend(check_parallel_write_scope_overlap(relative, steps))
+
+        if plan_failures:
+            findings.extend(plan_failures)
+        else:
+            findings.append(Finding(PASS, f"Active PLAN delegation metadata is valid: {relative}", relative, family))
+    return findings
+
+
+def check_parallel_write_scope_overlap(relative: str, steps: list[PlanStep]) -> list[Finding]:
+    family = "Delegation Safety"
+    findings: list[Finding] = []
+    scopes_by_group: dict[str, dict[str, list[str]]] = {}
+
+    for step in steps:
+        for scope in normalize_write_scopes(step.fields.get("Write Scope", "")):
+            scopes_by_group.setdefault(step.group, {}).setdefault(scope, []).append(step.title)
+
+    for group, scopes in scopes_by_group.items():
+        for scope, step_titles in scopes.items():
+            if len(step_titles) <= 1:
+                continue
+            findings.append(
+                Finding(
+                    FAIL,
+                    f"Parallel PLAN steps share Write Scope: {relative} -> {group} -> {scope}",
+                    relative,
+                    family,
+                    "Move overlapping write scopes to separate dependency groups.",
+                )
+            )
     return findings
 
 
@@ -1033,6 +1128,55 @@ def parse_roadmap_marker(text: str) -> str | None:
 
 def has_roadmap_ignore(text: str) -> bool:
     return bool(ROADMAP_IGNORE_RE.search(text))
+
+
+def parse_plan_steps(text: str) -> list[PlanStep]:
+    steps: list[PlanStep] = []
+    current_group = "Ungrouped"
+    current_title: str | None = None
+    current_fields: dict[str, str] = {}
+
+    def flush_step() -> None:
+        nonlocal current_title, current_fields
+        if current_title is None:
+            return
+        steps.append(PlanStep(current_group, current_title, current_fields))
+        current_title = None
+        current_fields = {}
+
+    for line in text.splitlines():
+        group_match = PLAN_GROUP_RE.match(line)
+        if group_match:
+            flush_step()
+            current_group = group_match.group(1).strip()
+            continue
+
+        step_match = PLAN_STEP_RE.match(line)
+        if step_match:
+            flush_step()
+            current_title = step_match.group(1).strip()
+            current_fields = {}
+            continue
+
+        if current_title is None:
+            continue
+
+        field_match = PLAN_STEP_FIELD_RE.match(line)
+        if field_match:
+            field_name = field_match.group(1).strip()
+            current_fields[field_name] = field_match.group(2).strip()
+
+    flush_step()
+    return steps
+
+
+def normalize_write_scopes(value: str) -> list[str]:
+    cleaned = value.replace("`", "").strip()
+    if not cleaned:
+        return []
+    if cleaned.lower() in {"none", "n/a", "no edits expected"}:
+        return []
+    return [scope.strip() for scope in cleaned.split(",") if scope.strip()]
 
 
 def normalize_status(status: str) -> str:

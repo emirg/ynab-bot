@@ -4,6 +4,7 @@
 - **Status:** Implemented
 - **Owner:** AI Assistant (Orchestrator)
 - **Related Roadmap Item:** Technical Debt / Parsing Accuracy
+- **Harness Roadmap:** Ignore
 
 ## Summary
 The system prompt used in `LLMExpenseParser._generate_message_system_prompt` suffered from regressions when it was rewritten to support Structured Outputs and intent routing (Query vs Expense vs Shared Expense). This spec outlines the restoration of missing context rules (currency format, explicit account detection for expenses, few-shot examples for non-shared intents) and the addition of conflict resolution rules (person vs. category name collision, explicit history tie-breaking) to improve the reliability and accuracy of expense parsing.

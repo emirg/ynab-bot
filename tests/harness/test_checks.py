@@ -154,6 +154,7 @@ snippet = "account balances use account fields"
 """
 
 LOGICAL_ROLE_CONTRACTS = {
+    "Orchestrator": "docs/agents/orchestrator.md",
     "Lead Architect": "docs/agents/lead-architect.md",
     "Database Advisor": "docs/agents/database-advisor.md",
     "Step Implementer": "docs/agents/step-implementer.md",
@@ -255,6 +256,8 @@ def make_minimal_repo(root: Path) -> None:
             f"- **Logical Role:** {role}\n"
             "- **Canonical Contract:** This file is the shared role contract.\n",
         )
+        if role not in CLAUDE_AGENT_BY_ROLE:
+            continue
         write(
             root / ".claude/agents" / f"{CLAUDE_AGENT_BY_ROLE[role]}.md",
             "---\n"
@@ -502,7 +505,22 @@ def make_minimal_repo(root: Path) -> None:
         "# Plan: Feature\n\n"
         "## Objective & Context\n"
         "- **Status:** In Progress\n"
-        "- **Source Spec:** `docs/specs/2026-04-30-feature.md`\n",
+        "- **Source Spec:** `docs/specs/2026-04-30-feature.md`\n"
+        "\n"
+        "## Implementation Steps\n"
+        "\n"
+        "### Group 1\n"
+        "\n"
+        "#### [ ] Step 1: Valid step\n"
+        "- **Role:** Step Implementer\n"
+        "- **Files:** `src/example.py`\n"
+        "- **Write Scope:** `src/example.py`\n"
+        "- **Read Scope:** `docs/specs/2026-04-30-feature.md`\n"
+        "- **Depends On:** None\n"
+        "- **Auto-Delegable:** yes\n"
+        "- **Escalation Target:** Debugger\n"
+        "- **Action:** Implement the example.\n"
+        "- **Verification:** `.venv/bin/pytest tests/example.py -q`\n",
     )
 
 
@@ -615,6 +633,159 @@ def test_active_plan_source_spec_must_exist(tmp_path: Path) -> None:
         "PLAN Source Spec does not exist: docs/plans/2026-04-29-missing-source.md -> "
         "docs/specs/2026-04-29-missing-source.md"
     ) in messages
+
+
+def test_active_plan_steps_require_delegation_metadata(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/plans/2026-04-30-feature.md",
+        "# Plan: Feature\n\n"
+        "## Objective & Context\n"
+        "- **Status:** In Progress\n"
+        "- **Source Spec:** `docs/specs/2026-04-30-feature.md`\n"
+        "\n"
+        "## Implementation Steps\n"
+        "\n"
+        "### Group 1\n"
+        "\n"
+        "#### [ ] Step 1: Missing metadata\n"
+        "- **Files:** `src/example.py`\n"
+        "- **Action:** Implement the example.\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "PLAN step is missing delegation metadata: "
+        "docs/plans/2026-04-30-feature.md -> Step 1: Missing metadata -> Role"
+    ) in messages
+    assert (
+        "PLAN step is missing delegation metadata: "
+        "docs/plans/2026-04-30-feature.md -> Step 1: Missing metadata -> Verification"
+    ) in messages
+
+
+def test_active_plan_auto_delegable_must_be_yes_or_no(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/plans/2026-04-30-feature.md",
+        "# Plan: Feature\n\n"
+        "## Objective & Context\n"
+        "- **Status:** In Progress\n"
+        "- **Source Spec:** `docs/specs/2026-04-30-feature.md`\n"
+        "\n"
+        "## Implementation Steps\n"
+        "\n"
+        "### Group 1\n"
+        "\n"
+        "#### [ ] Step 1: Invalid delegation flag\n"
+        "- **Role:** Step Implementer\n"
+        "- **Files:** `src/example.py`\n"
+        "- **Write Scope:** `src/example.py`\n"
+        "- **Read Scope:** `docs/specs/2026-04-30-feature.md`\n"
+        "- **Depends On:** None\n"
+        "- **Auto-Delegable:** maybe\n"
+        "- **Escalation Target:** Debugger\n"
+        "- **Action:** Implement the example.\n"
+        "- **Verification:** `.venv/bin/pytest tests/example.py -q`\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "PLAN step Auto-Delegable must be yes or no: "
+        "docs/plans/2026-04-30-feature.md -> Step 1: Invalid delegation flag"
+    ) in messages
+
+
+def test_parallel_plan_steps_cannot_share_write_scope(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/plans/2026-04-30-feature.md",
+        "# Plan: Feature\n\n"
+        "## Objective & Context\n"
+        "- **Status:** In Progress\n"
+        "- **Source Spec:** `docs/specs/2026-04-30-feature.md`\n"
+        "\n"
+        "## Implementation Steps\n"
+        "\n"
+        "### Group 1\n"
+        "\n"
+        "#### [ ] Step 1: First writer\n"
+        "- **Role:** Step Implementer\n"
+        "- **Files:** `src/example.py`\n"
+        "- **Write Scope:** `src/example.py`\n"
+        "- **Read Scope:** `docs/specs/2026-04-30-feature.md`\n"
+        "- **Depends On:** None\n"
+        "- **Auto-Delegable:** yes\n"
+        "- **Escalation Target:** Debugger\n"
+        "- **Action:** Implement the first change.\n"
+        "- **Verification:** `.venv/bin/pytest tests/example.py -q`\n"
+        "\n"
+        "#### [ ] Step 2: Second writer\n"
+        "- **Role:** Step Implementer\n"
+        "- **Files:** `src/example.py`\n"
+        "- **Write Scope:** `src/example.py`\n"
+        "- **Read Scope:** `docs/specs/2026-04-30-feature.md`\n"
+        "- **Depends On:** None\n"
+        "- **Auto-Delegable:** yes\n"
+        "- **Escalation Target:** Debugger\n"
+        "- **Action:** Implement the second change.\n"
+        "- **Verification:** `.venv/bin/pytest tests/example.py -q`\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert (
+        "Parallel PLAN steps share Write Scope: "
+        "docs/plans/2026-04-30-feature.md -> Group 1 -> src/example.py"
+    ) in messages
+
+
+def test_sequential_plan_steps_may_share_write_scope(tmp_path: Path) -> None:
+    make_minimal_repo(tmp_path)
+    write(
+        tmp_path / "docs/plans/2026-04-30-feature.md",
+        "# Plan: Feature\n\n"
+        "## Objective & Context\n"
+        "- **Status:** In Progress\n"
+        "- **Source Spec:** `docs/specs/2026-04-30-feature.md`\n"
+        "\n"
+        "## Implementation Steps\n"
+        "\n"
+        "### Group 1\n"
+        "\n"
+        "#### [ ] Step 1: First writer\n"
+        "- **Role:** Step Implementer\n"
+        "- **Files:** `src/example.py`\n"
+        "- **Write Scope:** `src/example.py`\n"
+        "- **Read Scope:** `docs/specs/2026-04-30-feature.md`\n"
+        "- **Depends On:** None\n"
+        "- **Auto-Delegable:** no\n"
+        "- **Escalation Target:** Debugger\n"
+        "- **Action:** Implement the first change.\n"
+        "- **Verification:** `.venv/bin/pytest tests/example.py -q`\n"
+        "\n"
+        "### Group 2 (depends on: Group 1)\n"
+        "\n"
+        "#### [ ] Step 2: Second writer\n"
+        "- **Role:** Step Implementer\n"
+        "- **Files:** `src/example.py`\n"
+        "- **Write Scope:** `src/example.py`\n"
+        "- **Read Scope:** `docs/specs/2026-04-30-feature.md`\n"
+        "- **Depends On:** Group 1\n"
+        "- **Auto-Delegable:** no\n"
+        "- **Escalation Target:** Debugger\n"
+        "- **Action:** Implement the second change.\n"
+        "- **Verification:** `.venv/bin/pytest tests/example.py -q`\n",
+    )
+
+    messages = {finding.message for finding in failures(tmp_path)}
+
+    assert not any(
+        message.startswith("Parallel PLAN steps share Write Scope")
+        for message in messages
+    )
 
 
 def test_adr_spec_and_plan_references_must_exist(tmp_path: Path) -> None:

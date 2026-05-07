@@ -7,6 +7,7 @@ When `docs/AI_WORKFLOW.md` refers to a logical role, read the canonical contract
 
 | Logical Role | Canonical Contract | Gemini Capability |
 |---|---|---|
+| **Orchestrator** | `docs/agents/orchestrator.md` | Active Gemini CLI session; adopt roles locally unless native delegation is available and allowed |
 | **Lead Architect** | `docs/agents/lead-architect.md` | Activate `writing-plans` skill |
 | **Database Advisor** | `docs/agents/database-advisor.md` | Use `codebase_investigator` for schema review |
 | **Step Implementer** | `docs/agents/step-implementer.md` | Direct tool use (`replace`, `write_file`) |

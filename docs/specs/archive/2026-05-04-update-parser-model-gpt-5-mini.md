@@ -1,10 +1,11 @@
 # Spec: Update Parser Model to gpt-5-mini
 
 ## Metadata
-- **Status:** Approved
+- **Status:** Implemented
 - **Owner:** Gemini CLI
 - **Related Roadmap Item:** "Modernize Parser Models"
-- **Related ADRs:** docs/adrs/2026-05-04-gpt-5-mini-default-parser.md
+- **Related ADRs:** `docs/adrs/2026-05-04-gpt-5-mini-default-parser.md`
+- **Harness Roadmap:** Ignore
 
 ## Summary
 Update the default LLM model used for expense parsing from `gpt-4o-mini` to `gpt-5-mini`. This change is driven by evaluation results showing superior accuracy in complex shared expense scenarios and better overall consistency.
@@ -33,6 +34,6 @@ Update the default LLM model used for expense parsing from `gpt-4o-mini` to `gpt
 - Must follow the OpenAI model compatibility layer recently implemented.
 
 ## Acceptance Criteria
-- [ ] Default model is `gpt-5-mini`.
-- [ ] CI tests pass with the new default.
-- [ ] Manual evaluation shows higher accuracy on the golden suite.
+- [x] Default model is `gpt-5-mini`.
+- [x] CI tests pass with the new default.
+- [x] Manual evaluation shows higher accuracy on the golden suite.

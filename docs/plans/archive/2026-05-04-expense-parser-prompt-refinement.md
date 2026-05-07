@@ -3,6 +3,7 @@
 ## Objective & Context
 - **Status:** Completed
 - **Source Spec:** `docs/specs/2026-05-04-expense-parser-prompt-refinement.md`
+- **Harness Roadmap:** Ignore
 - **Goal:** Update the prompt generation logic in `src/parsers/llm_expense_parser.py` to restore missing context and add safeguards.
 - **Approach:** Modify `_generate_message_system_prompt` to inject the missing string blocks, add few-shot examples, and refine the `REGLAS CRÍTICAS`.
 

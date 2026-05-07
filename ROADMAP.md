@@ -368,6 +368,16 @@ Se creó una fuente canónica de contratos de agentes reutilizable por Claude, C
 - El harness falla si falta un contrato canónico, un wrapper no lo referencia o un adapter de Claude pierde su referencia
 - Skillshare queda como distribución opcional, no como fuente de verdad del repo
 
+### E.30.1 — Repo-Native Multi-Agent Delegation Protocol [COMPLETADO]
+
+Se formalizó la delegación multi-agente como protocolo propio del repo, no como dependencia de una herramienta externa:
+
+- `docs/agents/orchestrator.md` define cuándo delegar, cuándo adoptar roles localmente y cómo integrar resultados
+- `docs/plans/_TEMPLATE.md` exige metadata por paso: rol, write scope, read scope, dependencias, delegabilidad, escalación y verificación
+- `AGENTS.md`, `CLAUDE.md` y `GEMINI.md` mapean el rol Orchestrator al contrato canónico
+- El harness falla cuando un plan activo omite metadata de delegación o dos pasos paralelos comparten write scope
+- Los clientes sin subagentes siguen ejecutando el mismo contrato mediante adopción local de rol
+
 ### E.31 — Splitwise Responsibility Semantics [COMPLETADO]
 
 Se corrigió la semántica de gastos compartidos para separar quién pagó de quién asume el gasto:
