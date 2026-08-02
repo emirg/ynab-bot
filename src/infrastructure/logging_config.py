@@ -158,6 +158,13 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False)
 
 
+class RedactingFormatter(logging.Formatter):
+    """Formats log records and redacts the final rendered output."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_sensitive_data(super().format(record))
+
+
 def setup_logging(level: str = "INFO", json_format: bool = None) -> None:
     """Configure root logger with a single StreamHandler to stdout.
 
@@ -181,7 +188,7 @@ def setup_logging(level: str = "INFO", json_format: bool = None) -> None:
     if json_format:
         formatter: logging.Formatter = JsonFormatter()
     else:
-        formatter = logging.Formatter(
+        formatter = RedactingFormatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 

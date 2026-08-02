@@ -10,6 +10,7 @@ import pytest
 
 from infrastructure.logging_config import (
     JsonFormatter,
+    RedactingFormatter,
     SensitiveDataFilter,
     log_with_context,
     redact_sensitive_data,
@@ -286,6 +287,29 @@ class TestSensitiveDataRedaction:
         assert "refresh_token=secret" not in output
         assert "refresh_token=%5BREDACTED%5D" in output
         assert "ok=1" in output
+
+    def test_redacting_formatter_redacts_exception_traceback_text(self):
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.addFilter(SensitiveDataFilter())
+        handler.setFormatter(RedactingFormatter("%(levelname)s - %(message)s"))
+        logger = logging.getLogger(f"test.exc_info.{id(stream)}")
+        logger.handlers.clear()
+        logger.addHandler(handler)
+        logger.setLevel(logging.ERROR)
+        logger.propagate = False
+
+        try:
+            raise RuntimeError(
+                "The token `123456789:abcdefghijklmnopqrstuvwxyzABCDE` "
+                "was rejected by the server."
+            )
+        except RuntimeError as exc:
+            logger.error("Error starting the bot: %s", exc, exc_info=True)
+
+        output = stream.getvalue()
+        assert "123456789:abcdefghijklmnopqrstuvwxyzABCDE" not in output
+        assert "The token `[REDACTED]` was rejected by the server." in output
 
 
 # ---------------------------------------------------------------------------

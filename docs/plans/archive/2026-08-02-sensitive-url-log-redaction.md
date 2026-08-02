@@ -27,8 +27,8 @@
 - **Depends On:** None
 - **Auto-Delegable:** no
 - **Escalation Target:** Debugger
-- **Action:** Add reusable redaction helpers/filter, attach the filter to configured handlers, ensure formatters apply redaction, and add tests for JSON/human logs, log args, structured extras, bearer credentials, Telegram bot URL path tokens, bare Telegram bot tokens in exception messages, and `httpx` logger levels.
-- **Verification:** `.venv/bin/pytest tests/infrastructure/test_logging_config.py -q` (`35 passed`)
+- **Action:** Add reusable redaction helpers/filter, attach the filter to configured handlers, ensure formatters apply redaction, and add tests for JSON/human logs, log args, structured extras, bearer credentials, Telegram bot URL path tokens, bare Telegram bot tokens in exception messages, exception traceback text, and `httpx` logger levels.
+- **Verification:** `.venv/bin/pytest tests/infrastructure/test_logging_config.py -q` (`36 passed`)
 
 ### Group 2 (depends on: Group 1)
 
