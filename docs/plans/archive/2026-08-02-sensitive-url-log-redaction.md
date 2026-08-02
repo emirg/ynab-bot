@@ -9,7 +9,9 @@
 
 ## Affected Components
 - `src/infrastructure/logging_config.py` — central redaction helpers, logging filter, formatter integration, third-party logger levels.
+- `main.py` — direct startup error print redaction.
 - `tests/infrastructure/test_logging_config.py` — redaction and `httpx` logger configuration coverage.
+- `tests/infrastructure/test_main.py` — startup error stdout redaction coverage.
 
 ## Prerequisites (Manual)
 - [x] None.
@@ -21,14 +23,14 @@
 
 #### [x] Step 1: Add Central Log Redaction
 - **Role:** Step Implementer
-- **Files:** `src/infrastructure/logging_config.py`, `tests/infrastructure/test_logging_config.py`
-- **Write Scope:** `src/infrastructure/logging_config.py`, `tests/infrastructure/test_logging_config.py`
-- **Read Scope:** `docs/specs/2026-08-02-sensitive-url-log-redaction.md`, `src/infrastructure/logging_config.py`, `tests/infrastructure/test_logging_config.py`
+- **Files:** `src/infrastructure/logging_config.py`, `main.py`, `tests/infrastructure/test_logging_config.py`, `tests/infrastructure/test_main.py`
+- **Write Scope:** `src/infrastructure/logging_config.py`, `main.py`, `tests/infrastructure/test_logging_config.py`, `tests/infrastructure/test_main.py`
+- **Read Scope:** `docs/specs/2026-08-02-sensitive-url-log-redaction.md`, `src/infrastructure/logging_config.py`, `main.py`, `tests/infrastructure/test_logging_config.py`, `tests/infrastructure/test_main.py`
 - **Depends On:** None
 - **Auto-Delegable:** no
 - **Escalation Target:** Debugger
-- **Action:** Add reusable redaction helpers/filter, attach the filter to configured handlers, ensure formatters apply redaction, and add tests for JSON/human logs, log args, structured extras, bearer credentials, Telegram bot URL path tokens, bare Telegram bot tokens in exception messages, exception traceback text, and `httpx` logger levels.
-- **Verification:** `.venv/bin/pytest tests/infrastructure/test_logging_config.py -q` (`36 passed`)
+- **Action:** Add reusable redaction helpers/filter, attach the filter to configured handlers, ensure formatters apply redaction, route direct startup error printing through the same redactor, and add tests for JSON/human logs, log args, structured extras, bearer credentials, Telegram bot URL path tokens, bare Telegram bot tokens in exception messages, exception traceback text, startup stdout, and `httpx` logger levels.
+- **Verification:** `.venv/bin/pytest tests/infrastructure/test_main.py tests/infrastructure/test_logging_config.py -q` (`39 passed`)
 
 ### Group 2 (depends on: Group 1)
 

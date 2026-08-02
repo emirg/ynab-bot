@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import main
 from infrastructure.config.app_config import AppConfig
 
@@ -83,3 +85,24 @@ class TestMain:
         mock_set_oauth_service.assert_called_once_with(None)
         mock_bot_cls.assert_not_called()
         mock_telegram_notifier.assert_not_called()
+
+    @patch.dict("os.environ", {"PORT": "8080"}, clear=False)
+    @patch("main.create_container")
+    @patch("main.start_health_server")
+    def test_startup_error_print_redacts_telegram_token(
+        self,
+        mock_start_health_server,
+        mock_create_container,
+        capsys,
+    ):
+        mock_create_container.side_effect = RuntimeError(
+            "The token `123456789:abcdefghijklmnopqrstuvwxyzABCDE-abc` "
+            "was rejected by the server."
+        )
+
+        with pytest.raises(SystemExit):
+            main.main()
+
+        output = capsys.readouterr().out
+        assert "123456789:abcdefghijklmnopqrstuvwxyzABCDE-abc" not in output
+        assert "Error starting the bot: The token `[REDACTED]` was rejected by the server." in output

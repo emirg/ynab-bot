@@ -12,7 +12,7 @@ from project_bootstrap import ensure_src_path
 ensure_src_path()
 
 # Configure structured logging (JSON on Railway, plain text locally).
-from infrastructure.logging_config import setup_logging
+from infrastructure.logging_config import redact_sensitive_data, setup_logging
 setup_logging()
 
 import logging
@@ -108,7 +108,7 @@ def main():
         print("\nBot stopped by user")
     except Exception as e:
         logger.error("Critical error while starting the bot: %s", e, exc_info=True)
-        print(f"Error starting the bot: {e}")
+        print(redact_sensitive_data(f"Error starting the bot: {e}"))
         sys.exit(1)
 
 
