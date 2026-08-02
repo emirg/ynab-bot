@@ -4,7 +4,7 @@
 - **Status:** Completed
 - **Source Spec:** `docs/specs/2026-08-02-sensitive-url-log-redaction.md`
 - **Harness Roadmap:** Ignore
-- **Goal:** Prevent sensitive URL parameters and credentials from being emitted in application or third-party HTTP client logs.
+- **Goal:** Prevent sensitive URL parameters, credentials, and bare Telegram bot tokens from being emitted in application or third-party HTTP client logs.
 - **Approach:** Add central logging redaction in `infrastructure.logging_config`, lower noisy HTTP client logger levels, and verify with focused tests.
 
 ## Affected Components
@@ -27,8 +27,8 @@
 - **Depends On:** None
 - **Auto-Delegable:** no
 - **Escalation Target:** Debugger
-- **Action:** Add reusable redaction helpers/filter, attach the filter to configured handlers, ensure formatters apply redaction, and add tests for JSON/human logs, log args, structured extras, bearer credentials, Telegram bot URL path tokens, and `httpx` logger levels.
-- **Verification:** `.venv/bin/pytest tests/infrastructure/test_logging_config.py -q` (`33 passed`)
+- **Action:** Add reusable redaction helpers/filter, attach the filter to configured handlers, ensure formatters apply redaction, and add tests for JSON/human logs, log args, structured extras, bearer credentials, Telegram bot URL path tokens, bare Telegram bot tokens in exception messages, and `httpx` logger levels.
+- **Verification:** `.venv/bin/pytest tests/infrastructure/test_logging_config.py -q` (`35 passed`)
 
 ### Group 2 (depends on: Group 1)
 

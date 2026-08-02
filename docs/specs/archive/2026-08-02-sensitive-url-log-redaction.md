@@ -17,6 +17,7 @@ Application logs must not expose bearer tokens, OAuth codes, API keys, or sensit
 ## Goals
 - Redact sensitive URL query parameters from JSON and human-readable logs.
 - Redact bearer/basic credentials and known token-bearing URL path patterns.
+- Redact bare Telegram Bot API token strings when a library includes the token directly in an exception message.
 - Reduce `httpx`/`httpcore` request logging noise so full request URLs are not logged at INFO during normal operation.
 - Cover the behavior with focused logging tests.
 
@@ -32,6 +33,7 @@ Application logs must not expose bearer tokens, OAuth codes, API keys, or sensit
 ## Expected Behavior
 - Logs containing URLs preserve scheme, host, path, and non-sensitive parameters while replacing sensitive parameter values with `[REDACTED]`.
 - Logs containing bearer/basic credentials replace the credential value with `[REDACTED]`.
+- Logs containing bare Telegram bot tokens replace the token value with `[REDACTED]`.
 - `httpx` and `httpcore` loggers default to WARNING after logging setup.
 
 ## Inputs and Outputs
@@ -53,6 +55,7 @@ Application logs must not expose bearer tokens, OAuth codes, API keys, or sensit
 - [x] JSON logs redact `token`, `access_token`, `refresh_token`, `code`, `client_secret`, and `api_key` query values.
 - [x] Human-readable logs redact the same sensitive URL parameters.
 - [x] `Authorization: Bearer ...` and `Authorization: Basic ...` values are redacted in messages.
+- [x] Bare Telegram Bot API tokens in exception messages are redacted.
 - [x] `httpx` and `httpcore` loggers are configured at WARNING by default.
 - [x] Existing logging tests continue to pass.
 

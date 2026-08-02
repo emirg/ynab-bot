@@ -57,6 +57,9 @@ _AUTH_HEADER_RE = re.compile(
 )
 _BEARER_RE = re.compile(r"(?i)\b(bearer|basic)\s+([A-Za-z0-9._~+/=-]{12,})")
 _TELEGRAM_BOT_URL_RE = re.compile(r"(https://api\.telegram\.org/bot)([^/\s]+)")
+_TELEGRAM_BOT_TOKEN_RE = re.compile(
+    r"(?<![\w-])\d{6,}:[A-Za-z0-9_-]{20,}(?![\w-])"
+)
 
 
 def _redact_url_credentials(netloc: str) -> str:
@@ -100,6 +103,7 @@ def redact_sensitive_data(value: str) -> str:
     redacted = _TELEGRAM_BOT_URL_RE.sub(rf"\1{_REDACTED}", redacted)
     redacted = _AUTH_HEADER_RE.sub(rf"\1\2 {_REDACTED}", redacted)
     redacted = _BEARER_RE.sub(rf"\1 {_REDACTED}", redacted)
+    redacted = _TELEGRAM_BOT_TOKEN_RE.sub(_REDACTED, redacted)
     return redacted
 
 

@@ -186,6 +186,26 @@ class TestSensitiveDataRedaction:
         assert "123456:secret-token" not in output
         assert "https://api.telegram.org/bot[REDACTED]/sendMessage" in output
 
+    def test_redacts_bare_telegram_bot_token_in_exception_message(self):
+        output = redact_sensitive_data(
+            "Error starting the bot: The token "
+            "`123456789:abcdefghijklmnopqrstuvwxyzABCDE` "
+            "was rejected by the server"
+        )
+
+        assert "123456789:abcdefghijklmnopqrstuvwxyzABCDE" not in output
+        assert "The token `[REDACTED]` was rejected by the server" in output
+
+    def test_redacts_bare_telegram_bot_token_in_critical_startup_message(self):
+        output = redact_sensitive_data(
+            "Critical error while starting the bot: The token "
+            "`123456789:abcdefghijklmnopqrstuvwxyzABCDE` "
+            "was rejected by the server."
+        )
+
+        assert "123456789:abcdefghijklmnopqrstuvwxyzABCDE" not in output
+        assert "The token `[REDACTED]` was rejected by the server." in output
+
     def test_json_formatter_redacts_message(self):
         logger, stream = _capture_log(use_json=True)
         logger.info("launch https://example.test/path?code=oauth-code&ok=1")
