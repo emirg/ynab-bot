@@ -8,7 +8,13 @@ from unittest.mock import patch
 
 import pytest
 
-from infrastructure.logging_config import JsonFormatter, log_with_context, setup_logging
+from infrastructure.logging_config import (
+    JsonFormatter,
+    SensitiveDataFilter,
+    log_with_context,
+    redact_sensitive_data,
+    setup_logging,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +154,121 @@ class TestJsonFormatterExtraFields:
 
 
 # ---------------------------------------------------------------------------
+# Test 3b: Sensitive values are redacted from log output
+# ---------------------------------------------------------------------------
+
+class TestSensitiveDataRedaction:
+    def test_redacts_sensitive_query_params(self):
+        value = (
+            "https://bot.example.com/advisor/launch?token=abc123&"
+            "period=month&access_token=secret-token"
+        )
+
+        output = redact_sensitive_data(value)
+
+        assert "token=abc123" not in output
+        assert "access_token=secret-token" not in output
+        assert "token=%5BREDACTED%5D" in output
+        assert "access_token=%5BREDACTED%5D" in output
+        assert "period=month" in output
+
+    def test_redacts_bearer_credentials(self):
+        output = redact_sensitive_data("Authorization: Bearer secret-token-value")
+
+        assert "secret-token-value" not in output
+        assert "Authorization: Bearer [REDACTED]" in output
+
+    def test_redacts_telegram_bot_path_token(self):
+        output = redact_sensitive_data(
+            "https://api.telegram.org/bot123456:secret-token/sendMessage"
+        )
+
+        assert "123456:secret-token" not in output
+        assert "https://api.telegram.org/bot[REDACTED]/sendMessage" in output
+
+    def test_json_formatter_redacts_message(self):
+        logger, stream = _capture_log(use_json=True)
+        logger.info("launch https://example.test/path?code=oauth-code&ok=1")
+
+        parsed = json.loads(stream.getvalue().strip())
+
+        assert "oauth-code" not in parsed["message"]
+        assert "code=%5BREDACTED%5D" in parsed["message"]
+        assert "ok=1" in parsed["message"]
+
+    def test_json_formatter_redacts_structured_url_extra(self):
+        logger, stream = _capture_log(use_json=True)
+        logger.info(
+            "retrying",
+            extra={"url": "https://example.test/path?api_key=secret&visible=yes"},
+        )
+
+        parsed = json.loads(stream.getvalue().strip())
+
+        assert parsed["url"] == (
+            "https://example.test/path?api_key=%5BREDACTED%5D&visible=yes"
+        )
+
+    def test_filter_redacts_httpx_style_log_args(self):
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.addFilter(SensitiveDataFilter())
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger = logging.getLogger(f"test.args.{id(stream)}")
+        logger.handlers.clear()
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
+        logger.info(
+            'HTTP Request: %s %s "%s %d %s"',
+            "GET",
+            "https://example.test/callback?state=signed-state&safe=1",
+            "HTTP/1.1",
+            200,
+            "OK",
+        )
+
+        output = stream.getvalue().strip()
+        assert "signed-state" not in output
+        assert "state=%5BREDACTED%5D" in output
+        assert "safe=1" in output
+
+    def test_filter_redacts_httpx_telegram_get_updates_url(self):
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.addFilter(SensitiveDataFilter())
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger = logging.getLogger(f"test.telegram.{id(stream)}")
+        logger.handlers.clear()
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
+        logger.info(
+            'HTTP Request: POST %s "HTTP/1.1 200 OK"',
+            "https://api.telegram.org/bot123456:fake-secret-token/getUpdates",
+        )
+
+        output = stream.getvalue().strip()
+        assert "123456:fake-secret-token" not in output
+        assert "https://api.telegram.org/bot[REDACTED]/getUpdates" in output
+
+    def test_setup_logging_redacts_human_readable_output(self):
+        stream = io.StringIO()
+        setup_logging(level="INFO", json_format=False)
+        root = logging.getLogger()
+        root.handlers[0].stream = stream
+
+        root.info("callback https://example.test/cb?refresh_token=secret&ok=1")
+
+        output = stream.getvalue().strip()
+        assert "refresh_token=secret" not in output
+        assert "refresh_token=%5BREDACTED%5D" in output
+        assert "ok=1" in output
+
+
+# ---------------------------------------------------------------------------
 # Test 4: Auto-detection — RAILWAY_ENVIRONMENT set → JSON format
 # ---------------------------------------------------------------------------
 
@@ -257,3 +378,12 @@ class TestSetupLoggingIdempotent:
         setup_logging(level="WARNING", json_format=False)
         root = logging.getLogger()
         assert root.level == logging.WARNING
+
+    def test_http_client_loggers_default_to_warning(self):
+        logging.getLogger("httpx").setLevel(logging.NOTSET)
+        logging.getLogger("httpcore").setLevel(logging.NOTSET)
+
+        setup_logging(level="INFO", json_format=False)
+
+        assert logging.getLogger("httpx").level == logging.WARNING
+        assert logging.getLogger("httpcore").level == logging.WARNING
